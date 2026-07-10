@@ -32,4 +32,4 @@ pnpm package:dir
 
 ## 下一步
 
-执行 Phase 2 实施计划 Task 3。
+执行 Phase 2 实施计划 Task 4。
