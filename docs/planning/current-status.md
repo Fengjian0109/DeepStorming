@@ -15,6 +15,7 @@
 - Phase 2 Provider 应用层：CRUD、激活、稳定错误映射与 Secret Vault 补偿顺序。
 - Phase 2 SQLite Spike（2026-07-10T13:21:52Z）：`better-sqlite3@12.11.1` 与 `@types/better-sqlite3@7.6.13` 已锁定；Migration 1 创建 `app_settings`、`ai_providers`、`provider_write_requests` 和 `provider_test_operations`，包含 checksum、事务回滚和非空旧库升级前备份。
 - Provider Repository：CRUD、revision CAS、唯一激活、原子引用检查删除、不可变写结果重放、JSON 运行时校验、Secret Ref 对账集合与连接测试状态转换均已持久化。
+- 加密文件 Secret Vault：Electron safeStorage 窄适配器、0600 密文原子写入、严格 UUID 引用校验、幂等删除、启动孤儿与崩溃临时文件对账，以及非抛出清理失败报告器。
 
 ## 当前门禁
 
@@ -25,7 +26,7 @@
 
 ## 已知问题
 
-- Secret Vault 以及剩余的 Provider Gateway、IPC 与 UI 垂直切片尚未实现。
+- Provider Gateway、IPC 与 UI 垂直切片尚未实现。
 - 目录包未签名并使用 Electron 默认图标；这不影响本次 SQLite 原生模块门禁，发布前仍需签名与品牌资源。
 
 ## 常用命令
@@ -38,4 +39,4 @@ pnpm package:dir
 
 ## 下一步
 
-执行 Phase 2 实施计划 Task 7：实现加密文件 Secret Vault。
+执行 Phase 2 实施计划 Task 8：实现 Provider Gateway。
