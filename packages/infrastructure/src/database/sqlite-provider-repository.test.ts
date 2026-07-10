@@ -278,3 +278,65 @@ test('rejects non-integer live revisions safely', async () => {
   db.prepare('UPDATE ai_providers SET revision=?').run(1.5)
   await expect(repo.findById('p1')).rejects.toMatchObject({ code: 'DATABASE_UNAVAILABLE' })
 })
+
+test('serializes competing terminal transitions across two connections', async () => {
+  await repo.create('r1', provider())
+  await repo.transitionTestStatus({
+    operationId: 'op1',
+    providerId: 'p1',
+    nextStatus: 'testing',
+    testedAt: 't1',
+  })
+  const secondDb = openDatabase(join(dir, 'app.db'))
+  const second = new SqliteProviderRepository(secondDb)
+  expect(
+    await repo.transitionTestStatus({
+      operationId: 'op1',
+      providerId: 'p1',
+      expectedStatus: 'testing',
+      nextStatus: 'success',
+      testedAt: 't2',
+    }),
+  ).toMatchObject({ status: 'applied', provider: { lastTestStatus: 'success' } })
+  expect(
+    await second.transitionTestStatus({
+      operationId: 'op1',
+      providerId: 'p1',
+      expectedStatus: 'testing',
+      nextStatus: 'error',
+      testedAt: 't3',
+    }),
+  ).toEqual({ status: 'stale' })
+  expect(
+    await second.transitionTestStatus({
+      operationId: 'op1',
+      providerId: 'p1',
+      expectedStatus: 'testing',
+      nextStatus: 'success',
+      testedAt: 't2',
+    }),
+  ).toMatchObject({ status: 'replayed', provider: { lastTestStatus: 'success' } })
+  secondDb.close()
+})
+
+test('acquires an immediate transaction for test status transitions', async () => {
+  await repo.create('r1', provider())
+  const original = db.transaction.bind(db)
+  let immediate = false
+  db.transaction = ((fn: () => unknown) => {
+    const transaction = original(fn)
+    const wrapped = (() => transaction()) as typeof transaction
+    wrapped.immediate = (() => {
+      immediate = true
+      return transaction.immediate()
+    }) as typeof wrapped.immediate
+    return wrapped
+  }) as typeof db.transaction
+  await repo.transitionTestStatus({
+    operationId: 'op1',
+    providerId: 'p1',
+    nextStatus: 'testing',
+    testedAt: 't1',
+  })
+  expect(immediate).toBe(true)
+})

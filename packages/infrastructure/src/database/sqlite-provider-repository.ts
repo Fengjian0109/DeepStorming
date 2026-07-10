@@ -381,52 +381,54 @@ export class SqliteProviderRepository implements ProviderRepositoryPort {
     testedAt: string
   }): Promise<ProviderTestStatusTransitionResult> {
     return this.safe(() =>
-      this.db.transaction(() => {
-        const op = this.db
-          .prepare('SELECT * FROM provider_test_operations WHERE operation_id=?')
-          .get(t.operationId) as Row | undefined
-        if (!op) {
-          if (t.expectedStatus !== undefined || t.nextStatus !== 'testing')
-            return { status: 'stale' }
-        } else {
-          if (op['provider_id'] !== t.providerId) return { status: 'stale' }
-          if (op['current_status'] === t.nextStatus)
-            return { status: 'replayed', provider: snapshot(op['provider_snapshot_json']) }
-          if (
-            t.expectedStatus !== 'testing' ||
-            op['current_status'] !== 'testing' ||
-            t.nextStatus === 'testing'
-          )
-            return { status: 'stale' }
-        }
-        const p = this.row(t.providerId)
-        if (!p) return { status: 'not_found' }
-        this.db
-          .prepare(
-            'UPDATE ai_providers SET last_test_status=?,last_tested_at=?,revision=revision+1 WHERE id=?',
-          )
-          .run(t.nextStatus, t.testedAt, t.providerId)
-        const updated = this.row(t.providerId)!
-        if (!op) {
-          this.db
-            .prepare('INSERT INTO provider_test_operations VALUES (?,?,?,?,?,?)')
-            .run(
-              t.operationId,
-              t.providerId,
-              t.nextStatus,
-              JSON.stringify(updated),
-              t.testedAt,
-              t.testedAt,
+      this.db
+        .transaction(() => {
+          const op = this.db
+            .prepare('SELECT * FROM provider_test_operations WHERE operation_id=?')
+            .get(t.operationId) as Row | undefined
+          if (!op) {
+            if (t.expectedStatus !== undefined || t.nextStatus !== 'testing')
+              return { status: 'stale' }
+          } else {
+            if (op['provider_id'] !== t.providerId) return { status: 'stale' }
+            if (op['current_status'] === t.nextStatus)
+              return { status: 'replayed', provider: snapshot(op['provider_snapshot_json']) }
+            if (
+              t.expectedStatus !== 'testing' ||
+              op['current_status'] !== 'testing' ||
+              t.nextStatus === 'testing'
             )
-        } else {
+              return { status: 'stale' }
+          }
+          const p = this.row(t.providerId)
+          if (!p) return { status: 'not_found' }
           this.db
             .prepare(
-              'UPDATE provider_test_operations SET current_status=?,provider_snapshot_json=?,updated_at=? WHERE operation_id=?',
+              'UPDATE ai_providers SET last_test_status=?,last_tested_at=?,revision=revision+1 WHERE id=?',
             )
-            .run(t.nextStatus, JSON.stringify(updated), t.testedAt, t.operationId)
-        }
-        return { status: 'applied', provider: updated } as const
-      })(),
+            .run(t.nextStatus, t.testedAt, t.providerId)
+          const updated = this.row(t.providerId)!
+          if (!op) {
+            this.db
+              .prepare('INSERT INTO provider_test_operations VALUES (?,?,?,?,?,?)')
+              .run(
+                t.operationId,
+                t.providerId,
+                t.nextStatus,
+                JSON.stringify(updated),
+                t.testedAt,
+                t.testedAt,
+              )
+          } else {
+            this.db
+              .prepare(
+                'UPDATE provider_test_operations SET current_status=?,provider_snapshot_json=?,updated_at=? WHERE operation_id=?',
+              )
+              .run(t.nextStatus, JSON.stringify(updated), t.testedAt, t.operationId)
+          }
+          return { status: 'applied', provider: updated } as const
+        })
+        .immediate(),
     ) as ProviderTestStatusTransitionResult
   }
 }
