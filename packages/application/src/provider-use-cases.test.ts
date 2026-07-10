@@ -69,6 +69,7 @@ class FakeRepository implements ProviderRepositoryPort {
   public updateFailureOutcome?: ProviderWriteOutcome
   public activateFailureOutcome?: ProviderWriteOutcome
   public removeFailureOutcome?: ProviderWriteOutcome
+  public directRemoveResult?: ProviderRemoveResult
   public failRecoveryLookup = false
   private writeAttempted = false
 
@@ -161,6 +162,7 @@ class FakeRepository implements ProviderRepositoryPort {
       this.outcomes.set(requestId, this.removeFailureOutcome)
       throw new Error('ambiguous foreign outcome')
     }
+    if (this.directRemoveResult !== undefined) return this.directRemoveResult
     if (this.blocking) {
       const outcome = { status: 'blocked', providerId: id } as const
       this.outcomes.set(requestId, { operation: 'delete', outcome })
@@ -175,7 +177,7 @@ class FakeRepository implements ProviderRepositoryPort {
       return outcome
     }
     this.rows.delete(id)
-    const outcome = { status: 'removed', providerId: id, provider } as const
+    const outcome = { status: 'removed', provider } as const
     this.outcomes.set(requestId, { operation: 'delete', outcome })
     if (this.commitRemoveThenThrow) throw new Error('ambiguous commit')
     return { ...outcome, mutation: 'applied' }
@@ -1159,7 +1161,6 @@ describe('DeleteProvider', () => {
       operation: 'delete',
       outcome: {
         status: 'removed',
-        providerId: 'other-provider',
         provider: storedProvider({ id: 'other-provider', secretRef: 'foreign-ref' }),
       },
     })
@@ -1184,9 +1185,7 @@ describe('DeleteProvider', () => {
       repository.removeFailureOutcome = {
         operation: 'delete',
         outcome:
-          status === 'removed'
-            ? { status, providerId: foreign.id, provider: foreign }
-            : { status, providerId: foreign.id },
+          status === 'removed' ? { status, provider: foreign } : { status, providerId: foreign.id },
       }
       const vault = new FakeVault([])
       vault.secrets.set('foreign-ref', 'foreign-key')
@@ -1201,6 +1200,23 @@ describe('DeleteProvider', () => {
       expect(vault.secrets.get('foreign-ref')).toBe('foreign-key')
     },
   )
+
+  it('rejects a direct removed result whose snapshot belongs to another provider', async () => {
+    const foreign = storedProvider({ id: 'other-provider', secretRef: 'foreign-ref' })
+    const repository = new FakeRepository([], [storedProvider()])
+    repository.directRemoveResult = { status: 'removed', provider: foreign, mutation: 'applied' }
+    const vault = new FakeVault([])
+    vault.secrets.set('foreign-ref', 'foreign-key')
+
+    await expectStableError(
+      new DeleteProvider(repository, vault, new FakeCleanupReporter()).execute({
+        requestId: REQUEST_ID,
+        id: ID,
+      }),
+      'PROVIDER_VALIDATION_FAILED',
+    )
+    expect(vault.secrets.get('foreign-ref')).toBe('foreign-key')
+  })
 })
 
 describe('ActivateProvider and ListProviders', () => {

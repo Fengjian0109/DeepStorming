@@ -399,6 +399,14 @@ const mapRemoveOutcome = (outcome: ProviderRemoveLogicalOutcome): void => {
   if (outcome.status === 'not_found') throw notFoundError()
 }
 
+const assertRemoveOutcomeTarget = (
+  outcome: ProviderRemoveLogicalOutcome,
+  expectedId: string,
+): void => {
+  const targetId = outcome.status === 'removed' ? outcome.provider.id : outcome.providerId
+  if (targetId !== expectedId) throw validationError()
+}
+
 export class DeleteProvider {
   public constructor(
     private readonly repository: ProviderRepositoryPort,
@@ -409,7 +417,7 @@ export class DeleteProvider {
   public async execute(input: ProviderIdWriteInput): Promise<void> {
     const replay = await findReplay(this.repository, input.requestId, 'delete')
     if (replay !== undefined) {
-      if (replay.outcome.providerId !== input.id) throw validationError()
+      assertRemoveOutcomeTarget(replay.outcome, input.id)
       mapRemoveOutcome(replay.outcome)
       return
     }
@@ -426,11 +434,11 @@ export class DeleteProvider {
       }
       if (outcome === undefined) throw databaseError()
       if (outcome.operation !== 'delete') throw validationError()
-      if (outcome.outcome.providerId !== input.id) throw validationError()
+      assertRemoveOutcomeTarget(outcome.outcome, input.id)
       result = outcome.outcome
     }
     if (result.status === 'conflict') throw validationError()
-    if (result.providerId !== input.id) throw validationError()
+    assertRemoveOutcomeTarget(result, input.id)
     mapRemoveOutcome(result)
     if (
       result.status !== 'removed' ||

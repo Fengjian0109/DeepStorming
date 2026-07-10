@@ -26,14 +26,13 @@ export type ProviderTestStatusTransitionResult =
   | Readonly<{ status: 'not_found' }>
 
 export type ProviderRemoveLogicalOutcome =
-  | Readonly<{ status: 'removed'; providerId: string; provider: StoredProvider }>
+  | Readonly<{ status: 'removed'; provider: StoredProvider }>
   | Readonly<{ status: 'blocked'; providerId: string }>
   | Readonly<{ status: 'not_found'; providerId: string }>
 
 export type ProviderRemoveResult =
   | Readonly<{
       status: 'removed'
-      providerId: string
       provider: StoredProvider
       mutation: 'applied' | 'replayed'
     }>
