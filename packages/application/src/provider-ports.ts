@@ -17,6 +17,11 @@ export type ProviderActivateResult =
   | Readonly<{ status: 'not_found' }>
   | Readonly<{ status: 'credential_missing' }>
 
+export type ProviderTestStatusTransitionResult =
+  | Readonly<{ status: 'applied' | 'replayed'; provider: StoredProvider }>
+  | Readonly<{ status: 'stale' }>
+  | Readonly<{ status: 'not_found' }>
+
 export type ProviderRemoveLogicalOutcome =
   | Readonly<{ status: 'removed'; provider: StoredProvider }>
   | Readonly<{ status: 'blocked' }>
@@ -67,11 +72,7 @@ export interface ProviderRepositoryPort {
       nextStatus: ProviderTestStatus
       testedAt: string
     }>,
-  ): Promise<
-    | Readonly<{ status: 'applied' | 'replayed'; provider: StoredProvider }>
-    | Readonly<{ status: 'stale' }>
-    | Readonly<{ status: 'not_found' }>
-  >
+  ): Promise<ProviderTestStatusTransitionResult>
   referencedSecretRefs(): Promise<ReadonlySet<string>>
 }
 

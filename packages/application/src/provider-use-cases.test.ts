@@ -63,6 +63,8 @@ class FakeRepository implements ProviderRepositoryPort {
   public beforeActivate?: () => void
   public commitCreateThenThrow = false
   public commitUpdateThenThrow = false
+  public commitRemoveThenThrow = false
+  public commitActivateThenThrow = false
   public failRecoveryLookup = false
   private writeAttempted = false
 
@@ -149,17 +151,20 @@ class FakeRepository implements ProviderRepositoryPort {
     if (this.blocking) {
       const outcome = { status: 'blocked' } as const
       this.outcomes.set(requestId, { operation: 'delete', outcome })
+      if (this.commitRemoveThenThrow) throw new Error('ambiguous commit')
       return outcome
     }
     const provider = this.rows.get(id)
     if (provider === undefined) {
       const outcome = { status: 'not_found' } as const
       this.outcomes.set(requestId, { operation: 'delete', outcome })
+      if (this.commitRemoveThenThrow) throw new Error('ambiguous commit')
       return outcome
     }
     this.rows.delete(id)
     const outcome = { status: 'removed', provider } as const
     this.outcomes.set(requestId, { operation: 'delete', outcome })
+    if (this.commitRemoveThenThrow) throw new Error('ambiguous commit')
     return { ...outcome, mutation: 'applied' }
   }
 
@@ -188,6 +193,7 @@ class FakeRepository implements ProviderRepositoryPort {
     }
     const provider = this.rows.get(id) as StoredProvider
     this.outcomes.set(requestId, { operation: 'activate', provider })
+    if (this.commitActivateThenThrow) throw new Error('ambiguous commit')
     return { status: 'applied', provider }
   }
 
@@ -1017,6 +1023,39 @@ describe('DeleteProvider', () => {
     expect(events).toEqual(eventsAfterFirst)
     expect(reporter.failures).toEqual([{ secretRef: 'old-ref', code: 'SECRET_DELETE_FAILED' }])
   })
+
+  it('recovers a committed deletion and performs post-commit secret cleanup', async () => {
+    const repository = new FakeRepository([], [storedProvider({ secretRef: 'old-ref' })])
+    repository.commitRemoveThenThrow = true
+    const vault = new FakeVault([])
+    vault.secrets.set('old-ref', 'old-key')
+
+    await new DeleteProvider(repository, vault, new FakeCleanupReporter()).execute({
+      requestId: REQUEST_ID,
+      id: ID,
+    })
+
+    expect(repository.rows.has(ID)).toBe(false)
+    expect(vault.secrets.has('old-ref')).toBe(false)
+  })
+
+  it.each([
+    ['blocked', true, 'PROVIDER_VALIDATION_FAILED'],
+    ['not_found', false, 'PROVIDER_NOT_FOUND'],
+  ] as const)('recovers a committed %s deletion outcome', async (_status, blocking, code) => {
+    const providers = blocking ? [storedProvider()] : []
+    const repository = new FakeRepository([], providers)
+    repository.blocking = blocking
+    repository.commitRemoveThenThrow = true
+
+    await expectStableError(
+      new DeleteProvider(repository, new FakeVault([]), new FakeCleanupReporter()).execute({
+        requestId: REQUEST_ID,
+        id: ID,
+      }),
+      code,
+    )
+  })
 })
 
 describe('ActivateProvider and ListProviders', () => {
@@ -1173,6 +1212,19 @@ describe('ActivateProvider and ListProviders', () => {
     expect(second).toEqual(first)
     expect(events).toEqual(['repository.activate'])
     expect(repository.rows.get(ID)?.updatedAt).toBe(first.updatedAt)
+  })
+
+  it('recovers committed activation after an ambiguous repository exception', async () => {
+    const repository = new FakeRepository([], [storedProvider({ secretRef: 'key-ref' })])
+    repository.commitActivateThenThrow = true
+
+    const result = await new ActivateProvider(repository, clock).execute({
+      requestId: REQUEST_ID,
+      id: ID,
+    })
+
+    expect(result).toMatchObject({ id: ID, isActive: true, hasApiKey: true })
+    expect(repository.rows.get(ID)?.isActive).toBe(true)
   })
 
   it('canonicalizes typed activation adapter failures as safe database errors', async () => {

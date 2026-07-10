@@ -12,6 +12,7 @@ import type {
   IdGeneratorPort,
   ProviderMutationResult,
   ProviderRemoveLogicalOutcome,
+  ProviderRemoveResult,
   ProviderRepositoryPort,
   ProviderWriteOutcome,
   SecretCleanupReporterPort,
@@ -390,17 +391,25 @@ export class DeleteProvider {
       return
     }
 
-    let result
+    let result: ProviderRemoveResult | ProviderRemoveLogicalOutcome
     try {
       result = await this.repository.removeIfUnreferenced(input.requestId, input.id)
     } catch {
-      throw databaseError()
+      let outcome: ProviderWriteOutcome | undefined
+      try {
+        outcome = await this.repository.findWriteOutcome(input.requestId)
+      } catch {
+        throw databaseError()
+      }
+      if (outcome === undefined) throw databaseError()
+      if (outcome.operation !== 'delete') throw validationError()
+      result = outcome.outcome
     }
     if (result.status === 'conflict') throw validationError()
     mapRemoveOutcome(result)
     if (
       result.status !== 'removed' ||
-      result.mutation === 'replayed' ||
+      ('mutation' in result && result.mutation === 'replayed') ||
       result.provider.secretRef === undefined
     ) {
       return
@@ -443,7 +452,15 @@ export class ActivateProvider {
         updatedAt,
       )
     } catch {
-      throw databaseError()
+      let outcome: ProviderWriteOutcome | undefined
+      try {
+        outcome = await this.repository.findWriteOutcome(input.requestId)
+      } catch {
+        throw databaseError()
+      }
+      if (outcome === undefined) throw databaseError()
+      if (outcome.operation !== 'activate') throw validationError()
+      return toProviderProfile(outcome.provider)
     }
     if (result.status === 'conflict') throw validationError()
     if (result.status === 'stale') {
