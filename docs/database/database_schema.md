@@ -102,6 +102,18 @@ erDiagram
 - 任意时刻最多一个 `is_active = 1`，通过部分唯一索引实现。
 - 删除 Provider 前检查是否仍被运行中的课堂引用。
 
+### 4.4 `provider_write_requests`
+
+| 字段                   | 类型 | 约束     | 说明                                                           |
+| ---------------------- | ---- | -------- | -------------------------------------------------------------- |
+| request_id             | TEXT | PK       | IPC request ID；完成结果不可变                                 |
+| operation              | TEXT | NOT NULL | `create/update/delete/activate/test_connection`                |
+| outcome_status         | TEXT | NOT NULL | `succeeded/removed/blocked/not_found`                          |
+| provider_snapshot_json | TEXT | NULL     | Provider 或删除结果快照；可含 `secret_ref`，不得含原始 API Key |
+| created_at             | TEXT | NOT NULL | 结果与业务写入在同一事务中提交                                 |
+
+约束：同一 `request_id` 的重放返回原始逻辑结果且不再次应用业务写入；若操作类型不一致则拒绝。Provider 创建、更新、启用和原子删除必须与对应结果行在同一事务内提交。
+
 ## 5. 文档与导入
 
 ### 5.1 `documents`

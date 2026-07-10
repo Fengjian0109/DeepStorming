@@ -305,7 +305,7 @@ git commit -m "feat: define provider IPC contracts"
 
 - [ ] **Step 1: Write fake-backed failing tests**
 
-Prove: Vault write precedes Repository create; Repository failure removes the new ref; empty update Key retains the old ref; replacement commits the new ref before old cleanup; Vault failure leaves the old row untouched; delete removes metadata before Vault cleanup; activation rejects an unkeyed cloud Provider; list drops `secretRef`. Also prove deletion returns `PROVIDER_VALIDATION_FAILED` without changing metadata when blocking references exist.
+Prove Vault/database ordering and compensation, immutable request-ID replay for create/update/delete/activate, cross-operation request-ID rejection before side effects, and atomic blocked deletion. Cover Provider identity transitions: same type plus blank Key retains the reference; any type to Mock clears it; cloud-to-different-cloud requires a new Key; inactive Mock-to-cloud may remain unkeyed while active transition rejects. Prove only display-name edits preserve test state, configuration/credential changes clear it, post-commit cleanup reports only a stable ref/code while the mutation returns success, and all public projections use an explicit allowlist without `secretRef` or `apiKey`.
 
 - [ ] **Step 2: Verify red**
 
@@ -316,27 +316,60 @@ Expected: FAIL because Ports/use cases are missing.
 - [ ] **Step 3: Implement Ports**
 
 ```ts
-export type StoredProvider = ProviderProfile & { readonly secretRef?: string }
+export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & { readonly secretRef?: string }
+export type ProviderWriteOperation = 'create' | 'update' | 'delete' | 'activate' | 'test_connection'
+export type ProviderMutationResult =
+  | Readonly<{ status: 'applied' | 'replayed'; provider: StoredProvider }>
+  | Readonly<{ status: 'conflict'; existingOperation: ProviderWriteOperation }>
+export type ProviderRemoveLogicalOutcome =
+  | Readonly<{ status: 'removed'; provider: StoredProvider }>
+  | Readonly<{ status: 'blocked' }>
+  | Readonly<{ status: 'not_found' }>
+export type ProviderRemoveResult =
+  | Readonly<{
+      status: 'removed'
+      provider: StoredProvider
+      mutation: 'applied' | 'replayed'
+    }>
+  | Readonly<{ status: 'blocked' }>
+  | Readonly<{ status: 'not_found' }>
+  | Readonly<{ status: 'conflict'; existingOperation: ProviderWriteOperation }>
+export type ProviderWriteOutcome =
+  | Readonly<{
+      operation: 'create' | 'update' | 'activate' | 'test_connection'
+      provider: StoredProvider
+    }>
+  | Readonly<{ operation: 'delete'; outcome: ProviderRemoveLogicalOutcome }>
 export interface ProviderRepositoryPort {
   list(): Promise<readonly StoredProvider[]>
   findById(id: string): Promise<StoredProvider | undefined>
-  create(provider: StoredProvider): Promise<void>
-  update(provider: StoredProvider): Promise<void>
-  remove(id: string): Promise<StoredProvider | undefined>
-  activate(id: string, updatedAt: string): Promise<StoredProvider>
+  findWriteOutcome(requestId: string): Promise<ProviderWriteOutcome | undefined>
+  create(requestId: string, provider: StoredProvider): Promise<ProviderMutationResult>
+  update(requestId: string, provider: StoredProvider): Promise<ProviderMutationResult>
+  removeIfUnreferenced(requestId: string, id: string): Promise<ProviderRemoveResult>
+  activate(requestId: string, id: string, updatedAt: string): Promise<ProviderMutationResult>
   updateTestStatus(
+    requestId: string,
     id: string,
     status: ProviderTestStatus,
     testedAt: string,
-  ): Promise<StoredProvider>
+  ): Promise<ProviderMutationResult>
   referencedSecretRefs(): Promise<ReadonlySet<string>>
-  hasBlockingReferences(id: string): Promise<boolean>
 }
 export interface SecretVaultPort {
   put(secret: string): Promise<string>
   get(ref: string): Promise<string>
   remove(ref: string): Promise<void>
   reconcile(referencedRefs: ReadonlySet<string>): Promise<void>
+}
+export interface SecretCleanupReporterPort {
+  // Implementations must not throw or receive raw secrets/caught errors.
+  reportFailure(
+    failure: Readonly<{
+      secretRef: string
+      code: 'SECRET_DELETE_FAILED'
+    }>,
+  ): void
 }
 export interface ClockPort {
   now(): string
@@ -348,14 +381,26 @@ export interface IdGeneratorPort {
 
 - [ ] **Step 4: Implement minimal use cases**
 
-Export `ListProviders`, `CreateProvider`, `UpdateProvider`, `DeleteProvider`, `ActivateProvider`, and `ProviderUseCaseError`. Each class receives only its used Ports. Drop secret references explicitly:
+Export `ListProviders`, `CreateProvider`, `UpdateProvider`, `DeleteProvider`, `ActivateProvider`, and `ProviderUseCaseError`. Every write execute input includes `requestId`. Each write first reads the immutable cached outcome; a matching replay returns it without Vault or mutation side effects, while a different operation returns `PROVIDER_VALIDATION_FAILED`. Repository writes return explicit `applied` or `replayed` statuses; a replay uses the cached Provider and removes only a newly-created orphan ref. A different operation winning after preflight returns `status: 'conflict'` plus `existingOperation`, which compensates any new ref and maps to `PROVIDER_VALIDATION_FAILED`. Connection-test state writes use operation `test_connection` and the same immutable outcome/replay/conflict protocol. Each class receives only its used Ports. Project public profiles with an explicit field allowlist:
 
 ```ts
-export const toProviderProfile = ({ secretRef, ...profile }: StoredProvider): ProviderProfile => ({
-  ...profile,
-  hasApiKey: secretRef !== undefined,
+export const toProviderProfile = (provider: StoredProvider): ProviderProfile => ({
+  id: provider.id,
+  providerType: provider.providerType,
+  displayName: provider.displayName,
+  ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
+  modelName: provider.modelName,
+  hasApiKey: provider.secretRef !== undefined,
+  capabilities: provider.capabilities,
+  isActive: provider.isActive,
+  ...(provider.lastTestStatus === undefined ? {} : { lastTestStatus: provider.lastTestStatus }),
+  ...(provider.lastTestedAt === undefined ? {} : { lastTestedAt: provider.lastTestedAt }),
+  createdAt: provider.createdAt,
+  updatedAt: provider.updatedAt,
 })
 ```
+
+After a committed update/delete, old-secret removal failure calls the non-throwing cleanup reporter with only `{secretRef, code: 'SECRET_DELETE_FAILED'}` and still returns success. Repository errors always map to database categories; Vault operations map only to Vault/write/delete categories.
 
 - [ ] **Step 5: Verify and commit**
 
@@ -389,11 +434,11 @@ pnpm --filter @deepstorming/infrastructure add -D @types/better-sqlite3@7.6.13
 
 - [ ] **Step 2: Write failing migration tests**
 
-Assert WAL, foreign keys, `busy_timeout=5000`, migration 1 applied once, repeat startup idempotent, and changed checksum throws `DATABASE_MIGRATION_FAILED`. Seed a previous-version database, force a migration failure, and prove its original data remains readable and a backup exists.
+Assert WAL, foreign keys, `busy_timeout=5000`, migration 1 applied once, repeat startup idempotent, and changed checksum throws `DATABASE_MIGRATION_FAILED`. Migration 1 creates `provider_write_requests(request_id PRIMARY KEY, operation, outcome_status, provider_snapshot_json, created_at)` in addition to Provider metadata; snapshots may contain `secret_ref` but never raw keys. Seed a previous-version database, force a migration failure, and prove its original data remains readable and a backup exists.
 
 - [ ] **Step 3: Implement connection and migration 1**
 
-Create exact `schema_migrations`, `app_settings`, and `ai_providers` tables from `docs/database/database_schema.md`. Create:
+Create exact `schema_migrations`, `app_settings`, `ai_providers`, and `provider_write_requests` tables from `docs/database/database_schema.md`. Create:
 
 ```sql
 CREATE UNIQUE INDEX one_active_ai_provider ON ai_providers(is_active) WHERE is_active = 1;
@@ -403,7 +448,7 @@ Hash immutable migration name+SQL with SHA-256. Before changing a non-empty exis
 
 - [ ] **Step 4: Write failing Repository tests, then implement**
 
-Test create/list/update/remove, JSON runtime validation, rollback, and unique activation. Use prepared statements only and map snake_case rows at one boundary. Activation clears the old active row and sets the target inside one transaction.
+Test create/list/update/atomic-remove, JSON runtime validation, rollback, and unique activation. Every create/update/activate/remove transaction also inserts its immutable request outcome; replay returns the original stored snapshot with `status: 'replayed'`, and request ID reuse across operations returns a typed conflict. `removeIfUnreferenced` checks blocking references, deletes, and stores `removed`/`blocked`/`not_found` in one transaction. Use prepared statements only and map snake_case rows at one boundary. Activation clears the old active row and sets the target inside one transaction.
 
 - [ ] **Step 5: Configure and run packaging gate**
 
