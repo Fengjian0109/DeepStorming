@@ -43,6 +43,7 @@ const storedProvider = (overrides: Partial<StoredProvider> = {}): StoredProvider
   isActive: false,
   createdAt: '2026-07-09T08:00:00.000Z',
   updatedAt: '2026-07-09T08:00:00.000Z',
+  revision: 1,
   ...overrides,
 })
 
@@ -65,6 +66,8 @@ class FakeRepository implements ProviderRepositoryPort {
   public commitUpdateThenThrow = false
   public commitRemoveThenThrow = false
   public commitActivateThenThrow = false
+  public updateFailureOutcome?: ProviderWriteOutcome
+  public activateFailureOutcome?: ProviderWriteOutcome
   public failRecoveryLookup = false
   private writeAttempted = false
 
@@ -114,7 +117,7 @@ class FakeRepository implements ProviderRepositoryPort {
 
   public async update(
     requestId: string,
-    expectedUpdatedAt: string,
+    expectedRevision: number,
     provider: StoredProvider,
   ): Promise<ProviderUpdateResult> {
     this.events.push('repository.update')
@@ -129,15 +132,20 @@ class FakeRepository implements ProviderRepositoryPort {
       this.outcomes.set(requestId, { operation: 'update', provider: this.updateRaceProvider })
       return { status: 'replayed', provider: this.updateRaceProvider }
     }
+    if (this.updateFailureOutcome !== undefined) {
+      this.outcomes.set(requestId, this.updateFailureOutcome)
+      throw new Error('ambiguous foreign outcome')
+    }
     if (this.failUpdate) throw new Error('sqlite path and secret must not escape')
     if (this.updateResult !== undefined) return { status: this.updateResult }
     const current = this.rows.get(provider.id)
     if (current === undefined) return { status: 'not_found' }
-    if (current.updatedAt !== expectedUpdatedAt) return { status: 'stale' }
-    this.rows.set(provider.id, provider)
-    this.outcomes.set(requestId, { operation: 'update', provider })
+    if (current.revision !== expectedRevision) return { status: 'stale' }
+    const applied = { ...provider, revision: current.revision + 1 }
+    this.rows.set(provider.id, applied)
+    this.outcomes.set(requestId, { operation: 'update', provider: applied })
     if (this.commitUpdateThenThrow) throw new Error('ambiguous commit')
-    return { status: 'applied', provider }
+    return { status: 'applied', provider: applied }
   }
 
   public async removeIfUnreferenced(requestId: string, id: string): Promise<ProviderRemoveResult> {
@@ -171,7 +179,7 @@ class FakeRepository implements ProviderRepositoryPort {
   public async activate(
     requestId: string,
     id: string,
-    expectedUpdatedAt: string,
+    expectedRevision: number,
     updatedAt: string,
   ): Promise<ProviderMutationResult | { status: 'stale' | 'not_found' | 'credential_missing' }> {
     this.events.push('repository.activate')
@@ -182,14 +190,23 @@ class FakeRepository implements ProviderRepositoryPort {
       return { status: 'replayed', provider: replay.provider }
     }
     if (this.activateResult !== undefined) return { status: this.activateResult }
+    if (this.activateFailureOutcome !== undefined) {
+      this.outcomes.set(requestId, this.activateFailureOutcome)
+      throw new Error('ambiguous foreign outcome')
+    }
     const selected = this.rows.get(id)
     if (selected === undefined) return { status: 'not_found' }
-    if (selected.updatedAt !== expectedUpdatedAt) return { status: 'stale' }
+    if (selected.revision !== expectedRevision) return { status: 'stale' }
     if (selected.providerType !== 'mock' && selected.secretRef === undefined) {
       return { status: 'credential_missing' }
     }
     for (const [rowId, provider] of this.rows) {
-      this.rows.set(rowId, { ...provider, isActive: rowId === id, updatedAt })
+      this.rows.set(rowId, {
+        ...provider,
+        isActive: rowId === id,
+        updatedAt,
+        revision: provider.revision + 1,
+      })
     }
     const provider = this.rows.get(id) as StoredProvider
     this.outcomes.set(requestId, { operation: 'activate', provider })
@@ -328,9 +345,18 @@ describe('CreateProvider', () => {
       }),
     )
     expect(result).toEqual({
-      ...storedProvider({ displayName: 'DeepSeek', createdAt: NOW, updatedAt: NOW }),
+      id: ID,
+      providerType: 'deepseek',
+      displayName: 'DeepSeek',
+      baseUrl: 'https://api.deepseek.com',
+      modelName: 'deepseek-chat',
+      capabilities: capabilitiesFor('deepseek'),
       hasApiKey: true,
+      isActive: false,
+      createdAt: NOW,
+      updatedAt: NOW,
     })
+    expect(result).not.toHaveProperty('revision')
     expect(result).not.toHaveProperty('secretRef')
     expect(result).not.toHaveProperty('apiKey')
     expect(input).toEqual(snapshot)
@@ -591,6 +617,7 @@ describe('UpdateProvider', () => {
         ...existing,
         displayName: 'Updated',
         updatedAt: NOW,
+        revision: existing.revision + 1,
       })
       expect(result).toMatchObject({
         displayName: 'Updated',
@@ -713,11 +740,12 @@ describe('UpdateProvider', () => {
   })
 
   it('rejects a stale concurrent update without losing the winning row', async () => {
-    const existing = storedProvider({ secretRef: 'old-ref' })
+    const existing = storedProvider({ secretRef: 'old-ref', updatedAt: NOW })
     const winner = storedProvider({
       displayName: 'Winner',
       secretRef: 'winner-ref',
       updatedAt: NOW,
+      revision: 2,
     })
     const repository = new FakeRepository([], [existing])
     repository.beforeUpdate = () => repository.rows.set(ID, winner)
@@ -748,6 +776,67 @@ describe('UpdateProvider', () => {
     expect(repository.rows.get(ID)).not.toHaveProperty('secretRef')
   })
 
+  it('rejects a same-operation preflight replay for a different provider', async () => {
+    const existing = storedProvider({ secretRef: 'old-ref' })
+    const repository = new FakeRepository([], [existing])
+    repository.outcomes.set(REQUEST_ID, {
+      operation: 'update',
+      provider: storedProvider({ id: 'other-provider', secretRef: 'other-ref' }),
+    })
+    const vault = new FakeVault([])
+    vault.secrets.set('old-ref', 'old-key')
+
+    await expectStableError(
+      new UpdateProvider(repository, vault, new FakeCleanupReporter(), clock).execute({
+        requestId: REQUEST_ID,
+        id: ID,
+        provider: deepSeekDraft('new-key'),
+      }),
+      'PROVIDER_VALIDATION_FAILED',
+    )
+    expect(repository.rows.get(ID)).toBe(existing)
+    expect(vault.secrets).toEqual(new Map([['old-ref', 'old-key']]))
+  })
+
+  it('cleans only its new ref when a concurrent update outcome belongs to another provider', async () => {
+    const existing = storedProvider({ secretRef: 'old-ref' })
+    const repository = new FakeRepository([], [existing])
+    repository.updateRaceProvider = storedProvider({ id: 'other-provider', secretRef: 'other-ref' })
+    const vault = new FakeVault([])
+    vault.secrets.set('old-ref', 'old-key')
+
+    await expectStableError(
+      new UpdateProvider(repository, vault, new FakeCleanupReporter(), clock).execute({
+        requestId: REQUEST_ID,
+        id: ID,
+        provider: deepSeekDraft('new-key'),
+      }),
+      'PROVIDER_VALIDATION_FAILED',
+    )
+    expect(vault.secrets).toEqual(new Map([['old-ref', 'old-key']]))
+  })
+
+  it('preserves the old ref during ambiguous recovery for a foreign update outcome', async () => {
+    const existing = storedProvider({ secretRef: 'old-ref' })
+    const repository = new FakeRepository([], [existing])
+    repository.updateFailureOutcome = {
+      operation: 'update',
+      provider: storedProvider({ id: 'other-provider', secretRef: 'other-ref' }),
+    }
+    const vault = new FakeVault([])
+    vault.secrets.set('old-ref', 'old-key')
+
+    await expectStableError(
+      new UpdateProvider(repository, vault, new FakeCleanupReporter(), clock).execute({
+        requestId: REQUEST_ID,
+        id: ID,
+        provider: deepSeekDraft('new-key'),
+      }),
+      'PROVIDER_VALIDATION_FAILED',
+    )
+    expect(vault.secrets).toEqual(new Map([['old-ref', 'old-key']]))
+  })
+
   it('rejects changing an active unkeyed Mock into a cloud provider', async () => {
     const events: string[] = []
     const mock: StoredProvider = {
@@ -764,6 +853,7 @@ describe('UpdateProvider', () => {
       isActive: true,
       createdAt: '2026-07-09T08:00:00.000Z',
       updatedAt: '2026-07-09T08:00:00.000Z',
+      revision: 1,
     }
     const repository = new FakeRepository(events, [mock])
 
@@ -875,6 +965,7 @@ describe('UpdateProvider', () => {
       isActive: false,
       createdAt: NOW,
       updatedAt: NOW,
+      revision: 1,
     }
     const repository = new FakeRepository([], [mock])
 
@@ -1076,6 +1167,7 @@ describe('ActivateProvider and ListProviders', () => {
       isActive: false,
       createdAt: '2026-07-09T08:00:00.000Z',
       updatedAt: '2026-07-09T08:00:00.000Z',
+      revision: 1,
     }
     const keyed = storedProvider({
       id: '018f0000-0000-7000-8000-000000000003',
@@ -1212,6 +1304,24 @@ describe('ActivateProvider and ListProviders', () => {
     expect(second).toEqual(first)
     expect(events).toEqual(['repository.activate'])
     expect(repository.rows.get(ID)?.updatedAt).toBe(first.updatedAt)
+  })
+
+  it('rejects activation replay and ambiguous recovery for another provider ID', async () => {
+    const foreign = storedProvider({ id: 'other-provider', secretRef: 'other-ref', isActive: true })
+    const repository = new FakeRepository([], [storedProvider({ secretRef: 'key-ref' })])
+    repository.outcomes.set(REQUEST_ID, { operation: 'activate', provider: foreign })
+
+    await expectStableError(
+      new ActivateProvider(repository, clock).execute({ requestId: REQUEST_ID, id: ID }),
+      'PROVIDER_VALIDATION_FAILED',
+    )
+
+    repository.outcomes.clear()
+    repository.activateFailureOutcome = { operation: 'activate', provider: foreign }
+    await expectStableError(
+      new ActivateProvider(repository, clock).execute({ requestId: REQUEST_ID, id: ID }),
+      'PROVIDER_VALIDATION_FAILED',
+    )
   })
 
   it('recovers committed activation after an ambiguous repository exception', async () => {

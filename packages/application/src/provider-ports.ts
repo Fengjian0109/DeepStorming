@@ -1,6 +1,9 @@
 import type { ProviderProfile, ProviderTestStatus } from '@deepstorming/domain'
 
-export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & { readonly secretRef?: string }
+export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & {
+  readonly revision: number
+  readonly secretRef?: string
+}
 
 export type ProviderWriteOperation = 'create' | 'update' | 'delete' | 'activate'
 
@@ -54,14 +57,14 @@ export interface ProviderRepositoryPort {
   create(requestId: string, provider: StoredProvider): Promise<ProviderMutationResult>
   update(
     requestId: string,
-    expectedUpdatedAt: string,
+    expectedRevision: number,
     provider: StoredProvider,
   ): Promise<ProviderUpdateResult>
   removeIfUnreferenced(requestId: string, id: string): Promise<ProviderRemoveResult>
   activate(
     requestId: string,
     id: string,
-    expectedUpdatedAt: string,
+    expectedRevision: number,
     updatedAt: string,
   ): Promise<ProviderActivateResult>
   transitionTestStatus(

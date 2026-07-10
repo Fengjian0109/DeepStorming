@@ -200,6 +200,7 @@ export class CreateProvider {
       isActive: false,
       createdAt: now,
       updatedAt: now,
+      revision: 1,
       ...(secretRef === undefined ? {} : { secretRef }),
     }
 
@@ -256,7 +257,10 @@ export class UpdateProvider {
 
   public async execute(input: UpdateProviderInput): Promise<ProviderProfile> {
     const replay = await findReplay(this.repository, input.requestId, 'update')
-    if (replay !== undefined) return toProviderProfile(replay.provider)
+    if (replay !== undefined) {
+      if (replay.provider.id !== input.id) throw validationError()
+      return toProviderProfile(replay.provider)
+    }
 
     const existing = await findProvider(this.repository, input.id)
     const normalized = normalizeDraft(input.provider)
@@ -304,12 +308,13 @@ export class UpdateProvider {
         : {}),
       createdAt: existing.createdAt,
       updatedAt,
+      revision: existing.revision + 1,
       ...(secretRef === undefined ? {} : { secretRef }),
     }
 
     let result
     try {
-      result = await this.repository.update(input.requestId, existing.updatedAt, updated)
+      result = await this.repository.update(input.requestId, existing.revision, updated)
     } catch {
       let outcome: ProviderWriteOutcome | undefined
       try {
@@ -322,7 +327,7 @@ export class UpdateProvider {
         if (newSecretRef !== undefined) reportCleanupFailure(this.cleanupReporter, newSecretRef)
         throw databaseError()
       }
-      if (outcome.operation !== 'update') {
+      if (outcome.operation !== 'update' || outcome.provider.id !== input.id) {
         if (newSecretRef !== undefined) {
           await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
         }
@@ -331,7 +336,12 @@ export class UpdateProvider {
       if (newSecretRef !== undefined && outcome.provider.secretRef !== newSecretRef) {
         await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
       }
-      if (existing.secretRef !== undefined && existing.secretRef !== outcome.provider.secretRef) {
+      if (
+        newSecretRef !== undefined &&
+        outcome.provider.secretRef === newSecretRef &&
+        existing.secretRef !== undefined &&
+        existing.secretRef !== outcome.provider.secretRef
+      ) {
         await cleanupOrReport(this.vault, this.cleanupReporter, existing.secretRef)
       }
       return toProviderProfile(outcome.provider)
@@ -360,10 +370,22 @@ export class UpdateProvider {
       throw notFoundError()
     }
     if (result.status === 'replayed') {
+      if (result.provider.id !== input.id) {
+        if (newSecretRef !== undefined) {
+          await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
+        }
+        throw validationError()
+      }
       if (newSecretRef !== undefined && result.provider.secretRef !== newSecretRef) {
         await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
       }
       return toProviderProfile(result.provider)
+    }
+    if (result.provider.id !== input.id) {
+      if (newSecretRef !== undefined) {
+        await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
+      }
+      throw validationError()
     }
     if (existing.secretRef !== undefined && existing.secretRef !== result.provider.secretRef) {
       await cleanupOrReport(this.vault, this.cleanupReporter, existing.secretRef)
@@ -430,7 +452,10 @@ export class ActivateProvider {
 
   public async execute(input: ProviderIdWriteInput): Promise<ProviderProfile> {
     const replay = await findReplay(this.repository, input.requestId, 'activate')
-    if (replay !== undefined) return toProviderProfile(replay.provider)
+    if (replay !== undefined) {
+      if (replay.provider.id !== input.id) throw validationError()
+      return toProviderProfile(replay.provider)
+    }
 
     const existing = await findProvider(this.repository, input.id)
     try {
@@ -448,7 +473,7 @@ export class ActivateProvider {
       result = await this.repository.activate(
         input.requestId,
         input.id,
-        existing.updatedAt,
+        existing.revision,
         updatedAt,
       )
     } catch {
@@ -459,7 +484,9 @@ export class ActivateProvider {
         throw databaseError()
       }
       if (outcome === undefined) throw databaseError()
-      if (outcome.operation !== 'activate') throw validationError()
+      if (outcome.operation !== 'activate' || outcome.provider.id !== input.id) {
+        throw validationError()
+      }
       return toProviderProfile(outcome.provider)
     }
     if (result.status === 'conflict') throw validationError()
@@ -472,6 +499,7 @@ export class ActivateProvider {
     }
     if (result.status === 'not_found') throw notFoundError()
     if (result.status === 'credential_missing') throw validationError()
+    if (result.provider.id !== input.id) throw validationError()
     return toProviderProfile(result.provider)
   }
 }

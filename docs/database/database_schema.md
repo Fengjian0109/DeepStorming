@@ -95,24 +95,26 @@ erDiagram
 | last_tested_at    | TEXT    | NULL               | 最近测试时间                          |
 | created_at        | TEXT    | NOT NULL           | 创建时间                              |
 | updated_at        | TEXT    | NOT NULL           | 更新时间                              |
+| revision          | INTEGER | NOT NULL DEFAULT 1 | 内部单调版本；不进入公共 Provider DTO |
 
 索引与约束：
 
 - `provider_type` 检查约束。
 - 任意时刻最多一个 `is_active = 1`，通过部分唯一索引实现。
 - 删除 Provider 前检查是否仍被运行中的课堂引用。
+- `revision >= 1`；创建时为 `1`。更新和启用事务比较期望 revision，成功时原子递增。
 
 ### 4.4 `provider_write_requests`
 
-| 字段                   | 类型 | 约束     | 说明                                                           |
-| ---------------------- | ---- | -------- | -------------------------------------------------------------- |
-| request_id             | TEXT | PK       | IPC request ID；完成结果不可变                                 |
-| operation              | TEXT | NOT NULL | `create/update/delete/activate`                                |
-| outcome_status         | TEXT | NOT NULL | `succeeded/removed/blocked/not_found`                          |
-| provider_snapshot_json | TEXT | NULL     | Provider 或删除结果快照；可含 `secret_ref`，不得含原始 API Key |
-| created_at             | TEXT | NOT NULL | 结果与业务写入在同一事务中提交                                 |
+| 字段                   | 类型 | 约束     | 说明                                                                              |
+| ---------------------- | ---- | -------- | --------------------------------------------------------------------------------- |
+| request_id             | TEXT | PK       | IPC request ID；完成结果不可变                                                    |
+| operation              | TEXT | NOT NULL | `create/update/delete/activate`                                                   |
+| outcome_status         | TEXT | NOT NULL | `succeeded/removed/blocked/not_found`                                             |
+| provider_snapshot_json | TEXT | NULL     | Provider 或删除结果快照；含内部 `revision`，可含 `secret_ref`，不得含原始 API Key |
+| created_at             | TEXT | NOT NULL | 结果与业务写入在同一事务中提交                                                    |
 
-约束：同一 `request_id` 的重放返回原始逻辑结果且不再次应用业务写入；若操作类型不一致则拒绝。Provider 创建、更新、启用和原子删除必须与对应结果行在同一事务内提交。更新和启用使用调用方首次读取的 `updated_at` 作为事务内乐观并发条件；启用还必须在事务内验证目标仍为 Mock 或具有 `secret_ref`。
+约束：同一 `request_id` 的重放仅在操作类型和目标 Provider ID 都匹配时返回原始逻辑结果且不再次应用业务写入；否则拒绝。Provider 创建、更新、启用和原子删除必须与对应结果行在同一事务内提交。更新和启用使用调用方首次读取的内部 `revision` 作为事务内乐观并发条件，成功时递增；`updated_at` 仅用于展示和审计。启用还必须在事务内验证目标仍为 Mock 或具有 `secret_ref`。
 
 连接测试状态不进入本表。Repository 使用独立 `operation_id` 记录或识别同一次状态转换，并以期望状态执行比较并交换，只允许将 `testing` 转换为终态；转换结果为 `applied/replayed/stale/not_found`。Task 8 的迁移实现需要为该 operation-ID 状态转换增加持久化结构。
 

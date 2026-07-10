@@ -81,9 +81,9 @@ Phase 2 首批迁移创建：
 
 字段和约束遵循 `docs/database/database_schema.md`。`ai_providers` 使用部分唯一索引保证最多一个 `is_active = 1`。`capabilities_json` 在 Repository 边界进行运行时校验，不把未校验 JSON 传入 Domain。
 
-`provider_write_requests` 以 `request_id` 为主键，仅保存 `create/update/delete/activate` 的操作类型、逻辑结果状态、包含 `secret_ref` 但不包含原始密钥的 Provider/删除结果快照和创建时间。每个 Provider 写事务必须同时提交业务变更和不可变的完成结果；相同 request ID 只返回原始逻辑结果，不重复应用写入。相同 request ID 被用于不同操作时返回 `PROVIDER_VALIDATION_FAILED`；若不同操作在预检后赢得并发事务，Repository 返回显式 `conflict` 结果，用例补偿本次新建的 Vault 引用后映射同一验证错误。
+`provider_write_requests` 以 `request_id` 为主键，仅保存 `create/update/delete/activate` 的操作类型、逻辑结果状态、包含内部 `revision` 和可选 `secret_ref` 但不包含原始密钥的 Provider/删除结果快照和创建时间。每个 Provider 写事务必须同时提交业务变更和不可变的完成结果；相同 request ID 仅在操作与目标 Provider ID 都匹配时返回原始逻辑结果，不重复应用写入，否则返回 `PROVIDER_VALIDATION_FAILED`。若不同操作在预检后赢得并发事务，Repository 返回显式 `conflict` 结果，用例只补偿本次新建且未被采用的 Vault 引用。
 
-Provider 更新以首次读取的 `updated_at` 作为乐观并发条件，事务显式返回 `stale/not_found`，避免覆盖并发写入。启用事务同样比较 `updated_at`，并在事务内重新确认目标行仍存在且为 Mock 或具有 `secret_ref`，再原子切换唯一启用项。连接测试不写入不可变 request outcome；它使用独立 `operation_id` 对 `last_test_status` 执行 `testing -> terminal` 的比较并交换转换，返回 `applied/replayed/stale/not_found`。
+Provider 创建时内部 `revision = 1`。更新以首次读取的 revision 作为乐观并发条件，事务成功时原子递增，显式返回 `stale/not_found`，避免同一时间戳下的并发覆盖；`updated_at` 仅用于展示和审计。启用事务同样比较并递增 revision，并在事务内重新确认目标行仍存在且为 Mock 或具有 `secret_ref`，再原子切换唯一启用项。公共 `ProviderProfile` 不暴露 revision。连接测试不写入不可变 request outcome；它使用独立 `operation_id` 对 `last_test_status` 执行 `testing -> terminal` 的比较并交换转换，返回 `applied/replayed/stale/not_found`。
 
 迁移规则：
 

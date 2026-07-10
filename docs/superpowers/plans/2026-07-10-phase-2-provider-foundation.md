@@ -316,7 +316,10 @@ Expected: FAIL because Ports/use cases are missing.
 - [ ] **Step 3: Implement Ports**
 
 ```ts
-export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & { readonly secretRef?: string }
+export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & {
+  readonly revision: number
+  readonly secretRef?: string
+}
 export type ProviderWriteOperation = 'create' | 'update' | 'delete' | 'activate'
 export type ProviderMutationResult =
   | Readonly<{ status: 'applied' | 'replayed'; provider: StoredProvider }>
@@ -347,14 +350,14 @@ export interface ProviderRepositoryPort {
   create(requestId: string, provider: StoredProvider): Promise<ProviderMutationResult>
   update(
     requestId: string,
-    expectedUpdatedAt: string,
+    expectedRevision: number,
     provider: StoredProvider,
   ): Promise<ProviderUpdateResult>
   removeIfUnreferenced(requestId: string, id: string): Promise<ProviderRemoveResult>
   activate(
     requestId: string,
     id: string,
-    expectedUpdatedAt: string,
+    expectedRevision: number,
     updatedAt: string,
   ): Promise<ProviderActivateResult>
   transitionTestStatus(
@@ -393,7 +396,7 @@ export interface IdGeneratorPort {
 
 - [ ] **Step 4: Implement minimal use cases**
 
-Export `ListProviders`, `CreateProvider`, `UpdateProvider`, `DeleteProvider`, `ActivateProvider`, and `ProviderUseCaseError`. Every CRUD/activation write execute input includes `requestId`. Each write first reads the immutable cached outcome; a matching replay returns it without Vault or mutation side effects, while a different operation returns `PROVIDER_VALIDATION_FAILED`. Repository writes return explicit `applied` or `replayed` statuses; a replay uses the cached Provider and removes only a newly-created orphan ref. A different operation winning after preflight returns `status: 'conflict'` plus `existingOperation`, which compensates any new ref and maps to `PROVIDER_VALIDATION_FAILED`. Update and activation pass the initially read `updatedAt` for transactional optimistic concurrency; activation validates credentials again inside the atomic transaction. Connection-test status uses an independent operation-ID compare-and-set transition rather than immutable request replay. Each class receives only its used Ports. Project public profiles with an explicit field allowlist and clone each capability boolean:
+Export `ListProviders`, `CreateProvider`, `UpdateProvider`, `DeleteProvider`, `ActivateProvider`, and `ProviderUseCaseError`. Every CRUD/activation write execute input includes `requestId`. Each immutable outcome is bound to both operation and Provider ID; foreign-resource replay or recovery returns `PROVIDER_VALIDATION_FAILED` without changing metadata or deleting existing credentials. Repository writes return explicit `applied` or `replayed` statuses; only a newly-created ref from this invocation that was not adopted may be compensated. Providers start at internal revision `1`; update and activation pass the initially read revision for transactional CAS and successful repository mutations increment it. `updatedAt` remains display/audit data and revision is omitted by the public allowlist. Activation validates credentials again inside the atomic transaction. Connection-test status uses an independent operation-ID compare-and-set transition rather than immutable request replay. Each class receives only its used Ports. Project public profiles with an explicit field allowlist and clone each capability boolean:
 
 ```ts
 export const toProviderProfile = (provider: StoredProvider): ProviderProfile => ({
@@ -418,6 +421,8 @@ export const toProviderProfile = (provider: StoredProvider): ProviderProfile => 
 ```
 
 After a committed update/delete, old-secret removal failure calls the non-throwing cleanup reporter with only `{secretRef, code: 'SECRET_DELETE_FAILED'}` and still returns success. Repository errors always map to database categories; Vault operations map only to Vault/write/delete categories.
+
+Task 7 adapter contract tests must prove `SecretCleanupReporterPort.reportFailure` implementations never throw.
 
 - [ ] **Step 5: Verify and commit**
 
