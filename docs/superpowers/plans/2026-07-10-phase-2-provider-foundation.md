@@ -104,20 +104,16 @@ git commit -m "docs: add current development status"
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-import { describe, expect, it, vi } from 'vitest'
-import { configureApplicationVersion } from './app-version'
+import { describe, expect, it } from 'vitest'
+import { normalizeApplicationVersion } from './app-version'
 
-describe('configureApplicationVersion', () => {
-  it('sets the build version', () => {
-    const setVersion = vi.fn()
-    configureApplicationVersion({ setVersion }, '0.0.0')
-    expect(setVersion).toHaveBeenCalledWith('0.0.0')
+describe('normalizeApplicationVersion', () => {
+  it('trims the build version', () => {
+    expect(normalizeApplicationVersion(' 0.0.0 ')).toBe('0.0.0')
   })
 
   it('rejects an empty build version', () => {
-    expect(() => configureApplicationVersion({ setVersion: vi.fn() }, ' ')).toThrow(
-      'Application version must not be empty',
-    )
+    expect(() => normalizeApplicationVersion(' ')).toThrow('Application version must not be empty')
   })
 })
 ```
@@ -131,15 +127,10 @@ Expected: FAIL because `./app-version` is missing.
 - [ ] **Step 3: Implement the helper and build constant**
 
 ```ts
-type VersionedApplication = { setVersion(version: string): void }
-
-export const configureApplicationVersion = (
-  application: VersionedApplication,
-  buildVersion: string,
-): void => {
+export const normalizeApplicationVersion = (buildVersion: string): string => {
   const version = buildVersion.trim()
   if (version.length === 0) throw new Error('Application version must not be empty')
-  application.setVersion(version)
+  return version
 }
 ```
 
@@ -151,7 +142,12 @@ define: {
 }
 ```
 
-Call `configureApplicationVersion(app, __APP_VERSION__)` before `app.whenReady()`.
+Before `app.whenReady()`, normalize `__APP_VERSION__` once. Inject that value into
+`ElectronAppInfoAdapter` and use it in the startup log; do not read the development Electron
+executable version through `app.getVersion()`.
+
+Add an adapter test where the Electron-like application reports `43.1.0` and the injected build
+version is `0.0.0`; assert that the adapter returns `0.0.0`.
 
 - [ ] **Step 4: Verify and commit**
 

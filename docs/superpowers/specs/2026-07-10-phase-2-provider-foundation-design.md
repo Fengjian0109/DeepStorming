@@ -187,7 +187,7 @@ Contracts 扩展稳定错误码，至少包含：
 
 ## 9. Phase 1 修复
 
-DeepStorming 的应用版本必须来自项目版本元数据，而不是直接启动开发入口时 Electron 二进制的版本。Electron Vite 配置从根 `package.json` 读取版本并生成构建期常量；Main 在创建 `ElectronAppInfoAdapter` 前用该常量调用 `app.setVersion()`。Adapter 单元测试与 E2E 同时验证 `0.0.0`，并保留 `darwin` 平台显示。
+DeepStorming 的应用版本必须来自项目版本元数据，而不是直接启动开发入口时 Electron 二进制的版本。Electron Vite 配置从根 `package.json` 读取版本并生成构建期常量；Main 规范化该常量，并显式注入 `ElectronAppInfoAdapter`。Electron 仅提供 `app.getVersion()`，不提供版本 setter，因此 Adapter 不再依赖开发入口返回的 Electron 二进制版本。Adapter 单元测试与 E2E 同时验证 `0.0.0`，并保留 `darwin` 平台显示。
 
 修复后重新执行 `pnpm check` 和 `pnpm test:e2e`，再进入 SQLite 实施。
 
