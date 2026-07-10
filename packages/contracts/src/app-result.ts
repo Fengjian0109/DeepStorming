@@ -4,16 +4,33 @@ export const appErrorCodeSchema = z.enum([
   'INVALID_REQUEST',
   'INTERNAL_ERROR',
   'IPC_RESPONSE_INVALID',
+  'DATABASE_UNAVAILABLE',
+  'DATABASE_MIGRATION_FAILED',
+  'PROVIDER_NOT_FOUND',
+  'PROVIDER_VALIDATION_FAILED',
+  'PROVIDER_AUTH_FAILED',
+  'PROVIDER_RATE_LIMITED',
+  'PROVIDER_QUOTA_EXCEEDED',
+  'PROVIDER_MODEL_NOT_FOUND',
+  'PROVIDER_NETWORK_ERROR',
+  'PROVIDER_TIMEOUT',
+  'PROVIDER_RESPONSE_INVALID',
+  'SECRET_VAULT_UNAVAILABLE',
+  'SECRET_WRITE_FAILED',
+  'SECRET_DELETE_FAILED',
+  'OPERATION_CANCELLED',
 ])
 
 export type AppErrorCode = z.infer<typeof appErrorCodeSchema>
 
-export const appErrorSchema = z.object({
-  code: appErrorCodeSchema,
-  message: z.string().min(1),
-  retryable: z.boolean(),
-  details: z.record(z.string(), z.unknown()).optional(),
-})
+export const appErrorSchema = z
+  .object({
+    code: appErrorCodeSchema,
+    message: z.string().min(1),
+    retryable: z.boolean(),
+    details: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict()
 
 export type AppError = z.infer<typeof appErrorSchema>
 
@@ -22,14 +39,18 @@ export type AppResult<T> =
 
 export const createAppResultSchema = <T extends z.ZodType>(dataSchema: T) =>
   z.discriminatedUnion('ok', [
-    z.object({
-      ok: z.literal(true),
-      data: dataSchema,
-      requestId: z.string().min(1),
-    }),
-    z.object({
-      ok: z.literal(false),
-      error: appErrorSchema,
-      requestId: z.string().min(1),
-    }),
+    z
+      .object({
+        ok: z.literal(true),
+        data: dataSchema,
+        requestId: z.string().min(1),
+      })
+      .strict(),
+    z
+      .object({
+        ok: z.literal(false),
+        error: appErrorSchema,
+        requestId: z.string().min(1),
+      })
+      .strict(),
   ])
