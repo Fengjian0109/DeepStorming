@@ -44,6 +44,19 @@ export const migrateDatabase = async (
 ): Promise<void> => {
   const migrations = options.migrations ?? MIGRATIONS
   try {
+    let previousVersion = 0
+    const seen = new Set<number>()
+    for (const migration of migrations) {
+      if (
+        !Number.isInteger(migration.version) ||
+        migration.version <= 0 ||
+        seen.has(migration.version) ||
+        migration.version <= previousVersion
+      )
+        throw new Error('invalid migrations')
+      seen.add(migration.version)
+      previousVersion = migration.version
+    }
     const initialSize = (await stat(options.databasePath)).size
     const hasMigrationTable =
       db

@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, test } from 'vitest'
@@ -96,3 +96,38 @@ test('does not mutate an existing database when its pre-upgrade backup fails', a
   expect(db.prepare('SELECT value FROM legacy').get()).toEqual({ value: 'untouched' })
   db.close()
 })
+
+test.each([
+  ['nonpositive', [{ version: 0, name: 'invalid', sql: 'CREATE TABLE bad(id)' }]],
+  [
+    'duplicate',
+    [
+      { version: 1, name: 'a', sql: 'SELECT 1' },
+      { version: 1, name: 'b', sql: 'SELECT 1' },
+    ],
+  ],
+  [
+    'out of order',
+    [
+      { version: 2, name: 'a', sql: 'SELECT 1' },
+      { version: 1, name: 'b', sql: 'SELECT 1' },
+    ],
+  ],
+] as const)(
+  'rejects %s migration definitions without backup or mutation',
+  async (_name, migrations) => {
+    const dir = await setup()
+    const path = join(dir, 'app.db')
+    const db = openDatabase(path)
+    db.exec("CREATE TABLE legacy(value TEXT); INSERT INTO legacy VALUES ('untouched')")
+    const before = db.prepare("SELECT name,sql FROM sqlite_master WHERE type='table'").all()
+    await expect(
+      migrateDatabase(db, { databasePath: path, userDataPath: dir, migrations }),
+    ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })
+    expect(db.prepare("SELECT name,sql FROM sqlite_master WHERE type='table'").all()).toEqual(
+      before,
+    )
+    await expect(access(join(dir, 'backups'))).rejects.toBeDefined()
+    db.close()
+  },
+)

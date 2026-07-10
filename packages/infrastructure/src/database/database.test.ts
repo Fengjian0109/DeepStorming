@@ -18,3 +18,22 @@ test('opens SQLite with required reliability pragmas', async () => {
   expect(db.pragma('busy_timeout', { simple: true })).toBe(5000)
   db.close()
 })
+
+test('closes a partially opened connection when pragma setup fails', () => {
+  let closed = false
+  const partial = {
+    pragma: () => {
+      throw new Error('raw path sql')
+    },
+    close: () => {
+      closed = true
+    },
+  }
+  expect(() => openDatabase('secret-path', () => partial as never)).toThrowError(
+    expect.objectContaining({
+      code: 'DATABASE_UNAVAILABLE',
+      message: expect.not.stringContaining('secret-path'),
+    }),
+  )
+  expect(closed).toBe(true)
+})

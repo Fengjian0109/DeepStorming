@@ -84,7 +84,7 @@ Phase 2 首批迁移创建：
 
 `provider_write_requests` 以 `request_id` 为主键，仅保存 `create/update/delete/activate` 的操作类型、非空 `target_provider_id`、逻辑结果状态、包含内部 `revision` 和可选 `secret_ref` 但不包含原始密钥的 Provider/删除结果快照和创建时间。目标身份独立于可空结果快照。每个 Provider 写事务必须同时提交业务变更和不可变的完成结果；相同 request ID 仅在操作与目标 Provider ID 都匹配时返回原始逻辑结果，不重复应用写入，否则返回 `PROVIDER_VALIDATION_FAILED`。若不同操作在预检后赢得并发事务，Repository 返回显式 `conflict` 结果，用例只补偿本次新建且未被采用的 Vault 引用。
 
-Provider 创建时内部 `revision = 1`。更新以首次读取的 revision 作为乐观并发条件，事务成功时原子递增，显式返回 `stale/not_found`，避免同一时间戳下的并发覆盖；`updated_at` 仅用于展示和审计。启用事务同样比较并递增 revision，并在事务内重新确认目标行仍存在且为 Mock 或具有 `secret_ref`，再原子切换唯一启用项。公共 `ProviderProfile` 不暴露 revision。连接测试不写入不可变 request outcome；Task 6 建立 `provider_test_operations`，使用独立 `operation_id` 对 `last_test_status` 执行 `testing -> terminal` 的持久化比较并交换转换，并保存每次成功转换产生的严格校验 Provider 快照；重放返回该原始快照而非当前 Provider 行。Task 8 在此基础上实现外部请求编排与取消。
+Provider 创建时内部 `revision = 1`。更新使用单条 `UPDATE ... WHERE id = ? AND revision = ?` 执行真实 CAS，并依据受影响行数区分成功及后续的 `stale/not_found`；`updated_at` 仅用于展示和审计。启用在 SQLite immediate 写事务内读取并比较 revision、重新确认目标仍为 Mock 或具有 `secret_ref`，再原子清除旧启用项和切换目标，避免并发事务读到相同 revision 后部分提交。公共 `ProviderProfile` 不暴露 revision。连接测试不写入不可变 request outcome；Task 6 建立 `provider_test_operations`，使用独立 `operation_id` 对 `last_test_status` 执行 `testing -> terminal` 的持久化比较并交换转换，并保存每次成功转换产生的严格校验 Provider 快照；重放先读取操作历史并返回该原始快照，即使当前 Provider 已编辑或删除。Task 8 在此基础上实现外部请求编排与取消。
 
 迁移规则：
 

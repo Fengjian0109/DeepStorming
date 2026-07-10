@@ -236,3 +236,45 @@ test('strictly validates persisted test-operation snapshots', async () => {
     message: expect.not.stringContaining('secret payload'),
   })
 })
+
+test('returns stale across two connections that started from the same revision', async () => {
+  await repo.create('r1', provider())
+  const secondDb = openDatabase(join(dir, 'app.db'))
+  const second = new SqliteProviderRepository(secondDb)
+  expect((await repo.findById('p1'))?.revision).toBe(1)
+  expect((await second.findById('p1'))?.revision).toBe(1)
+  expect(await repo.update('u1', 1, provider('p1', { displayName: 'winner' }))).toMatchObject({
+    status: 'applied',
+  })
+  expect(await second.update('u2', 1, provider('p1', { displayName: 'loser' }))).toEqual({
+    status: 'stale',
+  })
+  expect((await repo.findById('p1'))?.displayName).toBe('winner')
+  secondDb.close()
+})
+
+test('replays a completed test transition after the live provider is deleted', async () => {
+  await repo.create('r1', provider())
+  const applied = await repo.transitionTestStatus({
+    operationId: 'op1',
+    providerId: 'p1',
+    nextStatus: 'testing',
+    testedAt: 't1',
+  })
+  await repo.removeIfUnreferenced('d1', 'p1')
+  expect(
+    await repo.transitionTestStatus({
+      operationId: 'op1',
+      providerId: 'p1',
+      nextStatus: 'testing',
+      testedAt: 't1',
+    }),
+  ).toEqual({ status: 'replayed', provider: (applied as { provider: StoredProvider }).provider })
+})
+
+test('rejects non-integer live revisions safely', async () => {
+  await repo.create('r1', provider())
+  db.exec('PRAGMA ignore_check_constraints=ON')
+  db.prepare('UPDATE ai_providers SET revision=?').run(1.5)
+  await expect(repo.findById('p1')).rejects.toMatchObject({ code: 'DATABASE_UNAVAILABLE' })
+})

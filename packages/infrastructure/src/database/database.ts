@@ -14,15 +14,28 @@ export const databaseError = (
     true,
   )
 
-export const openDatabase = (path: string): SqliteDatabase => {
+type DatabaseFactory = (path: string) => SqliteDatabase
+
+export const openDatabase = (
+  path: string,
+  factory: DatabaseFactory = (value) => new Database(value),
+): SqliteDatabase => {
+  let db: SqliteDatabase | undefined
   try {
-    const db = new Database(path)
+    db = factory(path)
     db.pragma('journal_mode = WAL')
     db.pragma('foreign_keys = ON')
     db.pragma('synchronous = NORMAL')
     db.pragma('busy_timeout = 5000')
     return db
   } catch {
+    if (db !== undefined) {
+      try {
+        db.close()
+      } catch (closeError) {
+        void closeError
+      }
+    }
     throw databaseError('DATABASE_UNAVAILABLE')
   }
 }

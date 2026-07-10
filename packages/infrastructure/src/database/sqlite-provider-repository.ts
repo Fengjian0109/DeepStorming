@@ -49,7 +49,8 @@ const mapRow = (row: Row): StoredProvider => {
     !isString(row['model_name']) ||
     !isString(row['created_at']) ||
     !isString(row['updated_at']) ||
-    typeof row['revision'] !== 'number' ||
+    !Number.isInteger(row['revision']) ||
+    (row['revision'] as number) < 1 ||
     ![0, 1].includes(row['is_active'] as number)
   )
     throw new Error('invalid')
@@ -76,7 +77,7 @@ const mapRow = (row: Row): StoredProvider => {
     ...(row['last_tested_at'] === null ? {} : { lastTestedAt: row['last_tested_at'] as string }),
     createdAt: row['created_at'],
     updatedAt: row['updated_at'],
-    revision: row['revision'],
+    revision: row['revision'] as number,
   }
 }
 const snapshot = (raw: unknown): StoredProvider => {
@@ -279,20 +280,40 @@ export class SqliteProviderRepository implements ProviderRepositoryPort {
     p: StoredProvider,
   ): Promise<ProviderUpdateResult> {
     return this.safe(() =>
-      this.db.transaction(() => {
-        const prior = this.prior(requestId, 'update', p['id'])
-        if (prior?.conflict) return { status: 'conflict', existingOperation: prior.conflict }
-        if (prior?.outcome && prior.outcome['operation'] !== 'delete')
-          return { status: 'replayed', provider: prior.outcome.provider }
-        const current = this.row(p['id'])
-        if (!current) return { status: 'not_found' }
-        if (current['revision'] !== expectedRevision) return { status: 'stale' }
-        const updated = { ...p, revision: expectedRevision + 1 }
-        this.db.prepare('DELETE FROM ai_providers WHERE id=?').run(p['id'])
-        this.insertProvider(updated)
-        this.insertOutcome(requestId, 'update', p['id'], 'succeeded', updated)
-        return { status: 'applied', provider: updated } as const
-      })(),
+      this.db
+        .transaction(() => {
+          const prior = this.prior(requestId, 'update', p['id'])
+          if (prior?.conflict) return { status: 'conflict', existingOperation: prior.conflict }
+          if (prior?.outcome && prior.outcome['operation'] !== 'delete')
+            return { status: 'replayed', provider: prior.outcome.provider }
+          const result = this.db
+            .prepare(
+              `UPDATE ai_providers SET provider_type=?,display_name=?,base_url=?,model_name=?,secret_ref=?,capabilities_json=?,is_active=?,last_test_status=?,last_tested_at=?,created_at=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?`,
+            )
+            .run(
+              p.providerType,
+              p.displayName,
+              p.baseUrl ?? null,
+              p.modelName,
+              p.secretRef ?? null,
+              JSON.stringify(p.capabilities),
+              p.isActive ? 1 : 0,
+              p.lastTestStatus ?? null,
+              p.lastTestedAt ?? null,
+              p.createdAt,
+              p.updatedAt,
+              p['id'],
+              expectedRevision,
+            )
+          if (result.changes === 0)
+            return this.db.prepare('SELECT 1 FROM ai_providers WHERE id=?').get(p['id'])
+              ? { status: 'stale' }
+              : { status: 'not_found' }
+          const updated = this.row(p['id'])!
+          this.insertOutcome(requestId, 'update', p['id'], 'succeeded', updated)
+          return { status: 'applied', provider: updated } as const
+        })
+        .immediate(),
     ) as ProviderUpdateResult
   }
   public async activate(
@@ -302,25 +323,28 @@ export class SqliteProviderRepository implements ProviderRepositoryPort {
     updatedAt: string,
   ): Promise<ProviderActivateResult> {
     return this.safe(() =>
-      this.db.transaction(() => {
-        const prior = this.prior(requestId, 'activate', id)
-        if (prior?.conflict) return { status: 'conflict', existingOperation: prior.conflict }
-        if (prior?.outcome && prior.outcome['operation'] !== 'delete')
-          return { status: 'replayed', provider: prior.outcome.provider }
-        const p = this.row(id)
-        if (!p) return { status: 'not_found' }
-        if (p['revision'] !== expectedRevision) return { status: 'stale' }
-        if (p.providerType !== 'mock' && !p.secretRef) return { status: 'credential_missing' }
-        this.db.prepare('UPDATE ai_providers SET is_active=0 WHERE is_active=1').run()
-        this.db
-          .prepare(
-            'UPDATE ai_providers SET is_active=1,updated_at=?,revision=revision+1 WHERE id=? AND revision=?',
-          )
-          .run(updatedAt, id, expectedRevision)
-        const updated = this.row(id)!
-        this.insertOutcome(requestId, 'activate', id, 'succeeded', updated)
-        return { status: 'applied', provider: updated } as const
-      })(),
+      this.db
+        .transaction(() => {
+          const prior = this.prior(requestId, 'activate', id)
+          if (prior?.conflict) return { status: 'conflict', existingOperation: prior.conflict }
+          if (prior?.outcome && prior.outcome['operation'] !== 'delete')
+            return { status: 'replayed', provider: prior.outcome.provider }
+          const p = this.row(id)
+          if (!p) return { status: 'not_found' }
+          if (p['revision'] !== expectedRevision) return { status: 'stale' }
+          if (p.providerType !== 'mock' && !p.secretRef) return { status: 'credential_missing' }
+          this.db.prepare('UPDATE ai_providers SET is_active=0 WHERE is_active=1').run()
+          const result = this.db
+            .prepare(
+              'UPDATE ai_providers SET is_active=1,updated_at=?,revision=revision+1 WHERE id=? AND revision=?',
+            )
+            .run(updatedAt, id, expectedRevision)
+          if (result.changes !== 1) throw new Error('activation CAS')
+          const updated = this.row(id)!
+          this.insertOutcome(requestId, 'activate', id, 'succeeded', updated)
+          return { status: 'applied', provider: updated } as const
+        })
+        .immediate(),
     ) as ProviderActivateResult
   }
   public async removeIfUnreferenced(requestId: string, id: string): Promise<ProviderRemoveResult> {
@@ -358,8 +382,6 @@ export class SqliteProviderRepository implements ProviderRepositoryPort {
   }): Promise<ProviderTestStatusTransitionResult> {
     return this.safe(() =>
       this.db.transaction(() => {
-        const p = this.row(t.providerId)
-        if (!p) return { status: 'not_found' }
         const op = this.db
           .prepare('SELECT * FROM provider_test_operations WHERE operation_id=?')
           .get(t.operationId) as Row | undefined
@@ -377,6 +399,8 @@ export class SqliteProviderRepository implements ProviderRepositoryPort {
           )
             return { status: 'stale' }
         }
+        const p = this.row(t.providerId)
+        if (!p) return { status: 'not_found' }
         this.db
           .prepare(
             'UPDATE ai_providers SET last_test_status=?,last_tested_at=?,revision=revision+1 WHERE id=?',

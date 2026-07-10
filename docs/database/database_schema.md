@@ -130,7 +130,7 @@ erDiagram
 | created_at             | TEXT | NOT NULL | 首次进入 `testing` 的时间                |
 | updated_at             | TEXT | NOT NULL | 最近一次成功状态转换时间                 |
 
-`operation_id` 与 `provider_id` 绑定。首次转换只能进入 `testing`；终态转换必须比较当前 `testing` 状态，并与 Provider 状态、结果快照及 revision 增量在同一事务提交。重复相同状态返回持久化的原始快照且不增加 revision，即使 Provider 后续已被编辑。
+`operation_id` 与 `provider_id` 绑定。首次转换只能进入 `testing`；终态转换必须比较当前 `testing` 状态，并与 Provider 状态、结果快照及 revision 增量在同一事务提交。操作历史不随 Provider 删除而删除；重复相同状态返回持久化的原始快照且不增加 revision，即使 Provider 后续已被编辑或删除。
 
 ## 5. 文档与导入
 
