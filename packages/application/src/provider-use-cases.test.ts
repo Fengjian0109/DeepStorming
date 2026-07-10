@@ -55,6 +55,7 @@ class FakeRepository implements ProviderRepositoryPort {
   public createRaceProvider?: StoredProvider
   public updateRaceProvider?: StoredProvider
   public createRaceConflict = false
+  public activateFailure?: unknown
 
   public constructor(
     private readonly events: string[],
@@ -148,6 +149,7 @@ class FakeRepository implements ProviderRepositoryPort {
     updatedAt: string,
   ): Promise<ProviderMutationResult> {
     this.events.push('repository.activate')
+    if (this.activateFailure !== undefined) throw this.activateFailure
     const replay = this.outcomes.get(requestId)
     if (replay?.operation === 'activate') {
       return { status: 'replayed', provider: replay.provider }
@@ -948,6 +950,25 @@ describe('ActivateProvider and ListProviders', () => {
     expect(second).toEqual(first)
     expect(events).toEqual(['repository.activate'])
     expect(repository.rows.get(ID)?.updatedAt).toBe(first.updatedAt)
+  })
+
+  it('canonicalizes typed activation adapter failures as safe database errors', async () => {
+    const repository = new FakeRepository([], [storedProvider({ secretRef: 'key-ref' })])
+    repository.activateFailure = new ProviderUseCaseError(
+      'SECRET_WRITE_FAILED',
+      'unsafe adapter path with api-key',
+      true,
+      { fieldName: 'api-key' },
+    )
+
+    const error = await expectStableError(
+      new ActivateProvider(repository, clock).execute({ requestId: REQUEST_ID, id: ID }),
+      'DATABASE_UNAVAILABLE',
+    )
+
+    expect(error.message).toBe('Provider storage is temporarily unavailable.')
+    expect(error.details).toBeUndefined()
+    expect(JSON.stringify(error)).not.toContain('api-key')
   })
 
   it('rejects a request ID reused for another operation before side effects', async () => {

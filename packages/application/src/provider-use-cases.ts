@@ -10,6 +10,7 @@ import { ProviderUseCaseError } from './provider-errors'
 import type {
   ClockPort,
   IdGeneratorPort,
+  ProviderMutationResult,
   ProviderRemoveLogicalOutcome,
   ProviderRepositoryPort,
   ProviderWriteOutcome,
@@ -367,13 +368,13 @@ export class ActivateProvider {
     }
 
     const updatedAt = getTimestamp(this.clock)
+    let result: ProviderMutationResult
     try {
-      const result = await this.repository.activate(input.requestId, input.id, updatedAt)
-      if (result.status === 'conflict') throw validationError()
-      return toProviderProfile(result.provider)
-    } catch (error) {
-      if (error instanceof ProviderUseCaseError) throw error
+      result = await this.repository.activate(input.requestId, input.id, updatedAt)
+    } catch {
       throw databaseError()
     }
+    if (result.status === 'conflict') throw validationError()
+    return toProviderProfile(result.provider)
   }
 }

@@ -21,7 +21,7 @@
 
 ## 已知问题
 
-- SQLite、Migration、Secret Vault 和 Provider 尚未实现。
+- SQLite、Migration、Secret Vault 以及剩余的 Provider 持久化、IPC 与 UI 垂直切片尚未实现；Provider 应用规则与用例已完成。
 
 ## 常用命令
 
