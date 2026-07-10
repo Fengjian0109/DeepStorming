@@ -325,17 +325,18 @@ export type ProviderMutationResult =
   | Readonly<{ status: 'applied' | 'replayed'; provider: StoredProvider }>
   | Readonly<{ status: 'conflict'; existingOperation: ProviderWriteOperation }>
 export type ProviderRemoveLogicalOutcome =
-  | Readonly<{ status: 'removed'; provider: StoredProvider }>
-  | Readonly<{ status: 'blocked' }>
-  | Readonly<{ status: 'not_found' }>
+  | Readonly<{ status: 'removed'; providerId: string; provider: StoredProvider }>
+  | Readonly<{ status: 'blocked'; providerId: string }>
+  | Readonly<{ status: 'not_found'; providerId: string }>
 export type ProviderRemoveResult =
   | Readonly<{
       status: 'removed'
+      providerId: string
       provider: StoredProvider
       mutation: 'applied' | 'replayed'
     }>
-  | Readonly<{ status: 'blocked' }>
-  | Readonly<{ status: 'not_found' }>
+  | Readonly<{ status: 'blocked'; providerId: string }>
+  | Readonly<{ status: 'not_found'; providerId: string }>
   | Readonly<{ status: 'conflict'; existingOperation: ProviderWriteOperation }>
 export type ProviderWriteOutcome =
   | Readonly<{
@@ -393,6 +394,8 @@ export interface IdGeneratorPort {
   generate(): string
 }
 ```
+
+Persist non-null `target_provider_id` independently of nullable outcome snapshots. Bind every replay, including blocked/not-found delete outcomes, to both operation and target Provider ID.
 
 - [ ] **Step 4: Implement minimal use cases**
 

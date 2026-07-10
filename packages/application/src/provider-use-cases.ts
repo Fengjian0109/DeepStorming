@@ -409,6 +409,7 @@ export class DeleteProvider {
   public async execute(input: ProviderIdWriteInput): Promise<void> {
     const replay = await findReplay(this.repository, input.requestId, 'delete')
     if (replay !== undefined) {
+      if (replay.outcome.providerId !== input.id) throw validationError()
       mapRemoveOutcome(replay.outcome)
       return
     }
@@ -425,9 +426,11 @@ export class DeleteProvider {
       }
       if (outcome === undefined) throw databaseError()
       if (outcome.operation !== 'delete') throw validationError()
+      if (outcome.outcome.providerId !== input.id) throw validationError()
       result = outcome.outcome
     }
     if (result.status === 'conflict') throw validationError()
+    if (result.providerId !== input.id) throw validationError()
     mapRemoveOutcome(result)
     if (
       result.status !== 'removed' ||

@@ -68,6 +68,7 @@ class FakeRepository implements ProviderRepositoryPort {
   public commitActivateThenThrow = false
   public updateFailureOutcome?: ProviderWriteOutcome
   public activateFailureOutcome?: ProviderWriteOutcome
+  public removeFailureOutcome?: ProviderWriteOutcome
   public failRecoveryLookup = false
   private writeAttempted = false
 
@@ -156,21 +157,25 @@ class FakeRepository implements ProviderRepositoryPort {
         ? { ...replay.outcome, mutation: 'replayed' }
         : replay.outcome
     }
+    if (this.removeFailureOutcome !== undefined) {
+      this.outcomes.set(requestId, this.removeFailureOutcome)
+      throw new Error('ambiguous foreign outcome')
+    }
     if (this.blocking) {
-      const outcome = { status: 'blocked' } as const
+      const outcome = { status: 'blocked', providerId: id } as const
       this.outcomes.set(requestId, { operation: 'delete', outcome })
       if (this.commitRemoveThenThrow) throw new Error('ambiguous commit')
       return outcome
     }
     const provider = this.rows.get(id)
     if (provider === undefined) {
-      const outcome = { status: 'not_found' } as const
+      const outcome = { status: 'not_found', providerId: id } as const
       this.outcomes.set(requestId, { operation: 'delete', outcome })
       if (this.commitRemoveThenThrow) throw new Error('ambiguous commit')
       return outcome
     }
     this.rows.delete(id)
-    const outcome = { status: 'removed', provider } as const
+    const outcome = { status: 'removed', providerId: id, provider } as const
     this.outcomes.set(requestId, { operation: 'delete', outcome })
     if (this.commitRemoveThenThrow) throw new Error('ambiguous commit')
     return { ...outcome, mutation: 'applied' }
@@ -1147,6 +1152,55 @@ describe('DeleteProvider', () => {
       code,
     )
   })
+
+  it('rejects a cached delete outcome for another provider without deleting its secret', async () => {
+    const repository = new FakeRepository([], [storedProvider({ secretRef: 'local-ref' })])
+    repository.outcomes.set(REQUEST_ID, {
+      operation: 'delete',
+      outcome: {
+        status: 'removed',
+        providerId: 'other-provider',
+        provider: storedProvider({ id: 'other-provider', secretRef: 'foreign-ref' }),
+      },
+    })
+    const vault = new FakeVault([])
+    vault.secrets.set('foreign-ref', 'foreign-key')
+
+    await expectStableError(
+      new DeleteProvider(repository, vault, new FakeCleanupReporter()).execute({
+        requestId: REQUEST_ID,
+        id: ID,
+      }),
+      'PROVIDER_VALIDATION_FAILED',
+    )
+    expect(vault.secrets.get('foreign-ref')).toBe('foreign-key')
+  })
+
+  it.each(['removed', 'blocked', 'not_found'] as const)(
+    'rejects ambiguous foreign %s delete outcome without cleanup',
+    async (status) => {
+      const foreign = storedProvider({ id: 'other-provider', secretRef: 'foreign-ref' })
+      const repository = new FakeRepository([], [storedProvider()])
+      repository.removeFailureOutcome = {
+        operation: 'delete',
+        outcome:
+          status === 'removed'
+            ? { status, providerId: foreign.id, provider: foreign }
+            : { status, providerId: foreign.id },
+      }
+      const vault = new FakeVault([])
+      vault.secrets.set('foreign-ref', 'foreign-key')
+
+      await expectStableError(
+        new DeleteProvider(repository, vault, new FakeCleanupReporter()).execute({
+          requestId: REQUEST_ID,
+          id: ID,
+        }),
+        'PROVIDER_VALIDATION_FAILED',
+      )
+      expect(vault.secrets.get('foreign-ref')).toBe('foreign-key')
+    },
+  )
 })
 
 describe('ActivateProvider and ListProviders', () => {

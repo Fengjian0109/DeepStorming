@@ -110,11 +110,12 @@ erDiagram
 | ---------------------- | ---- | -------- | --------------------------------------------------------------------------------- |
 | request_id             | TEXT | PK       | IPC request ID；完成结果不可变                                                    |
 | operation              | TEXT | NOT NULL | `create/update/delete/activate`                                                   |
+| target_provider_id     | TEXT | NOT NULL | 目标 Provider ID；与 operation 共同绑定重放身份                                   |
 | outcome_status         | TEXT | NOT NULL | `succeeded/removed/blocked/not_found`                                             |
 | provider_snapshot_json | TEXT | NULL     | Provider 或删除结果快照；含内部 `revision`，可含 `secret_ref`，不得含原始 API Key |
 | created_at             | TEXT | NOT NULL | 结果与业务写入在同一事务中提交                                                    |
 
-约束：同一 `request_id` 的重放仅在操作类型和目标 Provider ID 都匹配时返回原始逻辑结果且不再次应用业务写入；否则拒绝。Provider 创建、更新、启用和原子删除必须与对应结果行在同一事务内提交。更新和启用使用调用方首次读取的内部 `revision` 作为事务内乐观并发条件，成功时递增；`updated_at` 仅用于展示和审计。启用还必须在事务内验证目标仍为 Mock 或具有 `secret_ref`。
+约束：同一 `request_id` 的重放仅在 `operation` 和非空 `target_provider_id` 都匹配时返回原始逻辑结果且不再次应用业务写入；否则拒绝。快照可因 blocked/not-found 等结果为空，但目标身份不得依赖快照。Provider 创建、更新、启用和原子删除必须与对应结果行在同一事务内提交。更新和启用使用调用方首次读取的内部 `revision` 作为事务内乐观并发条件，成功时递增；`updated_at` 仅用于展示和审计。启用还必须在事务内验证目标仍为 Mock 或具有 `secret_ref`。
 
 连接测试状态不进入本表。Repository 使用独立 `operation_id` 记录或识别同一次状态转换，并以期望状态执行比较并交换，只允许将 `testing` 转换为终态；转换结果为 `applied/replayed/stale/not_found`。Task 8 的迁移实现需要为该 operation-ID 状态转换增加持久化结构。
 
