@@ -1,6 +1,6 @@
 import type { IdGeneratorPort, SecretVaultPort } from '@deepstorming/application'
 import { constants } from 'node:fs'
-import { link, lstat, mkdir, open, readdir, rm } from 'node:fs/promises'
+import { chmod, link, lstat, mkdir, open, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { SecretCipher } from './secret-cipher'
 
@@ -14,10 +14,11 @@ class SecretVaultError extends Error {
 }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
-const SECRET_REF = new RegExp(`^${UUID}\\.secret$`, 'i')
-const TMP_REF = new RegExp(`^${UUID}\\.tmp$`, 'i')
+const SECRET_REF = new RegExp(`^${UUID}\\.secret$`)
+const TMP_REF = new RegExp(`^${UUID}\\.tmp$`)
 
 type FileSystem = Readonly<{
+  chmod: typeof chmod
   mkdir: typeof mkdir
   link: typeof link
   lstat: typeof lstat
@@ -26,8 +27,9 @@ type FileSystem = Readonly<{
   rm: typeof rm
 }>
 
-const nodeFileSystem: FileSystem = { mkdir, link, lstat, open, readdir, rm }
+const nodeFileSystem: FileSystem = { chmod, mkdir, link, lstat, open, readdir, rm }
 const UNSUPPORTED_DIRECTORY_SYNC_CODES = new Set(['EINVAL', 'ENOTSUP', 'EOPNOTSUPP', 'EPERM'])
+const NOFOLLOW = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0
 
 export class EncryptedFileSecretVault implements SecretVaultPort {
   private readonly fs: FileSystem
@@ -43,10 +45,11 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
 
   public async put(secret: string): Promise<string> {
     let temporaryPath: string | undefined
+    let publishedPath: string | undefined
     try {
       if (!this.cipher.isAvailable()) throw new Error('unavailable')
       const encrypted = this.cipher.encrypt(secret)
-      await this.fs.mkdir(this.directory, { recursive: true, mode: 0o700 })
+      await this.ensureDirectory(true)
       const id = this.ids.generate()
       const ref = `${id}.secret`
       if (!SECRET_REF.test(ref)) throw new Error('invalid id')
@@ -61,9 +64,17 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
       }
       // Hard-link publication is atomic and exclusive: an existing destination yields EEXIST.
       await this.fs.link(temporaryPath, finalPath)
+      publishedPath = finalPath
       await this.fs.rm(temporaryPath)
       temporaryPath = undefined
-      await this.syncDirectory()
+      try {
+        await this.syncDirectory()
+      } catch {
+        await this.cleanupAmbiguousPublication(finalPath)
+        publishedPath = undefined
+        throw new Error('directory sync failed')
+      }
+      publishedPath = undefined
       return ref
     } catch {
       if (temporaryPath !== undefined) {
@@ -74,6 +85,7 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
           return Promise.reject(new SecretVaultError('SECRET_WRITE_FAILED'))
         }
       }
+      if (publishedPath !== undefined) await this.cleanupAmbiguousPublication(publishedPath)
       throw new SecretVaultError('SECRET_WRITE_FAILED')
     }
   }
@@ -82,12 +94,20 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
     if (!SECRET_REF.test(ref)) throw new SecretVaultError('SECRET_VAULT_UNAVAILABLE')
     try {
       if (!this.cipher.isAvailable()) throw new Error('unavailable')
+      await this.ensureDirectory(false)
       const path = join(this.directory, ref)
       const beforeOpen = await this.fs.lstat(path)
-      if (!beforeOpen.isFile() || beforeOpen.isSymbolicLink()) throw new Error('not a regular file')
-      const handle = await this.fs.open(path, constants.O_RDONLY | constants.O_NOFOLLOW)
+      if (!this.isExclusiveRegularFile(beforeOpen)) throw new Error('not an exclusive regular file')
+      const handle = await this.fs.open(path, constants.O_RDONLY | NOFOLLOW)
       try {
-        if (!(await handle.stat()).isFile()) throw new Error('not a regular file')
+        const afterOpen = await handle.stat()
+        if (
+          !this.isExclusiveRegularFile(afterOpen) ||
+          beforeOpen.dev !== afterOpen.dev ||
+          beforeOpen.ino !== afterOpen.ino
+        ) {
+          throw new Error('file identity changed')
+        }
         return this.cipher.decrypt(await handle.readFile())
       } finally {
         await handle.close()
@@ -100,10 +120,11 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
   public async remove(ref: string): Promise<void> {
     if (!SECRET_REF.test(ref)) throw new SecretVaultError('SECRET_DELETE_FAILED')
     try {
+      await this.ensureDirectory(false)
       const path = join(this.directory, ref)
-      const entry = await this.fs.lstat(path)
-      if (!entry.isFile() || entry.isSymbolicLink()) throw new Error('not a regular file')
+      await this.assertStableExclusiveRegularFile(path)
       await this.fs.rm(path)
+      await this.syncDirectory()
     } catch (error: unknown) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw new SecretVaultError('SECRET_DELETE_FAILED')
@@ -132,20 +153,86 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
     }
     let entries
     try {
+      await this.ensureDirectory(false)
       entries = await this.fs.readdir(this.directory, { withFileTypes: true })
     } catch (error: unknown) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
       throw new SecretVaultError('SECRET_DELETE_FAILED')
     }
+    let failed = false
+    let deleted = false
     for (const entry of entries) {
       if (!entry.isFile()) continue
       const ownedSecret = SECRET_REF.test(entry.name) && !referencedRefs.has(entry.name)
       if (!ownedSecret && !TMP_REF.test(entry.name)) continue
       try {
-        await this.fs.rm(join(this.directory, entry.name))
+        const path = join(this.directory, entry.name)
+        await this.assertStableExclusiveRegularFile(path)
+        await this.fs.rm(path)
+        deleted = true
       } catch {
-        throw new SecretVaultError('SECRET_DELETE_FAILED')
+        failed = true
       }
+    }
+    if (deleted) {
+      try {
+        await this.syncDirectory()
+      } catch {
+        failed = true
+      }
+    }
+    if (failed) throw new SecretVaultError('SECRET_DELETE_FAILED')
+  }
+
+  private isExclusiveRegularFile(metadata: {
+    isFile(): boolean
+    isSymbolicLink(): boolean
+    nlink: number
+  }): boolean {
+    return metadata.isFile() && !metadata.isSymbolicLink() && metadata.nlink === 1
+  }
+
+  private async assertStableExclusiveRegularFile(path: string): Promise<void> {
+    const beforeOpen = await this.fs.lstat(path)
+    if (!this.isExclusiveRegularFile(beforeOpen)) throw new Error('not an exclusive regular file')
+    const handle = await this.fs.open(path, constants.O_RDONLY | NOFOLLOW)
+    try {
+      const afterOpen = await handle.stat()
+      if (
+        !this.isExclusiveRegularFile(afterOpen) ||
+        beforeOpen.dev !== afterOpen.dev ||
+        beforeOpen.ino !== afterOpen.ino
+      ) {
+        throw new Error('file identity changed')
+      }
+    } finally {
+      await handle.close()
+    }
+  }
+
+  private async ensureDirectory(create: boolean): Promise<void> {
+    if (create) await this.fs.mkdir(this.directory, { recursive: true, mode: 0o700 })
+    const metadata = await this.fs.lstat(this.directory)
+    if (!metadata.isDirectory() || metadata.isSymbolicLink())
+      throw new Error('unsafe vault directory')
+    if (typeof process.getuid === 'function' && metadata.uid !== process.getuid()) {
+      throw new Error('vault directory owner mismatch')
+    }
+    if (process.platform !== 'win32' && (metadata.mode & 0o777) !== 0o700) {
+      await this.fs.chmod(this.directory, 0o700)
+      if (((await this.fs.lstat(this.directory)).mode & 0o777) !== 0o700) {
+        throw new Error('vault directory permissions unavailable')
+      }
+    }
+  }
+
+  private async cleanupAmbiguousPublication(path: string): Promise<void> {
+    try {
+      await this.fs.rm(path, { force: true })
+      await this.syncDirectory()
+    } catch {
+      // Publication state is ambiguous only when both the durability sync and safe cleanup fail.
+      return
     }
   }
 }
