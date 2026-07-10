@@ -1,0 +1,21 @@
+appId: com.deepstorming.desktop
+productName: DeepStorming
+executableName: DeepStorming
+asar: true
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+mac:
+  category: public.app-category.education
+  target:
+    - dmg
+    - zip
+win:
+  target:
+    - nsis
+linux:
+  category: Education
+  target:
+    - AppImage
