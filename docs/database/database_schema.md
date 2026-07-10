@@ -117,7 +117,19 @@ erDiagram
 
 约束：同一 `request_id` 的重放仅在 `operation` 和非空 `target_provider_id` 都匹配时返回原始逻辑结果且不再次应用业务写入；否则拒绝。快照可因 blocked/not-found 等结果为空，但目标身份不得依赖快照。Provider 创建、更新、启用和原子删除必须与对应结果行在同一事务内提交。更新和启用使用调用方首次读取的内部 `revision` 作为事务内乐观并发条件，成功时递增；`updated_at` 仅用于展示和审计。启用还必须在事务内验证目标仍为 Mock 或具有 `secret_ref`。
 
-连接测试状态不进入本表。Repository 使用独立 `operation_id` 记录或识别同一次状态转换，并以期望状态执行比较并交换，只允许将 `testing` 转换为终态；转换结果为 `applied/replayed/stale/not_found`。Task 8 的迁移实现需要为该 operation-ID 状态转换增加持久化结构。
+连接测试状态不进入本表。Repository 使用独立 `provider_test_operations` 表按 `operation_id` 持久化同一次状态转换，并以期望状态执行比较并交换，只允许将 `testing` 转换为终态；转换结果为 `applied/replayed/stale/not_found`。该持久化结构在 Task 6 建立，Task 8 在其上实现连接测试编排与取消。
+
+### 4.5 `provider_test_operations`
+
+| 字段           | 类型 | 约束     | 说明                              |
+| -------------- | ---- | -------- | --------------------------------- |
+| operation_id   | TEXT | PK       | 单次连接测试操作 ID               |
+| provider_id    | TEXT | NOT NULL | Provider 逻辑引用                 |
+| current_status | TEXT | NOT NULL | `testing/success/error/cancelled` |
+| created_at     | TEXT | NOT NULL | 首次进入 `testing` 的时间         |
+| updated_at     | TEXT | NOT NULL | 最近一次成功状态转换时间          |
+
+`operation_id` 与 `provider_id` 绑定。首次转换只能进入 `testing`；终态转换必须比较当前 `testing` 状态，并与 Provider 状态及 revision 增量在同一事务提交。重复相同状态返回原快照且不增加 revision。
 
 ## 5. 文档与导入
 

@@ -7,6 +7,15 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "rebuild:native:node": "npm run build-release --prefix \"$(node -p \"require('node:path').dirname(require.resolve('better-sqlite3/package.json'))\")\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@deepstorming/application": "workspace:*",
+    "@deepstorming/domain": "workspace:*",
+    "better-sqlite3": "12.11.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13"
   }
 }

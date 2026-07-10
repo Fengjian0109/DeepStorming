@@ -2,6 +2,9 @@ appId: com.deepstorming.desktop
 productName: DeepStorming
 executableName: DeepStorming
 asar: true
+asarUnpack:
+  - '**/*.node'
+npmRebuild: true
 directories:
   output: release
 files:

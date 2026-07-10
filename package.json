@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "pnpm --filter @deepstorming/desktop dev",
     "build": "pnpm --filter @deepstorming/desktop build",
-    "package:dir": "pnpm --filter @deepstorming/desktop package:dir",
+    "package:dir": "pnpm --filter @deepstorming/desktop package:dir && pnpm --filter @deepstorming/infrastructure rebuild:native:node",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
