@@ -12,6 +12,7 @@
 - Phase 1 应用版本边界：Main 构建时注入根包版本，开发入口正确显示 DeepStorming 版本。
 - macOS E2E：`pnpm test:e2e` 通过。
 - Phase 2 设计：`docs/superpowers/specs/2026-07-10-phase-2-provider-foundation-design.md`。
+- Phase 2 Provider 应用层：CRUD、激活、稳定错误映射与 Secret Vault 补偿顺序。
 
 ## 当前门禁
 
@@ -32,4 +33,4 @@ pnpm package:dir
 
 ## 下一步
 
-执行 Phase 2 实施计划 Task 5。
+执行 Phase 2 实施计划 Task 6。
