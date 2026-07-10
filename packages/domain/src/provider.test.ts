@@ -106,6 +106,24 @@ describe('normalizeProviderDraft', () => {
     ).toBe('https://models.example.com:8443/v1')
   })
 
+  it.each([
+    'https://[:1:2:3:4:5:6:7:8]/v1',
+    'https://[1:2:3:4:5:6:7:8:]/v1',
+    'https://[:::1]/v1',
+    'https://[1:::]/v1',
+    'https://[::1:2:3:4:5:6:7:8]/v1',
+    'https://[1:2:3:4:5:6:7:8::]/v1',
+  ])('rejects malformed IPv6 colon placement and compression: %s', (baseUrl) => {
+    expect(() =>
+      normalizeProviderDraft({
+        providerType: 'openai_compatible',
+        displayName: 'Compatible',
+        baseUrl,
+        modelName: 'chat',
+      }),
+    ).toThrow('baseUrl must be a valid URL')
+  })
+
   it.each(['http://localhost:11434/v1', 'http://127.0.0.1:11434/v1', 'http://[::1]:11434/v1'])(
     'accepts HTTP for an exact loopback host when explicitly allowed: %s',
     (baseUrl) => {
@@ -226,6 +244,7 @@ describe('Provider types and credentials', () => {
     const providerTypes: readonly ProviderType[] = PROVIDER_TYPES
 
     expect(providerTypes).toEqual(['mock', 'deepseek', 'openai_compatible'])
+    expect(Object.isFrozen(providerTypes)).toBe(true)
   })
 
   it('accepts Mock without a credential', () => {
@@ -266,6 +285,25 @@ describe('Provider types and credentials', () => {
 })
 
 describe('capabilitiesFor', () => {
+  it('prevents callers from corrupting shared capabilities', () => {
+    const capabilities = capabilitiesFor('deepseek') as { streaming: boolean }
+    let streamingAfterMutation: boolean
+
+    try {
+      capabilities.streaming = false
+      streamingAfterMutation = capabilitiesFor('deepseek').streaming
+    } catch {
+      streamingAfterMutation = capabilitiesFor('deepseek').streaming
+    } finally {
+      if (!Object.isFrozen(capabilities)) {
+        capabilities.streaming = true
+      }
+    }
+
+    expect(Object.isFrozen(capabilities)).toBe(true)
+    expect(streamingAfterMutation).toBe(true)
+  })
+
   it.each([
     ['mock', { streaming: true, structuredOutput: true, embedding: false, vision: false }],
     ['deepseek', { streaming: true, structuredOutput: true, embedding: false, vision: false }],

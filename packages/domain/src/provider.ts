@@ -1,4 +1,4 @@
-export const PROVIDER_TYPES = ['mock', 'deepseek', 'openai_compatible'] as const
+export const PROVIDER_TYPES = Object.freeze(['mock', 'deepseek', 'openai_compatible'] as const)
 
 export type ProviderType = (typeof PROVIDER_TYPES)[number]
 
@@ -37,26 +37,26 @@ export type ProviderProfile = Readonly<{
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com'
 const MASKED_API_KEY = /^[*•]+$/u
 
-const PROVIDER_CAPABILITIES = {
-  mock: {
+const PROVIDER_CAPABILITIES = Object.freeze({
+  mock: Object.freeze({
     streaming: true,
     structuredOutput: true,
     embedding: false,
     vision: false,
-  },
-  deepseek: {
+  }),
+  deepseek: Object.freeze({
     streaming: true,
     structuredOutput: true,
     embedding: false,
     vision: false,
-  },
-  openai_compatible: {
+  }),
+  openai_compatible: Object.freeze({
     streaming: true,
     structuredOutput: false,
     embedding: false,
     vision: false,
-  },
-} as const satisfies Readonly<Record<ProviderType, ProviderCapabilities>>
+  }),
+}) satisfies Readonly<Record<ProviderType, ProviderCapabilities>>
 
 type ParsedUrl = Readonly<{
   protocol: string
@@ -155,6 +155,8 @@ const isValidIpv6 = (hostname: string): boolean => {
 
   if (
     address.length === 0 ||
+    (address.startsWith(':') && !address.startsWith('::')) ||
+    (address.endsWith(':') && !address.endsWith('::')) ||
     (compressionIndex >= 0 && compressionIndex !== address.lastIndexOf('::'))
   ) {
     return false
@@ -162,7 +164,7 @@ const isValidIpv6 = (hostname: string): boolean => {
 
   const groups = address.split(':').filter((group) => group.length > 0)
   const lastGroup = groups.at(-1)
-  const hasIpv4Suffix = lastGroup?.includes('.') === true
+  const hasIpv4Suffix = lastGroup?.includes('.') === true && address.endsWith(lastGroup)
 
   if (hasIpv4Suffix && (lastGroup === undefined || !isValidIpv4(lastGroup))) {
     return false
@@ -191,6 +193,7 @@ const isValidHostname = (hostname: string): boolean => {
     return false
   }
 
+  // This deliberately narrow DNS subset excludes trailing-dot FQDNs.
   return hostname.split('.').every((label) => /^[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?$/u.test(label))
 }
 
