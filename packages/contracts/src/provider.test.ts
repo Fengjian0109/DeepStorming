@@ -1,8 +1,9 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { appErrorCodeSchema } from './app-result'
-import type { DeepStormingApi } from './app-info'
+import { appErrorCodeSchema, appErrorSchema } from './app-result'
+import type { DeepStormingApi, DeepStormingBootstrapApi } from './app-info'
 import {
+  PROVIDER_CHANNELS,
   activateProviderRequestSchema,
   cancelProviderTestRequestSchema,
   cancelProviderTestResultSchema,
@@ -61,6 +62,18 @@ const failureResult = {
 } as const
 
 describe('provider request contracts', () => {
+  it('uses the exact provider channel map', () => {
+    expect(PROVIDER_CHANNELS).toEqual({
+      list: 'provider:list',
+      create: 'provider:create',
+      update: 'provider:update',
+      remove: 'provider:remove',
+      activate: 'provider:activate',
+      testConnection: 'provider:test-connection',
+      cancelTest: 'provider:cancel-test',
+    })
+  })
+
   const requests = [
     [listProvidersRequestSchema, { requestId }],
     [createProviderRequestSchema, { requestId, provider: providerDraft }],
@@ -215,6 +228,66 @@ describe('provider error and API contracts', () => {
     expect(appErrorCodeSchema.safeParse('PROVIDER_SECRET_LEAKED').success).toBe(false)
   })
 
+  it.each(['apiKey', 'authorization', 'requestBody', 'responseBody', 'stack', 'unexpected'])(
+    'rejects unsafe or unknown diagnostic detail %s',
+    (field) => {
+      expect(
+        appErrorSchema.safeParse({
+          code: 'PROVIDER_RESPONSE_INVALID',
+          message: 'The provider response was invalid.',
+          retryable: false,
+          details: { [field]: 'private' },
+        }).success,
+      ).toBe(false)
+    },
+  )
+
+  it('rejects nested diagnostic payloads', () => {
+    expect(
+      appErrorSchema.safeParse({
+        code: 'PROVIDER_RESPONSE_INVALID',
+        message: 'The provider response was invalid.',
+        retryable: false,
+        details: { issueCount: 1, payload: { nested: 'private' } },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('accepts only the allowlisted diagnostic detail shapes', () => {
+    expect(
+      appErrorSchema.safeParse({
+        code: 'PROVIDER_VALIDATION_FAILED',
+        message: 'The provider configuration was invalid.',
+        retryable: false,
+        details: {
+          issueCount: 2,
+          statusCode: 422,
+          fieldName: 'modelName',
+          operationId,
+        },
+      }).success,
+    ).toBe(true)
+  })
+
+  it.each([
+    { issueCount: -1 },
+    { issueCount: 1.5 },
+    { statusCode: 99 },
+    { statusCode: 600 },
+    { statusCode: 200.5 },
+    { fieldName: '' },
+    { operationId: 'not-a-uuid' },
+  ])('rejects invalid diagnostic detail constraints for %j', (details) => {
+    expect(
+      appErrorSchema.safeParse({
+        code: 'PROVIDER_VALIDATION_FAILED',
+        message: 'The provider configuration was invalid.',
+        retryable: false,
+        details,
+      }).success,
+    ).toBe(false)
+  })
+
   it('exposes an explicit, type-safe provider API', () => {
     const api = {
       app: {
@@ -259,5 +332,6 @@ describe('provider error and API contracts', () => {
     expectTypeOf(api.provider.create).parameters.toEqualTypeOf<[ProviderDraftDto]>()
     expectTypeOf(api.provider.update).parameters.toEqualTypeOf<[string, ProviderDraftDto]>()
     expectTypeOf(api.provider.testConnection).parameters.toEqualTypeOf<[string, string]>()
+    expectTypeOf<DeepStormingBootstrapApi>().toEqualTypeOf<Pick<DeepStormingApi, 'app'>>()
   })
 })

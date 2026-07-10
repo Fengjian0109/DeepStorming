@@ -1,7 +1,11 @@
-import { APP_CHANNELS, type DeepStormingApi, appInfoResultSchema } from '@deepstorming/contracts'
+import {
+  APP_CHANNELS,
+  type DeepStormingBootstrapApi,
+  appInfoResultSchema,
+} from '@deepstorming/contracts'
 import { contextBridge, ipcRenderer } from 'electron'
 
-const api: Pick<DeepStormingApi, 'app'> = {
+const api: DeepStormingBootstrapApi = {
   app: {
     getInfo: async () => {
       const requestId = globalThis.crypto.randomUUID()

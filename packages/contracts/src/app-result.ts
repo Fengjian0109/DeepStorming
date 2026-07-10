@@ -23,12 +23,23 @@ export const appErrorCodeSchema = z.enum([
 
 export type AppErrorCode = z.infer<typeof appErrorCodeSchema>
 
+export const appErrorDetailsSchema = z
+  .object({
+    issueCount: z.number().int().nonnegative().optional(),
+    statusCode: z.number().int().min(100).max(599).optional(),
+    fieldName: z.string().min(1).optional(),
+    operationId: z.string().uuid().optional(),
+  })
+  .strict()
+
+export type AppErrorDetails = z.infer<typeof appErrorDetailsSchema>
+
 export const appErrorSchema = z
   .object({
     code: appErrorCodeSchema,
     message: z.string().min(1),
     retryable: z.boolean(),
-    details: z.record(z.string(), z.unknown()).optional(),
+    details: appErrorDetailsSchema.optional(),
   })
   .strict()
 

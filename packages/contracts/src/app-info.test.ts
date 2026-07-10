@@ -21,4 +21,19 @@ describe('app info contracts', () => {
       }).success,
     ).toBe(true)
   })
+
+  it('accepts the allowlisted issue count from request validation failures', () => {
+    expect(
+      appInfoResultSchema.safeParse({
+        ok: false,
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'The app information request is invalid.',
+          retryable: false,
+          details: { issueCount: 1 },
+        },
+        requestId: 'not-a-uuid',
+      }).success,
+    ).toBe(true)
+  })
 })

@@ -1,8 +1,8 @@
-import type { DeepStormingApi } from '@deepstorming/contracts'
+import type { DeepStormingBootstrapApi } from '@deepstorming/contracts'
 
 declare global {
   interface Window {
-    deepstorming: DeepStormingApi
+    deepstorming: DeepStormingBootstrapApi
   }
 }
 

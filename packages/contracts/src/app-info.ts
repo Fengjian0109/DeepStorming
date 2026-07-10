@@ -47,3 +47,5 @@ export type DeepStormingApi = {
     cancelTest: (operationId: string) => Promise<CancelProviderTestResult>
   }
 }
+
+export type DeepStormingBootstrapApi = Pick<DeepStormingApi, 'app'>
