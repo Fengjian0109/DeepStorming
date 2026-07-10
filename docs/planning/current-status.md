@@ -18,7 +18,7 @@
 
 ## 当前门禁
 
-1. `pnpm check`：通过；13 个测试文件、208 个测试通过，包含 SQLite 专项 3 个文件、11 个测试；lint、format、全 workspace typecheck 与 build 通过。
+1. `pnpm check`：通过；13 个测试文件、217 个测试通过，包含 SQLite 专项 3 个文件、20 个测试；lint、format、全 workspace typecheck 与 build 通过。迁移恢复测试证明备份发生在任何 Schema DDL 前且备份失败不改变原库；快照测试覆盖连接状态原始结果重放和严格字段白名单。
 2. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 3. 原生模块证据：`Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node` 为 Mach-O 64-bit arm64 bundle；使用该目录包的 Electron runtime 从 `app.asar` 加载模块并完成临时 SQLite 的 create/insert/select，输出 `{"value":"ok"}`。
 4. `electron-builder` 会在共享 pnpm workspace 中将原生模块切换为 Electron ABI；根 `package:dir` 在打包成功后确定性执行 Infrastructure 的 Node ABI 重建，随后 Node 24 runtime 同样完成临时 SQLite create/insert/select，避免打包后 Vitest/开发运行失效。

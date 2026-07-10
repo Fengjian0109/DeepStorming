@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, test } from 'vitest'
@@ -65,6 +65,34 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })
   expect(db.prepare('SELECT value FROM legacy').get()).toEqual({ value: 'kept' })
   expect(db.prepare("SELECT name FROM sqlite_master WHERE name='broken'").get()).toBeUndefined()
-  expect((await readdir(join(dir, 'backups'))).length).toBeGreaterThan(0)
+  const [backupName] = await readdir(join(dir, 'backups'))
+  expect(backupName).toBeDefined()
+  const backup = openDatabase(join(dir, 'backups', backupName!))
+  expect(backup.prepare("SELECT name, sql FROM sqlite_master WHERE type='table'").all()).toEqual([
+    expect.objectContaining({ name: 'legacy' }),
+  ])
+  expect(
+    backup.prepare("SELECT name FROM sqlite_master WHERE name='schema_migrations'").get(),
+  ).toBeUndefined()
+  expect(backup.prepare('SELECT value FROM legacy').get()).toEqual({ value: 'kept' })
+  backup.close()
+  db.close()
+})
+
+test('does not mutate an existing database when its pre-upgrade backup fails', async () => {
+  const dir = await setup()
+  const path = join(dir, 'app.db')
+  const invalidUserData = join(dir, 'not-a-directory')
+  await writeFile(invalidUserData, 'occupied')
+  const db = openDatabase(path)
+  db.exec("CREATE TABLE legacy(value TEXT); INSERT INTO legacy VALUES ('untouched')")
+  const schemaBefore = db.prepare("SELECT name,sql FROM sqlite_master WHERE type='table'").all()
+  await expect(
+    migrateDatabase(db, { databasePath: path, userDataPath: invalidUserData }),
+  ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })
+  expect(db.prepare("SELECT name,sql FROM sqlite_master WHERE type='table'").all()).toEqual(
+    schemaBefore,
+  )
+  expect(db.prepare('SELECT value FROM legacy').get()).toEqual({ value: 'untouched' })
   db.close()
 })

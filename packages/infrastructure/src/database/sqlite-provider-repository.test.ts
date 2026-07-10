@@ -169,3 +169,70 @@ test('persists test status transitions with replay and CAS semantics', async () 
     }),
   ).toEqual({ status: 'stale' })
 })
+
+test('replays the original test transition snapshot after later provider changes', async () => {
+  await repo.create('r1', provider())
+  const first = await repo.transitionTestStatus({
+    operationId: 'op1',
+    providerId: 'p1',
+    nextStatus: 'testing',
+    testedAt: 't1',
+  })
+  await repo.update('u1', 2, provider('p1', { displayName: 'later', revision: 2 }))
+  const replay = await repo.transitionTestStatus({
+    operationId: 'op1',
+    providerId: 'p1',
+    nextStatus: 'testing',
+    testedAt: 't1',
+  })
+  expect(replay).toEqual({
+    status: 'replayed',
+    provider: (first as { provider: StoredProvider }).provider,
+  })
+})
+
+test.each([
+  ['unknown field', { arbitrary: 'secret payload' }],
+  ['api key', { apiKey: 'secret payload' }],
+  ['authorization', { authorization: 'Bearer secret payload' }],
+  ['invalid nested capabilities', { capabilities: { streaming: true } }],
+  ['invalid revision', { revision: 0 }],
+  ['invalid active flag', { isActive: 'yes' }],
+] as const)(
+  'rejects write snapshots containing %s without leaking payloads',
+  async (_name, contamination) => {
+    await repo.create('r1', provider())
+    const raw = { ...provider(), ...contamination }
+    db.prepare(
+      'UPDATE provider_write_requests SET provider_snapshot_json=? WHERE request_id=?',
+    ).run(JSON.stringify(raw), 'r1')
+    await expect(repo.findWriteOutcome('r1')).rejects.toMatchObject({
+      code: 'DATABASE_UNAVAILABLE',
+      message: expect.not.stringContaining('secret payload'),
+    })
+  },
+)
+
+test('strictly validates persisted test-operation snapshots', async () => {
+  await repo.create('r1', provider())
+  await repo.transitionTestStatus({
+    operationId: 'op1',
+    providerId: 'p1',
+    nextStatus: 'testing',
+    testedAt: 't1',
+  })
+  db.prepare(
+    'UPDATE provider_test_operations SET provider_snapshot_json=? WHERE operation_id=?',
+  ).run(JSON.stringify({ ...provider(), apiKey: 'secret payload' }), 'op1')
+  await expect(
+    repo.transitionTestStatus({
+      operationId: 'op1',
+      providerId: 'p1',
+      nextStatus: 'testing',
+      testedAt: 't1',
+    }),
+  ).rejects.toMatchObject({
+    code: 'DATABASE_UNAVAILABLE',
+    message: expect.not.stringContaining('secret payload'),
+  })
+})

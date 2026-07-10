@@ -25,7 +25,7 @@ CREATE TABLE provider_write_requests (
 CREATE TABLE provider_test_operations (
  operation_id TEXT PRIMARY KEY, provider_id TEXT NOT NULL,
  current_status TEXT NOT NULL CHECK (current_status IN ('testing','success','error','cancelled')),
- created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+ provider_snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );`
 
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
@@ -45,12 +45,17 @@ export const migrateDatabase = async (
   const migrations = options.migrations ?? MIGRATIONS
   try {
     const initialSize = (await stat(options.databasePath)).size
-    db.exec(
-      'CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)',
-    )
-    const applied = db
-      .prepare('SELECT version,name,checksum FROM schema_migrations ORDER BY version')
-      .all() as Array<{ version: number; name: string; checksum: string }>
+    const hasMigrationTable =
+      db
+        .prepare(
+          "SELECT 1 present FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
+        )
+        .get() !== undefined
+    const applied = hasMigrationTable
+      ? (db
+          .prepare('SELECT version,name,checksum FROM schema_migrations ORDER BY version')
+          .all() as Array<{ version: number; name: string; checksum: string }>)
+      : []
     for (const row of applied) {
       const migration = migrations.find((item) => item.version === row.version)
       if (
@@ -71,6 +76,11 @@ export const migrateDatabase = async (
           backupDir,
           `${basename(options.databasePath)}-${new Date().toISOString().replaceAll(':', '-')}.bak`,
         ),
+      )
+    }
+    if (!hasMigrationTable) {
+      db.exec(
+        'CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)',
       )
     }
     for (const migration of pending) {

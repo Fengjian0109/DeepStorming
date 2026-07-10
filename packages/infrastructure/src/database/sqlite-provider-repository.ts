@@ -17,9 +17,7 @@ type Row = Record<string, unknown>
 const TYPES = new Set(['mock', 'deepseek', 'openai_compatible'])
 const STATUSES = new Set(['testing', 'success', 'error', 'cancelled'])
 const isString = (v: unknown): v is string => typeof v === 'string'
-const capabilities = (raw: unknown): ProviderCapabilities => {
-  if (!isString(raw)) throw new Error('invalid')
-  const value: unknown = JSON.parse(raw)
+const validateCapabilities = (value: unknown): ProviderCapabilities => {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
     throw new Error('invalid')
   const record = value as Row
@@ -37,6 +35,10 @@ const capabilities = (raw: unknown): ProviderCapabilities => {
     embedding: record['embedding'] as boolean,
     vision: record['vision'] as boolean,
   }
+}
+const capabilities = (raw: unknown): ProviderCapabilities => {
+  if (!isString(raw)) throw new Error('invalid')
+  return validateCapabilities(JSON.parse(raw) as unknown)
 }
 const mapRow = (row: Row): StoredProvider => {
   if (
@@ -79,16 +81,66 @@ const mapRow = (row: Row): StoredProvider => {
 }
 const snapshot = (raw: unknown): StoredProvider => {
   if (!isString(raw)) throw new Error('invalid')
-  const p = JSON.parse(raw) as StoredProvider
+  const value: unknown = JSON.parse(raw)
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new Error('invalid')
+  const p = value as Row
+  const required = [
+    'id',
+    'providerType',
+    'displayName',
+    'modelName',
+    'capabilities',
+    'isActive',
+    'createdAt',
+    'updatedAt',
+    'revision',
+  ]
+  const optional = ['baseUrl', 'secretRef', 'lastTestStatus', 'lastTestedAt']
   if (
-    !p ||
-    typeof p !== 'object' ||
-    !isString(p['id']) ||
-    typeof p['revision'] !== 'number' ||
-    !TYPES.has(p.providerType)
+    !Object.keys(p).every((key) => required.includes(key) || optional.includes(key)) ||
+    !required.every((key) => Object.hasOwn(p, key))
   )
     throw new Error('invalid')
-  return Object.freeze(p)
+  if (
+    !isString(p['id']) ||
+    !isString(p['providerType']) ||
+    !TYPES.has(p['providerType']) ||
+    !isString(p['displayName']) ||
+    !isString(p['modelName']) ||
+    typeof p['isActive'] !== 'boolean' ||
+    !isString(p['createdAt']) ||
+    !isString(p['updatedAt']) ||
+    !Number.isInteger(p['revision']) ||
+    (p['revision'] as number) < 1
+  )
+    throw new Error('invalid')
+  if (
+    (p['baseUrl'] !== undefined && !isString(p['baseUrl'])) ||
+    (p['secretRef'] !== undefined && !isString(p['secretRef'])) ||
+    (p['lastTestStatus'] !== undefined &&
+      (!isString(p['lastTestStatus']) || !STATUSES.has(p['lastTestStatus']))) ||
+    (p['lastTestedAt'] !== undefined && !isString(p['lastTestedAt']))
+  )
+    throw new Error('invalid')
+  const result: StoredProvider = {
+    id: p['id'],
+    providerType: p['providerType'] as ProviderType,
+    displayName: p['displayName'],
+    ...(p['baseUrl'] === undefined ? {} : { baseUrl: p['baseUrl'] }),
+    modelName: p['modelName'],
+    ...(p['secretRef'] === undefined ? {} : { secretRef: p['secretRef'] }),
+    capabilities: validateCapabilities(p['capabilities']),
+    isActive: p['isActive'],
+    ...(p['lastTestStatus'] === undefined
+      ? {}
+      : { lastTestStatus: p['lastTestStatus'] as ProviderTestStatus }),
+    ...(p['lastTestedAt'] === undefined ? {} : { lastTestedAt: p['lastTestedAt'] }),
+    createdAt: p['createdAt'],
+    updatedAt: p['updatedAt'],
+    revision: p['revision'] as number,
+  }
+  return Object.freeze(result)
 }
 const now = () => new Date().toISOString()
 
@@ -314,30 +366,42 @@ export class SqliteProviderRepository implements ProviderRepositoryPort {
         if (!op) {
           if (t.expectedStatus !== undefined || t.nextStatus !== 'testing')
             return { status: 'stale' }
-          this.db
-            .prepare('INSERT INTO provider_test_operations VALUES (?,?,?,?,?)')
-            .run(t.operationId, t.providerId, 'testing', t.testedAt, t.testedAt)
         } else {
           if (op['provider_id'] !== t.providerId) return { status: 'stale' }
-          if (op['current_status'] === t.nextStatus) return { status: 'replayed', provider: p }
+          if (op['current_status'] === t.nextStatus)
+            return { status: 'replayed', provider: snapshot(op['provider_snapshot_json']) }
           if (
             t.expectedStatus !== 'testing' ||
             op['current_status'] !== 'testing' ||
             t.nextStatus === 'testing'
           )
             return { status: 'stale' }
-          this.db
-            .prepare(
-              'UPDATE provider_test_operations SET current_status=?,updated_at=? WHERE operation_id=?',
-            )
-            .run(t.nextStatus, t.testedAt, t.operationId)
         }
         this.db
           .prepare(
             'UPDATE ai_providers SET last_test_status=?,last_tested_at=?,revision=revision+1 WHERE id=?',
           )
           .run(t.nextStatus, t.testedAt, t.providerId)
-        return { status: 'applied', provider: this.row(t.providerId)! } as const
+        const updated = this.row(t.providerId)!
+        if (!op) {
+          this.db
+            .prepare('INSERT INTO provider_test_operations VALUES (?,?,?,?,?,?)')
+            .run(
+              t.operationId,
+              t.providerId,
+              t.nextStatus,
+              JSON.stringify(updated),
+              t.testedAt,
+              t.testedAt,
+            )
+        } else {
+          this.db
+            .prepare(
+              'UPDATE provider_test_operations SET current_status=?,provider_snapshot_json=?,updated_at=? WHERE operation_id=?',
+            )
+            .run(t.nextStatus, JSON.stringify(updated), t.testedAt, t.operationId)
+        }
+        return { status: 'applied', provider: updated } as const
       })(),
     ) as ProviderTestStatusTransitionResult
   }

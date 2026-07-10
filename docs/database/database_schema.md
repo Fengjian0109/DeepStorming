@@ -121,15 +121,16 @@ erDiagram
 
 ### 4.5 `provider_test_operations`
 
-| 字段           | 类型 | 约束     | 说明                              |
-| -------------- | ---- | -------- | --------------------------------- |
-| operation_id   | TEXT | PK       | 单次连接测试操作 ID               |
-| provider_id    | TEXT | NOT NULL | Provider 逻辑引用                 |
-| current_status | TEXT | NOT NULL | `testing/success/error/cancelled` |
-| created_at     | TEXT | NOT NULL | 首次进入 `testing` 的时间         |
-| updated_at     | TEXT | NOT NULL | 最近一次成功状态转换时间          |
+| 字段                   | 类型 | 约束     | 说明                                     |
+| ---------------------- | ---- | -------- | ---------------------------------------- |
+| operation_id           | TEXT | PK       | 单次连接测试操作 ID                      |
+| provider_id            | TEXT | NOT NULL | Provider 逻辑引用                        |
+| current_status         | TEXT | NOT NULL | `testing/success/error/cancelled`        |
+| provider_snapshot_json | TEXT | NOT NULL | 该次成功转换产生的严格校验 Provider 快照 |
+| created_at             | TEXT | NOT NULL | 首次进入 `testing` 的时间                |
+| updated_at             | TEXT | NOT NULL | 最近一次成功状态转换时间                 |
 
-`operation_id` 与 `provider_id` 绑定。首次转换只能进入 `testing`；终态转换必须比较当前 `testing` 状态，并与 Provider 状态及 revision 增量在同一事务提交。重复相同状态返回原快照且不增加 revision。
+`operation_id` 与 `provider_id` 绑定。首次转换只能进入 `testing`；终态转换必须比较当前 `testing` 状态，并与 Provider 状态、结果快照及 revision 增量在同一事务提交。重复相同状态返回持久化的原始快照且不增加 revision，即使 Provider 后续已被编辑。
 
 ## 5. 文档与导入
 
