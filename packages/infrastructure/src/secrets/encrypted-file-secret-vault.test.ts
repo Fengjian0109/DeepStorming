@@ -1,4 +1,14 @@
-import { lstat, mkdtemp, readFile, readdir, rm, symlink } from 'node:fs/promises'
+import {
+  link,
+  lstat,
+  mkdtemp,
+  open,
+  readFile,
+  readdir,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
@@ -69,34 +79,82 @@ test('reconciles owned orphan and tmp files while retaining references, unknown 
   expect((await readdir(dir)).sort()).toEqual([kept, 'linked.secret', 'notes.txt'].sort())
 })
 
-test('never overwrites a UUID collision and removes temporary artifacts after rename failure', async () => {
+test('never overwrites a UUID collision or destination created immediately before publication', async () => {
   const first = new EncryptedFileSecretVault(dir, cipher, { generate: () => ID })
   await first.put('first')
   await expect(first.put('second')).rejects.toMatchObject({ code: 'SECRET_WRITE_FAILED' })
   expect(await first.get(`${ID}.secret`)).toBe('first')
 
-  const failing = new EncryptedFileSecretVault(
+  const racing = new EncryptedFileSecretVault(
     dir,
     cipher,
     { generate: () => OTHER },
     {
-      rename: async () => {
-        throw new Error('raw path')
+      link: async (temporaryPath, finalPath) => {
+        await writeFile(finalPath, 'encrypted:racer', { mode: 0o600 })
+        await link(temporaryPath, finalPath)
       },
     },
   )
-  await expect(failing.put('third')).rejects.toMatchObject({ code: 'SECRET_WRITE_FAILED' })
-  expect((await readdir(dir)).some((name) => name.startsWith(OTHER))).toBe(false)
+  await expect(racing.put('third')).rejects.toMatchObject({ code: 'SECRET_WRITE_FAILED' })
+  expect((await readFile(join(dir, `${OTHER}.secret`))).toString()).toBe('encrypted:racer')
+  expect((await readdir(dir)).filter((name) => name === `${OTHER}.tmp`)).toEqual([])
 })
 
-test('closes the read handle after decrypting', async () => {
-  const close = vi.fn(async () => undefined)
+test('syncs the containing directory after exclusive publication and temporary unlink', async () => {
+  const events: string[] = []
   const vault = new EncryptedFileSecretVault(
     dir,
     cipher,
     { generate: () => ID },
     {
+      link: async (from, to) => {
+        await link(from, to)
+        events.push('publish')
+      },
+      rm: async (path, options) => {
+        await rm(path, options)
+        if (String(path).endsWith('.tmp')) events.push('unlink-temp')
+      },
+      open: (async (path: string, flags: string | number, mode?: number) => {
+        const handle = await open(path, flags, mode)
+        if (path !== dir) return handle
+        return {
+          sync: async () => {
+            events.push('sync-directory')
+            await handle.sync()
+          },
+          close: () => handle.close(),
+        }
+      }) as never,
+    },
+  )
+  await vault.put('value')
+  expect(events).toEqual(['publish', 'unlink-temp', 'sync-directory'])
+})
+
+test('never follows a valid secret-reference symlink', async () => {
+  const target = join(dir, 'external')
+  await writeFile(target, 'encrypted:stolen')
+  const ref = `${ID}.secret`
+  await symlink(target, join(dir, ref))
+  const decrypt = vi.spyOn(cipher, 'decrypt')
+  const vault = new EncryptedFileSecretVault(dir, cipher, { generate: () => OTHER })
+  await expect(vault.get(ref)).rejects.toMatchObject({ code: 'SECRET_VAULT_UNAVAILABLE' })
+  expect(decrypt).not.toHaveBeenCalled()
+})
+
+test('closes the read handle after decrypting', async () => {
+  const close = vi.fn(async () => undefined)
+  const regularFile = { isFile: () => true, isSymbolicLink: () => false }
+  const vault = new EncryptedFileSecretVault(
+    dir,
+    cipher,
+    { generate: () => ID },
+    {
+      lstat: (async () => regularFile) as never,
       open: (async () => ({
+        stat: async () => regularFile,
         readFile: async () => Buffer.from('encrypted:value'),
         close,
       })) as never,
@@ -104,4 +162,26 @@ test('closes the read handle after decrypting', async () => {
   )
   expect(await vault.get(`${ID}.secret`)).toBe('value')
   expect(close).toHaveBeenCalledOnce()
+})
+
+test('uses the named unsupported-directory-fsync branch and still closes the directory handle', async () => {
+  const closeDirectory = vi.fn(async () => undefined)
+  const vault = new EncryptedFileSecretVault(
+    dir,
+    cipher,
+    { generate: () => ID },
+    {
+      open: (async (path: string, flags: string | number, mode?: number) => {
+        if (path !== dir) return open(path, flags, mode)
+        return {
+          sync: async () => {
+            throw Object.assign(new Error('unsupported'), { code: 'EINVAL' })
+          },
+          close: closeDirectory,
+        }
+      }) as never,
+    },
+  )
+  await expect(vault.put('value')).resolves.toBe(`${ID}.secret`)
+  expect(closeDirectory).toHaveBeenCalledOnce()
 })

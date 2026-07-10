@@ -1,5 +1,6 @@
 import type { IdGeneratorPort, SecretVaultPort } from '@deepstorming/application'
-import { mkdir, open, readdir, rename, rm, stat } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { link, lstat, mkdir, open, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { SecretCipher } from './secret-cipher'
 
@@ -18,14 +19,15 @@ const TMP_REF = new RegExp(`^${UUID}\\.tmp$`, 'i')
 
 type FileSystem = Readonly<{
   mkdir: typeof mkdir
+  link: typeof link
+  lstat: typeof lstat
   open: typeof open
   readdir: typeof readdir
-  rename: typeof rename
   rm: typeof rm
-  stat: typeof stat
 }>
 
-const nodeFileSystem: FileSystem = { mkdir, open, readdir, rename, rm, stat }
+const nodeFileSystem: FileSystem = { mkdir, link, lstat, open, readdir, rm }
+const UNSUPPORTED_DIRECTORY_SYNC_CODES = new Set(['EINVAL', 'ENOTSUP', 'EOPNOTSUPP', 'EPERM'])
 
 export class EncryptedFileSecretVault implements SecretVaultPort {
   private readonly fs: FileSystem
@@ -50,12 +52,6 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
       if (!SECRET_REF.test(ref)) throw new Error('invalid id')
       temporaryPath = join(this.directory, `${id}.tmp`)
       const finalPath = join(this.directory, ref)
-      try {
-        await this.fs.stat(finalPath)
-        throw new Error('collision')
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      }
       const handle = await this.fs.open(temporaryPath, 'wx', 0o600)
       try {
         await handle.writeFile(encrypted)
@@ -63,8 +59,11 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
       } finally {
         await handle.close()
       }
-      await this.fs.rename(temporaryPath, finalPath)
+      // Hard-link publication is atomic and exclusive: an existing destination yields EEXIST.
+      await this.fs.link(temporaryPath, finalPath)
+      await this.fs.rm(temporaryPath)
       temporaryPath = undefined
+      await this.syncDirectory()
       return ref
     } catch {
       if (temporaryPath !== undefined) {
@@ -83,8 +82,12 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
     if (!SECRET_REF.test(ref)) throw new SecretVaultError('SECRET_VAULT_UNAVAILABLE')
     try {
       if (!this.cipher.isAvailable()) throw new Error('unavailable')
-      const handle = await this.fs.open(join(this.directory, ref), 'r')
+      const path = join(this.directory, ref)
+      const beforeOpen = await this.fs.lstat(path)
+      if (!beforeOpen.isFile() || beforeOpen.isSymbolicLink()) throw new Error('not a regular file')
+      const handle = await this.fs.open(path, constants.O_RDONLY | constants.O_NOFOLLOW)
       try {
+        if (!(await handle.stat()).isFile()) throw new Error('not a regular file')
         return this.cipher.decrypt(await handle.readFile())
       } finally {
         await handle.close()
@@ -97,11 +100,29 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
   public async remove(ref: string): Promise<void> {
     if (!SECRET_REF.test(ref)) throw new SecretVaultError('SECRET_DELETE_FAILED')
     try {
-      await this.fs.rm(join(this.directory, ref))
+      const path = join(this.directory, ref)
+      const entry = await this.fs.lstat(path)
+      if (!entry.isFile() || entry.isSymbolicLink()) throw new Error('not a regular file')
+      await this.fs.rm(path)
     } catch (error: unknown) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw new SecretVaultError('SECRET_DELETE_FAILED')
       }
+    }
+  }
+
+  private async syncDirectory(): Promise<void> {
+    let handle
+    try {
+      handle = await this.fs.open(this.directory, constants.O_RDONLY)
+      await handle.sync()
+    } catch (error: unknown) {
+      if (!UNSUPPORTED_DIRECTORY_SYNC_CODES.has((error as NodeJS.ErrnoException).code ?? '')) {
+        throw error
+      }
+      // Some platforms explicitly reject directory handles/fsync; file publication is still atomic.
+    } finally {
+      await handle?.close()
     }
   }
 
