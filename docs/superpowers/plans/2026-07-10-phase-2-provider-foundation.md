@@ -317,7 +317,7 @@ Expected: FAIL because Ports/use cases are missing.
 
 ```ts
 export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & { readonly secretRef?: string }
-export type ProviderWriteOperation = 'create' | 'update' | 'delete' | 'activate' | 'test_connection'
+export type ProviderWriteOperation = 'create' | 'update' | 'delete' | 'activate'
 export type ProviderMutationResult =
   | Readonly<{ status: 'applied' | 'replayed'; provider: StoredProvider }>
   | Readonly<{ status: 'conflict'; existingOperation: ProviderWriteOperation }>
@@ -336,7 +336,7 @@ export type ProviderRemoveResult =
   | Readonly<{ status: 'conflict'; existingOperation: ProviderWriteOperation }>
 export type ProviderWriteOutcome =
   | Readonly<{
-      operation: 'create' | 'update' | 'activate' | 'test_connection'
+      operation: 'create' | 'update' | 'activate'
       provider: StoredProvider
     }>
   | Readonly<{ operation: 'delete'; outcome: ProviderRemoveLogicalOutcome }>
@@ -345,15 +345,27 @@ export interface ProviderRepositoryPort {
   findById(id: string): Promise<StoredProvider | undefined>
   findWriteOutcome(requestId: string): Promise<ProviderWriteOutcome | undefined>
   create(requestId: string, provider: StoredProvider): Promise<ProviderMutationResult>
-  update(requestId: string, provider: StoredProvider): Promise<ProviderMutationResult>
+  update(
+    requestId: string,
+    expectedUpdatedAt: string,
+    provider: StoredProvider,
+  ): Promise<ProviderUpdateResult>
   removeIfUnreferenced(requestId: string, id: string): Promise<ProviderRemoveResult>
-  activate(requestId: string, id: string, updatedAt: string): Promise<ProviderMutationResult>
-  updateTestStatus(
+  activate(
     requestId: string,
     id: string,
-    status: ProviderTestStatus,
-    testedAt: string,
-  ): Promise<ProviderMutationResult>
+    expectedUpdatedAt: string,
+    updatedAt: string,
+  ): Promise<ProviderActivateResult>
+  transitionTestStatus(
+    transition: Readonly<{
+      operationId: string
+      providerId: string
+      expectedStatus?: ProviderTestStatus
+      nextStatus: ProviderTestStatus
+      testedAt: string
+    }>,
+  ): Promise<ProviderTestStatusTransitionResult>
   referencedSecretRefs(): Promise<ReadonlySet<string>>
 }
 export interface SecretVaultPort {
@@ -381,7 +393,7 @@ export interface IdGeneratorPort {
 
 - [ ] **Step 4: Implement minimal use cases**
 
-Export `ListProviders`, `CreateProvider`, `UpdateProvider`, `DeleteProvider`, `ActivateProvider`, and `ProviderUseCaseError`. Every write execute input includes `requestId`. Each write first reads the immutable cached outcome; a matching replay returns it without Vault or mutation side effects, while a different operation returns `PROVIDER_VALIDATION_FAILED`. Repository writes return explicit `applied` or `replayed` statuses; a replay uses the cached Provider and removes only a newly-created orphan ref. A different operation winning after preflight returns `status: 'conflict'` plus `existingOperation`, which compensates any new ref and maps to `PROVIDER_VALIDATION_FAILED`. Connection-test state writes use operation `test_connection` and the same immutable outcome/replay/conflict protocol. Each class receives only its used Ports. Project public profiles with an explicit field allowlist:
+Export `ListProviders`, `CreateProvider`, `UpdateProvider`, `DeleteProvider`, `ActivateProvider`, and `ProviderUseCaseError`. Every CRUD/activation write execute input includes `requestId`. Each write first reads the immutable cached outcome; a matching replay returns it without Vault or mutation side effects, while a different operation returns `PROVIDER_VALIDATION_FAILED`. Repository writes return explicit `applied` or `replayed` statuses; a replay uses the cached Provider and removes only a newly-created orphan ref. A different operation winning after preflight returns `status: 'conflict'` plus `existingOperation`, which compensates any new ref and maps to `PROVIDER_VALIDATION_FAILED`. Update and activation pass the initially read `updatedAt` for transactional optimistic concurrency; activation validates credentials again inside the atomic transaction. Connection-test status uses an independent operation-ID compare-and-set transition rather than immutable request replay. Each class receives only its used Ports. Project public profiles with an explicit field allowlist and clone each capability boolean:
 
 ```ts
 export const toProviderProfile = (provider: StoredProvider): ProviderProfile => ({
@@ -391,7 +403,12 @@ export const toProviderProfile = (provider: StoredProvider): ProviderProfile => 
   ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
   modelName: provider.modelName,
   hasApiKey: provider.secretRef !== undefined,
-  capabilities: provider.capabilities,
+  capabilities: {
+    streaming: provider.capabilities.streaming,
+    structuredOutput: provider.capabilities.structuredOutput,
+    embedding: provider.capabilities.embedding,
+    vision: provider.capabilities.vision,
+  },
   isActive: provider.isActive,
   ...(provider.lastTestStatus === undefined ? {} : { lastTestStatus: provider.lastTestStatus }),
   ...(provider.lastTestedAt === undefined ? {} : { lastTestedAt: provider.lastTestedAt }),

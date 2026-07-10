@@ -41,13 +41,6 @@ const secretWriteError = (): ProviderUseCaseError =>
     true,
   )
 
-const secretDeleteError = (): ProviderUseCaseError =>
-  new ProviderUseCaseError(
-    'SECRET_DELETE_FAILED',
-    'The provider credential could not be removed.',
-    false,
-  )
-
 const validationError = (): ProviderUseCaseError =>
   new ProviderUseCaseError(
     'PROVIDER_VALIDATION_FAILED',
@@ -115,11 +108,15 @@ const writeSecret = async (vault: SecretVaultPort, secret: string): Promise<stri
   }
 }
 
-const removeSecret = async (vault: SecretVaultPort, ref: string): Promise<void> => {
+const cleanupOrReport = async (
+  vault: SecretVaultPort,
+  reporter: SecretCleanupReporterPort,
+  ref: string,
+): Promise<void> => {
   try {
     await vault.remove(ref)
   } catch {
-    throw secretDeleteError()
+    reporter.reportFailure({ secretRef: ref, code: 'SECRET_DELETE_FAILED' })
   }
 }
 
@@ -149,7 +146,12 @@ export const toProviderProfile = (provider: StoredProvider): ProviderProfile => 
   ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
   modelName: provider.modelName,
   hasApiKey: provider.secretRef !== undefined,
-  capabilities: provider.capabilities,
+  capabilities: {
+    streaming: provider.capabilities.streaming,
+    structuredOutput: provider.capabilities.structuredOutput,
+    embedding: provider.capabilities.embedding,
+    vision: provider.capabilities.vision,
+  },
   isActive: provider.isActive,
   ...(provider.lastTestStatus === undefined ? {} : { lastTestStatus: provider.lastTestStatus }),
   ...(provider.lastTestedAt === undefined ? {} : { lastTestedAt: provider.lastTestedAt }),
@@ -175,6 +177,7 @@ export class CreateProvider {
     private readonly vault: SecretVaultPort,
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
+    private readonly cleanupReporter: SecretCleanupReporterPort,
   ) {}
 
   public async execute(input: CreateProviderInput): Promise<ProviderProfile> {
@@ -199,19 +202,44 @@ export class CreateProvider {
       ...(secretRef === undefined ? {} : { secretRef }),
     }
 
-    let result
+    let result: ProviderMutationResult
     try {
       result = await this.repository.create(input.requestId, provider)
     } catch {
-      if (secretRef !== undefined) await removeSecret(this.vault, secretRef)
-      throw databaseError()
+      let outcome: ProviderWriteOutcome | undefined
+      try {
+        outcome = await this.repository.findWriteOutcome(input.requestId)
+      } catch {
+        if (secretRef !== undefined) reportCleanupFailure(this.cleanupReporter, secretRef)
+        throw databaseError()
+      }
+      if (outcome === undefined) {
+        if (secretRef !== undefined) reportCleanupFailure(this.cleanupReporter, secretRef)
+        throw databaseError()
+      }
+      if (outcome.operation !== 'create') {
+        if (secretRef !== undefined) {
+          await cleanupOrReport(this.vault, this.cleanupReporter, secretRef)
+        }
+        throw validationError()
+      }
+      if (secretRef !== undefined && outcome.provider.secretRef !== secretRef) {
+        await cleanupOrReport(this.vault, this.cleanupReporter, secretRef)
+      }
+      return toProviderProfile(outcome.provider)
     }
     if (result.status === 'conflict') {
-      if (secretRef !== undefined) await removeSecret(this.vault, secretRef)
+      if (secretRef !== undefined) {
+        await cleanupOrReport(this.vault, this.cleanupReporter, secretRef)
+      }
       throw validationError()
     }
-    if (result.status === 'replayed' && secretRef !== undefined) {
-      await removeSecret(this.vault, secretRef)
+    if (
+      result.status === 'replayed' &&
+      secretRef !== undefined &&
+      result.provider.secretRef !== secretRef
+    ) {
+      await cleanupOrReport(this.vault, this.cleanupReporter, secretRef)
     }
     return toProviderProfile(result.provider)
   }
@@ -237,7 +265,7 @@ export class UpdateProvider {
     if (changesCloudIdentity && normalized.apiKey === undefined) throw validationError()
 
     const retainedSecretRef =
-      normalized.providerType === 'mock' || changesCloudIdentity ? undefined : existing.secretRef
+      existing.providerType === normalized.providerType ? existing.secretRef : undefined
     if (existing.isActive) {
       try {
         assertProviderHasCredential({
@@ -280,26 +308,64 @@ export class UpdateProvider {
 
     let result
     try {
-      result = await this.repository.update(input.requestId, updated)
+      result = await this.repository.update(input.requestId, existing.updatedAt, updated)
     } catch {
-      if (newSecretRef !== undefined) await removeSecret(this.vault, newSecretRef)
-      throw databaseError()
+      let outcome: ProviderWriteOutcome | undefined
+      try {
+        outcome = await this.repository.findWriteOutcome(input.requestId)
+      } catch {
+        if (newSecretRef !== undefined) reportCleanupFailure(this.cleanupReporter, newSecretRef)
+        throw databaseError()
+      }
+      if (outcome === undefined) {
+        if (newSecretRef !== undefined) reportCleanupFailure(this.cleanupReporter, newSecretRef)
+        throw databaseError()
+      }
+      if (outcome.operation !== 'update') {
+        if (newSecretRef !== undefined) {
+          await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
+        }
+        throw validationError()
+      }
+      if (newSecretRef !== undefined && outcome.provider.secretRef !== newSecretRef) {
+        await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
+      }
+      if (existing.secretRef !== undefined && existing.secretRef !== outcome.provider.secretRef) {
+        await cleanupOrReport(this.vault, this.cleanupReporter, existing.secretRef)
+      }
+      return toProviderProfile(outcome.provider)
     }
 
     if (result.status === 'conflict') {
-      if (newSecretRef !== undefined) await removeSecret(this.vault, newSecretRef)
+      if (newSecretRef !== undefined) {
+        await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
+      }
       throw validationError()
     }
+    if (result.status === 'stale') {
+      if (newSecretRef !== undefined) {
+        await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
+      }
+      throw new ProviderUseCaseError(
+        'PROVIDER_VALIDATION_FAILED',
+        'The provider changed. Reload and retry.',
+        false,
+      )
+    }
+    if (result.status === 'not_found') {
+      if (newSecretRef !== undefined) {
+        await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
+      }
+      throw notFoundError()
+    }
     if (result.status === 'replayed') {
-      if (newSecretRef !== undefined) await removeSecret(this.vault, newSecretRef)
+      if (newSecretRef !== undefined && result.provider.secretRef !== newSecretRef) {
+        await cleanupOrReport(this.vault, this.cleanupReporter, newSecretRef)
+      }
       return toProviderProfile(result.provider)
     }
     if (existing.secretRef !== undefined && existing.secretRef !== result.provider.secretRef) {
-      try {
-        await this.vault.remove(existing.secretRef)
-      } catch {
-        reportCleanupFailure(this.cleanupReporter, existing.secretRef)
-      }
+      await cleanupOrReport(this.vault, this.cleanupReporter, existing.secretRef)
     }
     return toProviderProfile(result.provider)
   }
@@ -368,13 +434,27 @@ export class ActivateProvider {
     }
 
     const updatedAt = getTimestamp(this.clock)
-    let result: ProviderMutationResult
+    let result
     try {
-      result = await this.repository.activate(input.requestId, input.id, updatedAt)
+      result = await this.repository.activate(
+        input.requestId,
+        input.id,
+        existing.updatedAt,
+        updatedAt,
+      )
     } catch {
       throw databaseError()
     }
     if (result.status === 'conflict') throw validationError()
+    if (result.status === 'stale') {
+      throw new ProviderUseCaseError(
+        'PROVIDER_VALIDATION_FAILED',
+        'The provider changed. Reload and retry.',
+        false,
+      )
+    }
+    if (result.status === 'not_found') throw notFoundError()
+    if (result.status === 'credential_missing') throw validationError()
     return toProviderProfile(result.provider)
   }
 }

@@ -2,11 +2,20 @@ import type { ProviderProfile, ProviderTestStatus } from '@deepstorming/domain'
 
 export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & { readonly secretRef?: string }
 
-export type ProviderWriteOperation = 'create' | 'update' | 'delete' | 'activate' | 'test_connection'
+export type ProviderWriteOperation = 'create' | 'update' | 'delete' | 'activate'
 
 export type ProviderMutationResult =
   | Readonly<{ status: 'applied' | 'replayed'; provider: StoredProvider }>
   | Readonly<{ status: 'conflict'; existingOperation: ProviderWriteOperation }>
+
+export type ProviderUpdateResult =
+  ProviderMutationResult | Readonly<{ status: 'stale' }> | Readonly<{ status: 'not_found' }>
+
+export type ProviderActivateResult =
+  | ProviderMutationResult
+  | Readonly<{ status: 'stale' }>
+  | Readonly<{ status: 'not_found' }>
+  | Readonly<{ status: 'credential_missing' }>
 
 export type ProviderRemoveLogicalOutcome =
   | Readonly<{ status: 'removed'; provider: StoredProvider }>
@@ -38,15 +47,31 @@ export interface ProviderRepositoryPort {
   findById(id: string): Promise<StoredProvider | undefined>
   findWriteOutcome(requestId: string): Promise<ProviderWriteOutcome | undefined>
   create(requestId: string, provider: StoredProvider): Promise<ProviderMutationResult>
-  update(requestId: string, provider: StoredProvider): Promise<ProviderMutationResult>
+  update(
+    requestId: string,
+    expectedUpdatedAt: string,
+    provider: StoredProvider,
+  ): Promise<ProviderUpdateResult>
   removeIfUnreferenced(requestId: string, id: string): Promise<ProviderRemoveResult>
-  activate(requestId: string, id: string, updatedAt: string): Promise<ProviderMutationResult>
-  updateTestStatus(
+  activate(
     requestId: string,
     id: string,
-    status: ProviderTestStatus,
-    testedAt: string,
-  ): Promise<ProviderMutationResult>
+    expectedUpdatedAt: string,
+    updatedAt: string,
+  ): Promise<ProviderActivateResult>
+  transitionTestStatus(
+    transition: Readonly<{
+      operationId: string
+      providerId: string
+      expectedStatus?: ProviderTestStatus
+      nextStatus: ProviderTestStatus
+      testedAt: string
+    }>,
+  ): Promise<
+    | Readonly<{ status: 'applied' | 'replayed'; provider: StoredProvider }>
+    | Readonly<{ status: 'stale' }>
+    | Readonly<{ status: 'not_found' }>
+  >
   referencedSecretRefs(): Promise<ReadonlySet<string>>
 }
 

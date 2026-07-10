@@ -8,6 +8,7 @@ import type {
   ClockPort,
   IdGeneratorPort,
   ProviderMutationResult,
+  ProviderUpdateResult,
   ProviderRemoveResult,
   ProviderRepositoryPort,
   ProviderWriteOutcome,
@@ -56,6 +57,14 @@ class FakeRepository implements ProviderRepositoryPort {
   public updateRaceProvider?: StoredProvider
   public createRaceConflict = false
   public activateFailure?: unknown
+  public updateResult?: 'stale' | 'not_found'
+  public activateResult?: 'stale' | 'not_found' | 'credential_missing'
+  public beforeUpdate?: () => void
+  public beforeActivate?: () => void
+  public commitCreateThenThrow = false
+  public commitUpdateThenThrow = false
+  public failRecoveryLookup = false
+  private writeAttempted = false
 
   public constructor(
     private readonly events: string[],
@@ -73,6 +82,7 @@ class FakeRepository implements ProviderRepositoryPort {
   }
 
   public async findWriteOutcome(requestId: string): Promise<ProviderWriteOutcome | undefined> {
+    if (this.failRecoveryLookup && this.writeAttempted) throw new Error('lookup unavailable')
     return this.outcomes.get(requestId)
   }
 
@@ -81,6 +91,7 @@ class FakeRepository implements ProviderRepositoryPort {
     provider: StoredProvider,
   ): Promise<ProviderMutationResult> {
     this.events.push('repository.create')
+    this.writeAttempted = true
     const replay = this.outcomes.get(requestId)
     if (replay?.operation === 'create') {
       return { status: 'replayed', provider: replay.provider }
@@ -95,14 +106,18 @@ class FakeRepository implements ProviderRepositoryPort {
     if (this.failCreate) throw new Error('sqlite path and secret must not escape')
     this.rows.set(provider.id, provider)
     this.outcomes.set(requestId, { operation: 'create', provider })
+    if (this.commitCreateThenThrow) throw new Error('ambiguous commit')
     return { status: 'applied', provider }
   }
 
   public async update(
     requestId: string,
+    expectedUpdatedAt: string,
     provider: StoredProvider,
-  ): Promise<ProviderMutationResult> {
+  ): Promise<ProviderUpdateResult> {
     this.events.push('repository.update')
+    this.writeAttempted = true
+    this.beforeUpdate?.()
     const replay = this.outcomes.get(requestId)
     if (replay?.operation === 'update') {
       return { status: 'replayed', provider: replay.provider }
@@ -113,8 +128,13 @@ class FakeRepository implements ProviderRepositoryPort {
       return { status: 'replayed', provider: this.updateRaceProvider }
     }
     if (this.failUpdate) throw new Error('sqlite path and secret must not escape')
+    if (this.updateResult !== undefined) return { status: this.updateResult }
+    const current = this.rows.get(provider.id)
+    if (current === undefined) return { status: 'not_found' }
+    if (current.updatedAt !== expectedUpdatedAt) return { status: 'stale' }
     this.rows.set(provider.id, provider)
     this.outcomes.set(requestId, { operation: 'update', provider })
+    if (this.commitUpdateThenThrow) throw new Error('ambiguous commit')
     return { status: 'applied', provider }
   }
 
@@ -146,16 +166,23 @@ class FakeRepository implements ProviderRepositoryPort {
   public async activate(
     requestId: string,
     id: string,
+    expectedUpdatedAt: string,
     updatedAt: string,
-  ): Promise<ProviderMutationResult> {
+  ): Promise<ProviderMutationResult | { status: 'stale' | 'not_found' | 'credential_missing' }> {
     this.events.push('repository.activate')
+    this.beforeActivate?.()
     if (this.activateFailure !== undefined) throw this.activateFailure
     const replay = this.outcomes.get(requestId)
     if (replay?.operation === 'activate') {
       return { status: 'replayed', provider: replay.provider }
     }
+    if (this.activateResult !== undefined) return { status: this.activateResult }
     const selected = this.rows.get(id)
-    if (selected === undefined) throw new Error('missing row')
+    if (selected === undefined) return { status: 'not_found' }
+    if (selected.updatedAt !== expectedUpdatedAt) return { status: 'stale' }
+    if (selected.providerType !== 'mock' && selected.secretRef === undefined) {
+      return { status: 'credential_missing' }
+    }
     for (const [rowId, provider] of this.rows) {
       this.rows.set(rowId, { ...provider, isActive: rowId === id, updatedAt })
     }
@@ -164,21 +191,31 @@ class FakeRepository implements ProviderRepositoryPort {
     return { status: 'applied', provider }
   }
 
-  public async updateTestStatus(
-    requestId: string,
-    id: string,
-    status: ProviderTestStatus,
-    testedAt: string,
-  ): Promise<ProviderMutationResult> {
-    const replay = this.outcomes.get(requestId)
-    if (replay?.operation === 'test_connection') {
-      return { status: 'replayed', provider: replay.provider }
+  public async transitionTestStatus(transition: {
+    operationId: string
+    providerId: string
+    expectedStatus?: ProviderTestStatus
+    nextStatus: ProviderTestStatus
+    testedAt: string
+  }): Promise<
+    | { status: 'applied' | 'replayed'; provider: StoredProvider }
+    | { status: 'stale' }
+    | { status: 'not_found' }
+  > {
+    const provider = this.rows.get(transition.providerId)
+    if (provider === undefined) return { status: 'not_found' }
+    if (
+      transition.expectedStatus !== undefined &&
+      provider.lastTestStatus !== transition.expectedStatus
+    ) {
+      return { status: 'stale' }
     }
-    const provider = this.rows.get(id)
-    if (provider === undefined) throw new Error('missing row')
-    const updated = { ...provider, lastTestStatus: status, lastTestedAt: testedAt }
-    this.rows.set(id, updated)
-    this.outcomes.set(requestId, { operation: 'test_connection', provider: updated })
+    const updated = {
+      ...provider,
+      lastTestStatus: transition.nextStatus,
+      lastTestedAt: transition.testedAt,
+    }
+    this.rows.set(transition.providerId, updated)
     return { status: 'applied', provider: updated }
   }
 
@@ -266,7 +303,13 @@ describe('CreateProvider', () => {
     const input = deepSeekDraft(' api-key ')
     const snapshot = { ...input }
 
-    const result = await new CreateProvider(repository, vault, clock, ids).execute(write(input))
+    const result = await new CreateProvider(
+      repository,
+      vault,
+      clock,
+      ids,
+      new FakeCleanupReporter(),
+    ).execute(write(input))
 
     expect(events).toEqual(['vault.put', 'repository.create'])
     expect(vault.secrets.get('secret-1')).toBe('api-key')
@@ -287,37 +330,45 @@ describe('CreateProvider', () => {
     expect(input).toEqual(snapshot)
   })
 
-  it('removes a newly written secret when repository create fails', async () => {
+  it('preserves a new secret for reconciliation when create outcome is unknown', async () => {
     const events: string[] = []
     const repository = new FakeRepository(events)
     repository.failCreate = true
     const vault = new FakeVault(events)
 
+    const reporter = new FakeCleanupReporter()
     await expectStableError(
-      new CreateProvider(repository, vault, clock, ids).execute(write(deepSeekDraft('api-key'))),
+      new CreateProvider(repository, vault, clock, ids, reporter).execute(
+        write(deepSeekDraft('api-key')),
+      ),
       'DATABASE_UNAVAILABLE',
     )
 
-    expect(events).toEqual(['vault.put', 'repository.create', 'vault.remove:secret-1'])
+    expect(events).toEqual(['vault.put', 'repository.create'])
     expect(repository.rows.size).toBe(0)
-    expect(vault.secrets.size).toBe(0)
+    expect(vault.secrets.get('secret-1')).toBe('api-key')
+    expect(reporter.failures).toEqual([{ secretRef: 'secret-1', code: 'SECRET_DELETE_FAILED' }])
   })
 
-  it('reports a stable secret cleanup error when compensation removal fails', async () => {
+  it('keeps the primary database error when outcome lookup fails and reports cleanup pending', async () => {
     const events: string[] = []
     const repository = new FakeRepository(events)
     repository.failCreate = true
+    repository.failRecoveryLookup = true
     const vault = new FakeVault(events)
-    vault.failRemove = true
+    const reporter = new FakeCleanupReporter()
 
     const error = await expectStableError(
-      new CreateProvider(repository, vault, clock, ids).execute(write(deepSeekDraft('api-key'))),
-      'SECRET_DELETE_FAILED',
+      new CreateProvider(repository, vault, clock, ids, reporter).execute(
+        write(deepSeekDraft('api-key')),
+      ),
+      'DATABASE_UNAVAILABLE',
     )
 
-    expect(error.retryable).toBe(false)
-    expect(events).toEqual(['vault.put', 'repository.create', 'vault.remove:secret-1'])
+    expect(error.retryable).toBe(true)
+    expect(events).toEqual(['vault.put', 'repository.create'])
     expect(vault.secrets.has('secret-1')).toBe(true)
+    expect(reporter.failures).toEqual([{ secretRef: 'secret-1', code: 'SECRET_DELETE_FAILED' }])
   })
 
   it('maps validation and Vault write failures without persisting a row', async () => {
@@ -326,7 +377,7 @@ describe('CreateProvider', () => {
     const vault = new FakeVault(events)
 
     await expectStableError(
-      new CreateProvider(repository, vault, clock, ids).execute(
+      new CreateProvider(repository, vault, clock, ids, new FakeCleanupReporter()).execute(
         write({
           providerType: 'deepseek',
           displayName: ' ',
@@ -338,7 +389,9 @@ describe('CreateProvider', () => {
 
     vault.failPut = true
     await expectStableError(
-      new CreateProvider(repository, vault, clock, ids).execute(write(deepSeekDraft('api-key'))),
+      new CreateProvider(repository, vault, clock, ids, new FakeCleanupReporter()).execute(
+        write(deepSeekDraft('api-key')),
+      ),
       'SECRET_WRITE_FAILED',
     )
     expect(repository.rows.size).toBe(0)
@@ -354,7 +407,13 @@ describe('CreateProvider', () => {
       { fieldName: 'api-key' },
     )
     const error = await expectStableError(
-      new CreateProvider(repository, new FakeVault([]), clock, ids).execute(write(deepSeekDraft())),
+      new CreateProvider(
+        repository,
+        new FakeVault([]),
+        clock,
+        ids,
+        new FakeCleanupReporter(),
+      ).execute(write(deepSeekDraft())),
       'DATABASE_UNAVAILABLE',
     )
 
@@ -382,6 +441,7 @@ describe('CreateProvider', () => {
       new FakeVault(events),
       orderedClock,
       orderedIds,
+      new FakeCleanupReporter(),
     ).execute(write(deepSeekDraft('api-key')))
 
     expect(events).toEqual(['ids.generate', 'clock.now', 'vault.put', 'repository.create'])
@@ -391,7 +451,7 @@ describe('CreateProvider', () => {
     const events: string[] = []
     const repository = new FakeRepository(events)
     const vault = new FakeVault(events)
-    const create = new CreateProvider(repository, vault, clock, ids)
+    const create = new CreateProvider(repository, vault, clock, ids, new FakeCleanupReporter())
 
     const first = await create.execute(write(deepSeekDraft('api-key')))
     const stateAfterFirst = new Map(repository.rows)
@@ -411,9 +471,13 @@ describe('CreateProvider', () => {
     repository.createRaceProvider = original
     const vault = new FakeVault(events)
 
-    const result = await new CreateProvider(repository, vault, clock, ids).execute(
-      write(deepSeekDraft('racing-key')),
-    )
+    const result = await new CreateProvider(
+      repository,
+      vault,
+      clock,
+      ids,
+      new FakeCleanupReporter(),
+    ).execute(write(deepSeekDraft('racing-key')))
 
     expect(result).toMatchObject({ id: original.id, hasApiKey: true })
     expect(events).toEqual(['vault.put', 'repository.create', 'vault.remove:secret-1'])
@@ -428,13 +492,64 @@ describe('CreateProvider', () => {
     const vault = new FakeVault(events)
 
     await expectStableError(
-      new CreateProvider(repository, vault, clock, ids).execute(write(deepSeekDraft('racing-key'))),
+      new CreateProvider(repository, vault, clock, ids, new FakeCleanupReporter()).execute(
+        write(deepSeekDraft('racing-key')),
+      ),
       'PROVIDER_VALIDATION_FAILED',
     )
 
     expect(events).toEqual(['vault.put', 'repository.create', 'vault.remove:secret-1'])
     expect(vault.secrets.size).toBe(0)
     expect(repository.rows.size).toBe(0)
+  })
+
+  it('recovers committed create success after an ambiguous repository exception', async () => {
+    const events: string[] = []
+    const repository = new FakeRepository(events)
+    repository.commitCreateThenThrow = true
+    const vault = new FakeVault(events)
+    const reporter = new FakeCleanupReporter()
+
+    const result = await new CreateProvider(repository, vault, clock, ids, reporter).execute(
+      write(deepSeekDraft('committed-key')),
+    )
+
+    expect(result).toMatchObject({ id: ID, hasApiKey: true })
+    expect(repository.rows.get(ID)?.secretRef).toBe('secret-1')
+    expect(vault.secrets.get('secret-1')).toBe('committed-key')
+    expect(reporter.failures).toEqual([])
+  })
+
+  it('keeps replay success when loser-secret cleanup fails and reports only the ref and code', async () => {
+    const original = storedProvider({ secretRef: 'winner-ref', createdAt: NOW, updatedAt: NOW })
+    const repository = new FakeRepository([])
+    repository.createRaceProvider = original
+    const vault = new FakeVault([])
+    vault.failRemove = true
+    const reporter = new FakeCleanupReporter()
+
+    const result = await new CreateProvider(repository, vault, clock, ids, reporter).execute(
+      write(deepSeekDraft('losing-key')),
+    )
+
+    expect(result).toMatchObject({ id: original.id, hasApiKey: true })
+    expect(reporter.failures).toEqual([{ secretRef: 'secret-1', code: 'SECRET_DELETE_FAILED' }])
+  })
+
+  it('keeps conflict validation primary when orphan cleanup fails', async () => {
+    const repository = new FakeRepository([])
+    repository.createRaceConflict = true
+    const vault = new FakeVault([])
+    vault.failRemove = true
+    const reporter = new FakeCleanupReporter()
+
+    await expectStableError(
+      new CreateProvider(repository, vault, clock, ids, reporter).execute(
+        write(deepSeekDraft('losing-key')),
+      ),
+      'PROVIDER_VALIDATION_FAILED',
+    )
+    expect(reporter.failures).toEqual([{ secretRef: 'secret-1', code: 'SECRET_DELETE_FAILED' }])
   })
 })
 
@@ -523,7 +638,7 @@ describe('UpdateProvider', () => {
     expect(vault.secrets.get('old-ref')).toBe('old-key')
   })
 
-  it('removes the new secret after repository failure while preserving the old row and secret', async () => {
+  it('preserves the new secret for reconciliation after an unknown update outcome', async () => {
     const events: string[] = []
     const existing = storedProvider({ secretRef: 'old-ref' })
     const repository = new FakeRepository(events, [existing])
@@ -531,8 +646,9 @@ describe('UpdateProvider', () => {
     const vault = new FakeVault(events)
     vault.secrets.set('old-ref', 'old-key')
 
+    const reporter = new FakeCleanupReporter()
     await expectStableError(
-      new UpdateProvider(repository, vault, new FakeCleanupReporter(), clock).execute({
+      new UpdateProvider(repository, vault, reporter, clock).execute({
         requestId: REQUEST_ID,
         id: ID,
         provider: deepSeekDraft('new-key'),
@@ -540,9 +656,90 @@ describe('UpdateProvider', () => {
       'DATABASE_UNAVAILABLE',
     )
 
-    expect(events).toEqual(['vault.put', 'repository.update', 'vault.remove:secret-1'])
+    expect(events).toEqual(['vault.put', 'repository.update'])
     expect(repository.rows.get(ID)).toBe(existing)
-    expect(vault.secrets).toEqual(new Map([['old-ref', 'old-key']]))
+    expect(vault.secrets).toEqual(
+      new Map([
+        ['old-ref', 'old-key'],
+        ['secret-1', 'new-key'],
+      ]),
+    )
+    expect(reporter.failures).toEqual([{ secretRef: 'secret-1', code: 'SECRET_DELETE_FAILED' }])
+  })
+
+  it('recovers committed update success after an ambiguous repository exception', async () => {
+    const existing = storedProvider({ secretRef: 'old-ref' })
+    const repository = new FakeRepository([], [existing])
+    repository.commitUpdateThenThrow = true
+    const vault = new FakeVault([])
+    vault.secrets.set('old-ref', 'old-key')
+
+    const result = await new UpdateProvider(
+      repository,
+      vault,
+      new FakeCleanupReporter(),
+      clock,
+    ).execute({ requestId: REQUEST_ID, id: ID, provider: deepSeekDraft('new-key') })
+
+    expect(result.hasApiKey).toBe(true)
+    expect(repository.rows.get(ID)?.secretRef).toBe('secret-1')
+    expect(vault.secrets.get('secret-1')).toBe('new-key')
+    expect(vault.secrets.has('old-ref')).toBe(false)
+  })
+
+  it('preserves a new ref when update outcome lookup is unavailable', async () => {
+    const repository = new FakeRepository([], [storedProvider({ secretRef: 'old-ref' })])
+    repository.failUpdate = true
+    repository.failRecoveryLookup = true
+    const vault = new FakeVault([])
+    const reporter = new FakeCleanupReporter()
+
+    await expectStableError(
+      new UpdateProvider(repository, vault, reporter, clock).execute({
+        requestId: REQUEST_ID,
+        id: ID,
+        provider: deepSeekDraft('new-key'),
+      }),
+      'DATABASE_UNAVAILABLE',
+    )
+    expect(vault.secrets.get('secret-1')).toBe('new-key')
+    expect(reporter.failures).toEqual([{ secretRef: 'secret-1', code: 'SECRET_DELETE_FAILED' }])
+  })
+
+  it('rejects a stale concurrent update without losing the winning row', async () => {
+    const existing = storedProvider({ secretRef: 'old-ref' })
+    const winner = storedProvider({
+      displayName: 'Winner',
+      secretRef: 'winner-ref',
+      updatedAt: NOW,
+    })
+    const repository = new FakeRepository([], [existing])
+    repository.beforeUpdate = () => repository.rows.set(ID, winner)
+
+    await expectStableError(
+      new UpdateProvider(repository, new FakeVault([]), new FakeCleanupReporter(), clock).execute({
+        requestId: REQUEST_ID,
+        id: ID,
+        provider: deepSeekDraft(),
+      }),
+      'PROVIDER_VALIDATION_FAILED',
+    )
+    expect(repository.rows.get(ID)).toBe(winner)
+  })
+
+  it('does not retain a contaminated Mock secret when changing to cloud without a key', async () => {
+    const contaminated = storedProvider({ providerType: 'mock', secretRef: 'legacy-ref' })
+    const repository = new FakeRepository([], [contaminated])
+
+    const result = await new UpdateProvider(
+      repository,
+      new FakeVault([]),
+      new FakeCleanupReporter(),
+      clock,
+    ).execute({ requestId: REQUEST_ID, id: ID, provider: deepSeekDraft() })
+
+    expect(result.hasApiKey).toBe(false)
+    expect(repository.rows.get(ID)).not.toHaveProperty('secretRef')
   })
 
   it('rejects changing an active unkeyed Mock into a cloud provider', async () => {
@@ -934,6 +1131,32 @@ describe('ActivateProvider and ListProviders', () => {
     await expectStableError(run(), 'PROVIDER_NOT_FOUND')
   })
 
+  it('rejects activation when a Mock becomes an unkeyed cloud provider after the initial read', async () => {
+    const mock = storedProvider({ providerType: 'mock' })
+    const repository = new FakeRepository([], [mock])
+    repository.beforeActivate = () => {
+      repository.rows.set(ID, storedProvider({ updatedAt: NOW }))
+    }
+
+    await expectStableError(
+      new ActivateProvider(repository, clock).execute({ requestId: REQUEST_ID, id: ID }),
+      'PROVIDER_VALIDATION_FAILED',
+    )
+    expect(repository.rows.get(ID)?.isActive).toBe(false)
+  })
+
+  it('returns not found when the provider is deleted after the activation read', async () => {
+    const repository = new FakeRepository([], [storedProvider({ secretRef: 'key-ref' })])
+    repository.beforeActivate = () => {
+      repository.rows.delete(ID)
+    }
+
+    await expectStableError(
+      new ActivateProvider(repository, clock).execute({ requestId: REQUEST_ID, id: ID }),
+      'PROVIDER_NOT_FOUND',
+    )
+  })
+
   it('replays activation without applying it again', async () => {
     const events: string[] = []
     const repository = new FakeRepository(events, [storedProvider({ secretRef: 'key-ref' })])
@@ -969,6 +1192,19 @@ describe('ActivateProvider and ListProviders', () => {
     expect(error.message).toBe('Provider storage is temporarily unavailable.')
     expect(error.details).toBeUndefined()
     expect(JSON.stringify(error)).not.toContain('api-key')
+  })
+
+  it.each([
+    ['stale', 'PROVIDER_VALIDATION_FAILED'],
+    ['not_found', 'PROVIDER_NOT_FOUND'],
+    ['credential_missing', 'PROVIDER_VALIDATION_FAILED'],
+  ] as const)('maps atomic activation %s safely', async (status, code) => {
+    const repository = new FakeRepository([], [storedProvider({ secretRef: 'key-ref' })])
+    repository.activateResult = status
+    await expectStableError(
+      new ActivateProvider(repository, clock).execute({ requestId: REQUEST_ID, id: ID }),
+      code,
+    )
   })
 
   it('rejects a request ID reused for another operation before side effects', async () => {
