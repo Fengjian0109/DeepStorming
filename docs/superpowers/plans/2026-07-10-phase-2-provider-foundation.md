@@ -459,7 +459,7 @@ pnpm --filter @deepstorming/infrastructure add -D @types/better-sqlite3@7.6.13
 
 - [ ] **Step 2: Write failing migration tests**
 
-Assert WAL, foreign keys, `busy_timeout=5000`, migration 1 applied once, repeat startup idempotent, and changed checksum throws `DATABASE_MIGRATION_FAILED`. Migration 1 creates `provider_write_requests(request_id PRIMARY KEY, operation, outcome_status, provider_snapshot_json, created_at)` in addition to Provider metadata; snapshots may contain `secret_ref` but never raw keys. Seed a previous-version database, force a migration failure, and prove its original data remains readable and a backup exists.
+Assert WAL, foreign keys, `busy_timeout=5000`, migration 1 applied once, repeat startup idempotent, and changed checksum throws `DATABASE_MIGRATION_FAILED`. Migration 1 creates `provider_write_requests(request_id PRIMARY KEY, operation, target_provider_id TEXT NOT NULL, outcome_status, provider_snapshot_json, created_at)` in addition to Provider metadata. Replay identity is bound to both `operation` and `target_provider_id`; snapshots may be null for logical outcomes, may contain `secret_ref`, and never contain raw keys. Seed a previous-version database, force a migration failure, and prove its original data remains readable and a backup exists.
 
 - [ ] **Step 3: Implement connection and migration 1**
 
