@@ -187,6 +187,7 @@ describe('preload API', () => {
       startFromDocument: expect.any(Function),
       get: expect.any(Function),
       reply: expect.any(Function),
+      retryRun: expect.any(Function),
     })
   })
 
@@ -316,6 +317,21 @@ describe('preload API', () => {
         requestId: REQUEST_ID,
         lessonId: OPERATION_ID,
         content: '它在说明证据如何支撑判断。',
+      },
+      response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
+    },
+    {
+      name: 'lessons.retryRun',
+      call: (api: DeepStormingApi) =>
+        api.lessons.retryRun({
+          lessonId: OPERATION_ID,
+          modelRunId: '00000000-0000-4000-8000-000000000501',
+        }),
+      channel: LESSON_CHANNELS.retryRun,
+      payload: {
+        requestId: REQUEST_ID,
+        lessonId: OPERATION_ID,
+        modelRunId: '00000000-0000-4000-8000-000000000501',
       },
       response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
     },

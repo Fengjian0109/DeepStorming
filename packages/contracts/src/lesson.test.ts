@@ -6,6 +6,7 @@ import {
   lessonSessionSchema,
   lessonSessionsResultSchema,
   replyToLessonRequestSchema,
+  retryLessonRunRequestSchema,
   startLessonFromDocumentRequestSchema,
 } from './lesson'
 
@@ -80,6 +81,7 @@ describe('lesson contracts', () => {
       startFromDocument: 'lessons:start-from-document',
       get: 'lessons:get',
       reply: 'lessons:reply',
+      retryRun: 'lessons:retry-run',
     })
   })
 
@@ -120,6 +122,13 @@ describe('lesson contracts', () => {
         content: '   ',
       }).success,
     ).toBe(false)
+    expect(
+      retryLessonRunRequestSchema.safeParse({
+        requestId,
+        lessonId,
+        modelRunId,
+      }).success,
+    ).toBe(true)
   })
 
   it('rejects full document text and SQLite internals on session DTOs', () => {

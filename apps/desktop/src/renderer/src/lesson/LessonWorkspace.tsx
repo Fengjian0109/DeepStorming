@@ -18,6 +18,12 @@ type ReplyState =
   | { status: 'success'; message: string }
   | { status: 'error'; message: string }
 
+type RunRetryState =
+  | { status: 'idle' }
+  | { status: 'retrying'; modelRunId: string }
+  | { status: 'success'; message: string }
+  | { status: 'error'; message: string }
+
 export const LessonWorkspace = ({
   selectedLessonId,
 }: {
@@ -27,6 +33,7 @@ export const LessonWorkspace = ({
   const [detailState, setDetailState] = useState<LessonDetailState>({ status: 'idle' })
   const [replyText, setReplyText] = useState('')
   const [replyState, setReplyState] = useState<ReplyState>({ status: 'idle' })
+  const [runRetryState, setRunRetryState] = useState<RunRetryState>({ status: 'idle' })
   const listRequestSequence = useRef(0)
   const detailRequestSequence = useRef(0)
 
@@ -40,6 +47,7 @@ export const LessonWorkspace = ({
     if (result.ok) {
       setDetailState({ status: 'ready', session: result.data })
       setReplyState({ status: 'idle' })
+      setRunRetryState({ status: 'idle' })
       return
     }
 
@@ -99,6 +107,37 @@ export const LessonWorkspace = ({
       setReplyState({ status: 'error', message: result.error.message })
     },
     [detailState, replyText],
+  )
+
+  const retryRun = useCallback(
+    async (modelRunId: string) => {
+      if (detailState.status !== 'ready') return
+
+      setRunRetryState({ status: 'retrying', modelRunId })
+      const result = await window.deepstorming.lessons.retryRun({
+        lessonId: detailState.session.id,
+        modelRunId,
+      })
+
+      if (result.ok) {
+        setDetailState({ status: 'ready', session: result.data })
+        setListState((current) =>
+          current.status === 'ready'
+            ? {
+                status: 'ready',
+                sessions: current.sessions.map((session) =>
+                  session.id === result.data.id ? result.data : session,
+                ),
+              }
+            : current,
+        )
+        setRunRetryState({ status: 'success', message: '已重新生成。' })
+        return
+      }
+
+      setRunRetryState({ status: 'error', message: result.error.message })
+    },
+    [detailState],
   )
 
   useEffect(() => {
@@ -224,10 +263,36 @@ export const LessonWorkspace = ({
                     <footer>
                       {modelRun.promptManifest.key} v{modelRun.promptManifest.version}
                     </footer>
+                    {(modelRun.status === 'failed' || modelRun.status === 'cancelled') && (
+                      <div className="card-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          disabled={
+                            runRetryState.status === 'retrying' &&
+                            runRetryState.modelRunId === modelRun.id
+                          }
+                          onClick={() => void retryRun(modelRun.id)}
+                        >
+                          {runRetryState.status === 'retrying' &&
+                          runRetryState.modelRunId === modelRun.id
+                            ? '重试中…'
+                            : `重试生成 ${modelRun.promptManifest.key} v${modelRun.promptManifest.version}`}
+                        </button>
+                      </div>
+                    )}
                   </article>
                 ))}
                 {detailState.session.modelRuns.length === 0 && (
                   <p className="muted-state">这节课还没有生成记录。</p>
+                )}
+                {runRetryState.status === 'success' && (
+                  <p className="success-state">{runRetryState.message}</p>
+                )}
+                {runRetryState.status === 'error' && (
+                  <p role="alert" className="error-state">
+                    {runRetryState.message}
+                  </p>
                 )}
               </div>
               <form className="lesson-reply-form" onSubmit={(event) => void submitReply(event)}>

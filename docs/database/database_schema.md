@@ -239,6 +239,8 @@ Migration 5 (`lesson_model_run_foundation`) 为本地 Mock Tutor 首轮提问增
 
 当前 `input_summary_json` 只保存 `documentId`、`documentTitle`、`sourceAnchorIds`、字符范围、snippet 字符数，以及 follow-up 场景下的 learner reply 字符数；不保存完整文档正文、完整学习者回答以外的派生 prompt、API Key、Authorization header、原始 prompt 或原始响应。
 
+运行恢复语义：应用层允许对 `failed/cancelled` 的课堂生成记录发起重试。重试不会覆盖原 run 的 `status`、`output_message_id` 或时间戳，而是追加新的 `lesson_tutor_follow_up` run 和对应 tutor message，从而保留失败历史与新结果的审计链路。`started/succeeded` run 不可重试。
+
 ### 5.0.7 `lesson_model_runs` operation 扩展（Migration 6）
 
 Migration 6 (`lesson_follow_up_operation`) 重建 `lesson_model_runs` 表的 `operation` 检查约束，使本地多轮课堂可以记录 `lesson_tutor_follow_up`。该迁移保留已有 run 行，只扩大允许的 operation 枚举，不改变已保存数据。

@@ -18,6 +18,7 @@ import type {
 } from './provider'
 import type {
   LessonReplyDraftDto,
+  LessonRunRetryDraftDto,
   LessonSessionResult,
   LessonSessionsResult,
   LessonStartDraftDto,
@@ -63,6 +64,7 @@ export type DeepStormingApi = {
     startFromDocument: (lesson: LessonStartDraftDto) => Promise<LessonSessionResult>
     get: (id: string) => Promise<LessonSessionResult>
     reply: (reply: LessonReplyDraftDto) => Promise<LessonSessionResult>
+    retryRun: (retry: LessonRunRetryDraftDto) => Promise<LessonSessionResult>
   }
   provider: {
     list: () => Promise<ListProvidersResult>

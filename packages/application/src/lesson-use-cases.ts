@@ -2,6 +2,7 @@ import {
   normalizeLessonStartDraft,
   type LessonPromptManifest,
   type LessonReplyDraft,
+  type LessonRunRetryDraft,
   type LessonSession,
   type LessonStartDraft,
 } from '@deepstorming/domain'
@@ -77,6 +78,12 @@ const normalizeLessonReplyDraft = (draft: LessonReplyDraft): LessonReplyDraft =>
   if (content.length === 0) throw new Error('Lesson reply must not be blank')
   if (content.length > 1_000) throw new Error('Lesson reply is too long')
   return { lessonId: draft.lessonId, content }
+}
+
+const normalizeLessonRunRetryDraft = (draft: LessonRunRetryDraft): LessonRunRetryDraft => {
+  if (!UUID.test(draft.lessonId)) throw new Error('Lesson id is invalid')
+  if (!UUID.test(draft.modelRunId)) throw new Error('Lesson model run id is invalid')
+  return draft
 }
 
 const validationError = (error: unknown): LessonUseCaseError =>
@@ -327,6 +334,115 @@ export class SubmitLessonReply {
             },
             snippetCharacterCount: anchor.snippet.length,
             learnerReplyCharacterCount: draft.content.length,
+          },
+          sourceAnchorIds: [anchor.id],
+          outputMessageId: tutorMessageId,
+          startedAt: createdAt,
+          finishedAt: createdAt,
+        },
+      ],
+      updatedAt: createdAt,
+    }
+
+    try {
+      return toView(await this.lessons.save(updated))
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+  }
+}
+
+export class RetryLessonRun {
+  public constructor(
+    private readonly lessons: LessonRepositoryPort,
+    private readonly clock: ClockPort,
+    private readonly ids: IdGeneratorPort,
+  ) {}
+
+  public async execute(input: LessonRunRetryDraft): Promise<LessonSession> {
+    let draft: LessonRunRetryDraft
+    try {
+      draft = normalizeLessonRunRetryDraft(input)
+    } catch (error) {
+      throw validationError(error)
+    }
+
+    let session: StoredLessonSession | undefined
+    try {
+      session = await this.lessons.findById(draft.lessonId)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (!session)
+      throw new LessonUseCaseError('LESSON_NOT_FOUND', 'The lesson was not found.', false)
+
+    const modelRun = session.modelRuns.find((run) => run.id === draft.modelRunId)
+    if (modelRun === undefined) {
+      throw validationError(new Error('Lesson model run was not found.'))
+    }
+    if (modelRun.status !== 'failed' && modelRun.status !== 'cancelled') {
+      throw validationError(new Error('Lesson model run cannot be retried.'))
+    }
+
+    const learnerMessage = [...session.messages]
+      .reverse()
+      .find((message) => message.role === 'learner')
+    if (learnerMessage === undefined) {
+      throw validationError(new Error('A learner reply is required before retrying a lesson run.'))
+    }
+
+    const anchorId = modelRun.sourceAnchorIds[0]
+    const anchor =
+      session.sourceAnchors.find((sourceAnchor) => sourceAnchor.id === anchorId) ??
+      session.sourceAnchors[0]
+    if (anchor === undefined) throw internalError()
+
+    let createdAt: string
+    let modelRunId: string
+    let tutorMessageId: string
+    try {
+      createdAt = this.clock.now()
+      modelRunId = this.ids.generate()
+      tutorMessageId = this.ids.generate()
+    } catch (error) {
+      throw asInternalError(error)
+    }
+
+    const updated: StoredLessonSession = {
+      ...session,
+      messages: [
+        ...session.messages,
+        {
+          id: tutorMessageId,
+          lessonId: session.id,
+          modelRunId,
+          role: 'tutor',
+          content: createMockTutorFollowUp(learnerMessage.content, anchor.snippet),
+          sourceAnchorIds: [anchor.id],
+          promptVersion: MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION,
+          createdAt,
+        },
+      ],
+      modelRuns: [
+        ...session.modelRuns,
+        {
+          id: modelRunId,
+          lessonId: session.id,
+          providerId: null,
+          modelName: 'mock-local',
+          operation: 'lesson_tutor_follow_up',
+          status: 'succeeded',
+          promptManifest: MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST,
+          inputSummary: {
+            documentId: session.documentId,
+            documentTitle: session.documentTitle,
+            sourceAnchorIds: [anchor.id],
+            sourceCharacterRange: {
+              startOffset: anchor.startOffset,
+              endOffset: anchor.endOffset,
+            },
+            snippetCharacterCount: anchor.snippet.length,
+            learnerReplyCharacterCount: learnerMessage.content.length,
           },
           sourceAnchorIds: [anchor.id],
           outputMessageId: tutorMessageId,

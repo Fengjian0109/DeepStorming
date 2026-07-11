@@ -6,6 +6,7 @@ export const LESSON_CHANNELS = {
   startFromDocument: 'lessons:start-from-document',
   get: 'lessons:get',
   reply: 'lessons:reply',
+  retryRun: 'lessons:retry-run',
 } as const
 
 const requestIdSchema = z.string().uuid()
@@ -128,6 +129,13 @@ export const lessonReplyDraftSchema = z
   })
   .strict()
 
+export const lessonRunRetryDraftSchema = z
+  .object({
+    lessonId: lessonIdSchema,
+    modelRunId: z.string().uuid(),
+  })
+  .strict()
+
 export const lessonBusinessErrorCodeSchema = z.enum([
   'LESSON_VALIDATION_FAILED',
   'LESSON_DOCUMENT_NOT_FOUND',
@@ -158,6 +166,13 @@ export const replyToLessonRequestSchema = z
     requestId: requestIdSchema,
     lessonId: lessonIdSchema,
     content: requiredTextSchema.max(1_000),
+  })
+  .strict()
+export const retryLessonRunRequestSchema = z
+  .object({
+    requestId: requestIdSchema,
+    lessonId: lessonIdSchema,
+    modelRunId: z.string().uuid(),
   })
   .strict()
 
@@ -192,9 +207,11 @@ export type LessonModelRunDto = z.infer<typeof lessonModelRunSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
 export type LessonReplyDraftDto = z.infer<typeof lessonReplyDraftSchema>
+export type LessonRunRetryDraftDto = z.infer<typeof lessonRunRetryDraftSchema>
 export type ListLessonsRequest = z.infer<typeof listLessonsRequestSchema>
 export type StartLessonFromDocumentRequest = z.infer<typeof startLessonFromDocumentRequestSchema>
 export type GetLessonRequest = z.infer<typeof getLessonRequestSchema>
 export type ReplyToLessonRequest = z.infer<typeof replyToLessonRequestSchema>
+export type RetryLessonRunRequest = z.infer<typeof retryLessonRunRequestSchema>
 export type LessonSessionsResult = z.infer<typeof lessonSessionsResultSchema>
 export type LessonSessionResult = z.infer<typeof lessonSessionResultSchema>

@@ -119,6 +119,8 @@ beforeEach(() => {
         .fn()
         .mockResolvedValue({ ok: true, data: lessonSession, requestId: crypto.randomUUID() }),
       get: vi.fn(),
+      reply: vi.fn(),
+      retryRun: vi.fn(),
     },
     provider: {
       list: vi.fn(),

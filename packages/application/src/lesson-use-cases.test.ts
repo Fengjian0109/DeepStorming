@@ -5,6 +5,7 @@ import {
   GetLessonSession,
   LessonUseCaseError,
   ListLessonSessions,
+  RetryLessonRun,
   StartLessonFromDocument,
   SubmitLessonReply,
 } from './lesson-use-cases'
@@ -17,6 +18,8 @@ const modelRunId = '00000000-0000-4000-8000-000000000104'
 const learnerMessageId = '00000000-0000-4000-8000-000000000105'
 const followUpRunId = '00000000-0000-4000-8000-000000000106'
 const followUpMessageId = '00000000-0000-4000-8000-000000000107'
+const retryRunId = '00000000-0000-4000-8000-000000000108'
+const retryMessageId = '00000000-0000-4000-8000-000000000109'
 const documentId = '00000000-0000-4000-8000-000000000001'
 
 const documentRecord: StoredDocumentDetail = {
@@ -262,6 +265,87 @@ describe('lesson use cases', () => {
       finishedAt: now,
     })
     expect(JSON.stringify(updated)).not.toContain('plainText')
+  })
+
+  it('retries a failed tutor run with a deterministic follow-up', async () => {
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(documents, lessons, clock, {
+      generate: () => startIds[startIndex++]!,
+    }).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+    const replied = await new SubmitLessonReply(lessons, clock, {
+      generate: () => replyIds[replyIndex++]!,
+    }).execute({
+      lessonId: created.id,
+      content: '它在说明证据如何支撑判断。',
+    })
+    lessons.records.set(lessonId, {
+      ...replied,
+      modelRuns: replied.modelRuns.map((run) =>
+        run.id === followUpRunId
+          ? { ...run, status: 'failed' as const, outputMessageId: null, finishedAt: now }
+          : run,
+      ),
+      messages: replied.messages.filter((message) => message.id !== followUpMessageId),
+    })
+    const retryIds = [retryRunId, retryMessageId]
+    let retryIndex = 0
+
+    const retried = await new RetryLessonRun(lessons, clock, {
+      generate: () => retryIds[retryIndex++]!,
+    }).execute({ lessonId, modelRunId: followUpRunId })
+
+    expect(retried.messages.at(-1)).toEqual({
+      id: retryMessageId,
+      lessonId,
+      modelRunId: retryRunId,
+      role: 'tutor',
+      content:
+        '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来：下一步你会如何验证这个判断？',
+      sourceAnchorIds: [anchorId],
+      promptVersion: 'mock-tutor-follow-up-v1',
+      createdAt: now,
+    })
+    expect(retried.modelRuns.at(-1)).toMatchObject({
+      id: retryRunId,
+      lessonId,
+      operation: 'lesson_tutor_follow_up',
+      status: 'succeeded',
+      outputMessageId: retryMessageId,
+    })
+    expect(retried.modelRuns.find((run) => run.id === followUpRunId)).toMatchObject({
+      status: 'failed',
+      outputMessageId: null,
+    })
+  })
+
+  it('rejects retrying completed tutor runs', async () => {
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    await expect(
+      new RetryLessonRun(lessons, clock, idGenerator).execute({
+        lessonId: created.id,
+        modelRunId,
+      }),
+    ).rejects.toMatchObject({
+      code: 'LESSON_VALIDATION_FAILED',
+      retryable: false,
+    })
   })
 
   it('maps missing documents to LESSON_DOCUMENT_NOT_FOUND', async () => {

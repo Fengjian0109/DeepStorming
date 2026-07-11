@@ -68,6 +68,7 @@ const dependencies = () => ({
   startLessonFromDocument: { execute: vi.fn().mockResolvedValue(session) },
   getLessonSession: { execute: vi.fn().mockResolvedValue(session) },
   submitLessonReply: { execute: vi.fn().mockResolvedValue(session) },
+  retryLessonRun: { execute: vi.fn().mockResolvedValue(session) },
 })
 
 describe('lesson IPC handlers', () => {
@@ -129,6 +130,23 @@ describe('lesson IPC handlers', () => {
 
     expect(result.ok).toBe(false)
     expect(deps.submitLessonReply.execute).not.toHaveBeenCalled()
+  })
+
+  it('retries a failed lesson run through one use case', async () => {
+    const deps = dependencies()
+    const result = await createLessonIpcHandlers(deps as unknown as LessonIpcDependencies).retryRun(
+      {
+        requestId,
+        lessonId,
+        modelRunId: '00000000-0000-4000-8000-000000000501',
+      },
+    )
+
+    expect(result).toEqual({ ok: true, data: session, requestId })
+    expect(deps.retryLessonRun.execute).toHaveBeenCalledWith({
+      lessonId,
+      modelRunId: '00000000-0000-4000-8000-000000000501',
+    })
   })
 
   it('strictly rejects malformed requests without calling use cases', async () => {

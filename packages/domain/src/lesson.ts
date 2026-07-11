@@ -76,6 +76,11 @@ export type LessonReplyDraft = Readonly<{
   content: string
 }>
 
+export type LessonRunRetryDraft = Readonly<{
+  lessonId: string
+  modelRunId: string
+}>
+
 export type LessonStartDraft = Readonly<{
   documentId: string
   documentTitle: string

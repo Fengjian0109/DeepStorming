@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type {
   GetLessonSession,
   ListLessonSessions,
+  RetryLessonRun,
   StartLessonFromDocument,
   SubmitLessonReply,
 } from '@deepstorming/application'
@@ -12,10 +13,12 @@ import {
   lessonSessionsResultSchema,
   listLessonsRequestSchema,
   replyToLessonRequestSchema,
+  retryLessonRunRequestSchema,
   startLessonFromDocumentRequestSchema,
   type LessonSessionResult,
   type LessonSessionsResult,
   type ReplyToLessonRequest,
+  type RetryLessonRunRequest,
   type StartLessonFromDocumentRequest,
 } from '@deepstorming/contracts'
 
@@ -37,6 +40,7 @@ export type LessonIpcHandlers = Readonly<{
   startFromDocument(input: unknown): Promise<LessonSessionResult>
   get(input: unknown): Promise<LessonSessionResult>
   reply(input: unknown): Promise<LessonSessionResult>
+  retryRun(input: unknown): Promise<LessonSessionResult>
 }>
 
 export type LessonIpcDependencies = Readonly<{
@@ -44,6 +48,7 @@ export type LessonIpcDependencies = Readonly<{
   startLessonFromDocument: StartLessonFromDocument
   getLessonSession: GetLessonSession
   submitLessonReply: SubmitLessonReply
+  retryLessonRun: RetryLessonRun
 }>
 
 const requestIdFrom = (input: unknown): string => {
@@ -158,6 +163,17 @@ export const createLessonIpcHandlers = (
         dependencies.submitLessonReply.execute({
           lessonId: request.lessonId,
           content: request.content,
+        }),
+    ),
+  retryRun: (input) =>
+    handle(
+      input,
+      retryLessonRunRequestSchema,
+      lessonSessionResultSchema,
+      (request: RetryLessonRunRequest) =>
+        dependencies.retryLessonRun.execute({
+          lessonId: request.lessonId,
+          modelRunId: request.modelRunId,
         }),
     ),
 })
