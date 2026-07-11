@@ -2,8 +2,8 @@
 
 - 更新时间：2026-07-11
 - 当前分支：`codex/phase-2-provider-foundation`
-- 当前阶段：Phase 1 收尾与 Phase 2 Provider 基线
-- 状态：实施中
+- 当前阶段：Phase 2 Provider 基线
+- 状态：Phase 2 已验收完成
 
 ## 已完成
 
@@ -20,6 +20,7 @@
 - Provider 安全 IPC 与组合根：Main 进程打开并迁移 SQLite、初始化 Secret Vault、启动时对账 Secret refs、共享连接测试取消注册表，并通过显式 IPC/Preload API 暴露 Provider 管理能力。
 - Provider 管理 UI：Renderer 仅依赖 Contracts 与本地 UI，支持创建、编辑、启用、删除确认、连接测试与取消；API Key 保持在表单本地状态，编辑时空 Key 表示保留原密钥。
 - Provider E2E 与目录包持久化证明：开发版 E2E 使用临时 Electron `userData` 覆盖版本、安全 WebPreferences、Mock Provider 创建/启用/测试/编辑空 Key/延迟取消/删除/回到空状态；macOS 目录包 E2E 启动同一个临时 `userData` 两次，验证 Mock Provider 重启后仍可读取。
+- Phase 2 ADR 与验收报告：`docs/adr/0006-sqlite-binding.md`、`docs/adr/0007-secret-vault.md` 与 `docs/planning/phase-2-acceptance-report.md` 已记录 SQLite Binding、Secret Vault、安全扫描、打包证据和 Phase 3 入口。
 
 ## 当前门禁
 
@@ -32,7 +33,6 @@
 
 ## 已知问题
 
-- Phase 2 Provider 功能、E2E 与目录包持久化证明已完成；尚未生成最终 ADR、敏感信息扫描记录与 Phase 2 验收报告。
 - 目录包未签名并使用 Electron 默认图标；这不影响本次 SQLite 原生模块门禁，发布前仍需签名与品牌资源。
 
 ## 常用命令
@@ -45,4 +45,4 @@ pnpm package:dir
 
 ## 下一步
 
-执行 Phase 2 实施计划 Task 12：记录 ADR、运行敏感信息扫描并关闭 Phase 2 验收报告。
+进入 Phase 3：将课堂/论文阅读用例接入 active Provider，并补发布前签名、图标、公证和真实云 Provider 手动验收清单。

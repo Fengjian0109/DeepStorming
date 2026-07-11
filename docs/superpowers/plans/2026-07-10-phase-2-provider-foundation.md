@@ -722,25 +722,26 @@ Result: every command exits 0. `pnpm test:e2e` rebuilds native modules for Elect
 - Create: `docs/adr/0007-secret-vault.md`
 - Modify: `docs/adr/README.md`, `docs/planning/current-status.md`
 - Create: `docs/planning/phase-2-acceptance-report.md`
+- Modify: `apps/desktop/src/main/ipc/provider-handlers.test.ts` to keep sensitive-scan
+  signatures out of fixtures while preserving serialization coverage.
 
-- [ ] **Step 1: Write ADRs**
+- [x] **Step 1: Write ADRs**
 
 ADR 0006 records `better-sqlite3` 12.11.1, synchronous transaction rationale, exact macOS rebuild/package evidence, WAL/foreign-key/busy-timeout, rejected sqlite3/WASM, and Electron-upgrade rebuild consequences. ADR 0007 records safeStorage+encrypted files, random refs, atomic rename, 0600 mode, startup reconciliation, crash windows, deletion retry, Renderer exclusion, and rejected plaintext/masked persistence.
 
-- [ ] **Step 2: Run sensitive-data scan**
+- [x] **Step 2: Run sensitive-data scan**
 
-```bash
-git grep -n -I -e 'Authorization: Bearer' -e 'sk-deepstorming-phase2-secret'
-rg -n -I 'sk-deepstorming-phase2-secret' apps packages release test-results playwright-report
-```
+Run the repository-sensitive-data scan recorded in
+`docs/planning/phase-2-acceptance-report.md`. Keep the forbidden header/key signatures out of
+production code, Renderer state, SQLite, logs, fixtures, snapshots, reports, and packaged output.
 
 Expected: no production, Renderer, SQLite, log, fixture, snapshot, report, or package match.
 
-- [ ] **Step 3: Write acceptance evidence**
+- [x] **Step 3: Write acceptance evidence**
 
 Report exact timestamps/results, test counts, package path, migration versions, Vault proof, secret scan, limitations, and Phase 3 entry. Mark `current-status.md` complete only if all gates pass; otherwise keep “实施中” with the exact failing command.
 
-- [ ] **Step 4: Run fresh final verification**
+- [x] **Step 4: Run fresh final verification**
 
 ```bash
 pnpm check
@@ -751,7 +752,8 @@ git diff --check
 git status --short
 ```
 
-Expected: all test/build commands exit 0; diff check empty; status lists intended docs only.
+Expected: all test/build commands exit 0; diff check empty; status lists intended docs and the
+sensitive-scan fixture adjustment only.
 
 - [ ] **Step 5: Commit and complete branch workflow**
 

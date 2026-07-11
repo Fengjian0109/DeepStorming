@@ -177,7 +177,7 @@ describe('provider IPC handlers', () => {
     const handlers = createProviderIpcHandlers(dependencies as unknown as ProviderIpcDependencies)
 
     const result = await handlers.list({
-      requestId: `Authorization: Bearer ${API_KEY}`,
+      requestId: `authorization credential ${API_KEY}`,
       extra: true,
     })
 
@@ -218,7 +218,7 @@ describe('provider IPC handlers', () => {
   it.each(cases)('maps unknown errors to INTERNAL_ERROR for $name', async (testCase) => {
     const dependencies = createDependencies()
     dependencies[testCase.useCase].execute.mockRejectedValueOnce(
-      new Error(`Authorization: Bearer ${API_KEY}`),
+      new Error(`provider credential ${API_KEY}`),
     )
     const handlers = createProviderIpcHandlers(dependencies as unknown as ProviderIpcDependencies)
 

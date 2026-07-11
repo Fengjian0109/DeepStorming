@@ -10,3 +10,5 @@ new ADR that supersedes the old one, not by silently rewriting history.
 | 0003 | Local-first BYOK model access            | Accepted |
 | 0004 | Generic LearningDocument foundation      | Accepted |
 | 0005 | Deterministic lesson state machine       | Accepted |
+| 0006 | better-sqlite3 local persistence binding | Accepted |
+| 0007 | Encrypted Provider secret vault          | Accepted |
