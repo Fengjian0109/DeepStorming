@@ -22,8 +22,6 @@ export const documentBusinessErrorCodeSchema = z.enum([
   'DOCUMENT_VALIDATION_FAILED',
   'DOCUMENT_DUPLICATE',
   'DOCUMENT_NOT_FOUND',
-  'DATABASE_UNAVAILABLE',
-  'INTERNAL_ERROR',
 ])
 
 export const documentErrorCodeSchema = z.union([appErrorCodeSchema, documentBusinessErrorCodeSchema])

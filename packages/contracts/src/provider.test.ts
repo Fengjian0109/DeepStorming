@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { appErrorCodeSchema, appErrorSchema } from './app-result'
 import type { DeepStormingApi, DeepStormingBootstrapApi } from './app-info'
+import type { DocumentDraftDto } from './document'
 import {
   PROVIDER_CHANNELS,
   activateProviderRequestSchema,
@@ -296,6 +297,37 @@ describe('provider error and API contracts', () => {
           error: { code: 'INTERNAL_ERROR' as const, message: 'Unavailable', retryable: true },
           requestId,
         }),
+      },
+      documents: {
+        list: async () => ({ ok: true as const, data: [], requestId }),
+        createFromText: async (_document: DocumentDraftDto) => ({
+          ok: true as const,
+          data: {
+            id: providerId,
+            documentType: 'generic' as const,
+            title: 'Notes',
+            sourceKind: 'pasted_text' as const,
+            characterCount: 12,
+            createdAt: '2026-07-10T05:00:00.000Z',
+            updatedAt: '2026-07-10T05:10:00.000Z',
+          },
+          requestId,
+        }),
+        get: async (_id: string) => ({
+          ok: true as const,
+          data: {
+            id: providerId,
+            documentType: 'generic' as const,
+            title: 'Notes',
+            sourceKind: 'pasted_text' as const,
+            characterCount: 12,
+            plainText: 'detail text',
+            createdAt: '2026-07-10T05:00:00.000Z',
+            updatedAt: '2026-07-10T05:10:00.000Z',
+          },
+          requestId,
+        }),
+        remove: async (_id: string) => ({ ok: true as const, data: {}, requestId }),
       },
       provider: {
         list: async () => ({ ok: true as const, data: [providerProfile], requestId }),

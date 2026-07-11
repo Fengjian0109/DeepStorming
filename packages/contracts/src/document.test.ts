@@ -104,14 +104,14 @@ describe('document contracts', () => {
       'DOCUMENT_VALIDATION_FAILED',
       'DOCUMENT_DUPLICATE',
       'DOCUMENT_NOT_FOUND',
-      'DATABASE_UNAVAILABLE',
-      'INTERNAL_ERROR',
     ])
   })
 
   it('accepts shared and document-specific error codes on document results', () => {
     expect(documentErrorCodeSchema.safeParse('INVALID_REQUEST').success).toBe(true)
     expect(documentErrorCodeSchema.safeParse('IPC_RESPONSE_INVALID').success).toBe(true)
+    expect(documentErrorCodeSchema.safeParse('DATABASE_UNAVAILABLE').success).toBe(true)
+    expect(documentErrorCodeSchema.safeParse('INTERNAL_ERROR').success).toBe(true)
     expect(documentErrorCodeSchema.safeParse('DOCUMENT_NOT_FOUND').success).toBe(true)
 
     expect(
@@ -125,6 +125,9 @@ describe('document contracts', () => {
         },
       }).success,
     ).toBe(true)
+
+    expect(documentBusinessErrorCodeSchema.safeParse('DATABASE_UNAVAILABLE').success).toBe(false)
+    expect(documentBusinessErrorCodeSchema.safeParse('INTERNAL_ERROR').success).toBe(false)
   })
 
   it('validates list requests', () => {

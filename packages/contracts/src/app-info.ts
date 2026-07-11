@@ -2,6 +2,13 @@ import { z } from 'zod'
 
 import { createAppResultSchema } from './app-result'
 import type {
+  DocumentDetailResult,
+  DocumentDraftDto,
+  DocumentSummaryResult,
+  ListDocumentsResult,
+  RemoveDocumentResult,
+} from './document'
+import type {
   CancelProviderTestResult,
   ListProvidersResult,
   ProviderDraftDto,
@@ -36,6 +43,12 @@ export type AppInfoResult = z.infer<typeof appInfoResultSchema>
 export type DeepStormingApi = {
   app: {
     getInfo: () => Promise<AppInfoResult>
+  }
+  documents: {
+    list: () => Promise<ListDocumentsResult>
+    createFromText: (document: DocumentDraftDto) => Promise<DocumentSummaryResult>
+    get: (id: string) => Promise<DocumentDetailResult>
+    remove: (id: string) => Promise<RemoveDocumentResult>
   }
   provider: {
     list: () => Promise<ListProvidersResult>

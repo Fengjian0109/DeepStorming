@@ -1,6 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
+import type { DeepStormingApi } from './app-info'
 import { appInfoRequestSchema, appInfoResultSchema } from './app-info'
+import type {
+  CreateDocumentFromTextRequest,
+  DocumentDetailResult,
+  DocumentSummaryResult,
+  DocumentDraftDto,
+  ListDocumentsResult,
+  RemoveDocumentResult,
+} from './document'
 
 describe('app info contracts', () => {
   it('rejects extra IPC request fields', () => {
@@ -35,5 +44,18 @@ describe('app info contracts', () => {
         requestId: 'not-a-uuid',
       }).success,
     ).toBe(true)
+  })
+
+  it('exposes the shared documents API surface', () => {
+    type DocumentsApi = DeepStormingApi['documents']
+
+    expectTypeOf<DocumentsApi>().toMatchTypeOf<{
+      list: () => Promise<ListDocumentsResult>
+      createFromText: (document: DocumentDraftDto) => Promise<DocumentSummaryResult>
+      get: (id: string) => Promise<DocumentDetailResult>
+      remove: (id: string) => Promise<RemoveDocumentResult>
+    }>()
+
+    expectTypeOf<CreateDocumentFromTextRequest['document']>().toMatchTypeOf<DocumentDraftDto>()
   })
 })
