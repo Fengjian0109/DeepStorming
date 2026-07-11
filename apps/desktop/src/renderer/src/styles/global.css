@@ -31,7 +31,8 @@ body {
 button,
 a,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -51,7 +52,8 @@ button:disabled {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 38px;
   padding: 8px 10px;
@@ -59,6 +61,10 @@ select {
   border-radius: 9px;
   color: #20342b;
   background: #fffdf7;
+}
+
+textarea {
+  resize: vertical;
 }
 
 .app-shell {
@@ -101,9 +107,14 @@ nav {
 }
 
 .nav-item {
+  display: block;
+  width: 100%;
   padding: 11px 12px;
+  border: 0;
   border-radius: 10px;
   color: inherit;
+  background: transparent;
+  text-align: left;
   text-decoration: none;
 }
 
@@ -175,6 +186,13 @@ h2 {
   align-items: start;
 }
 
+.document-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(280px, 1fr) minmax(280px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .panel {
   padding: 20px;
   border: 1px solid rgb(32 52 43 / 12%);
@@ -227,6 +245,25 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.document-toolbar {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  margin-bottom: 16px;
+}
+
+.file-picker {
+  display: grid;
+  gap: 6px;
+  color: #4d6258;
+  font-size: 0.82rem;
+}
+
+.file-picker input {
+  padding: 8px 0;
+  background: transparent;
 }
 
 .secondary-button {
@@ -300,6 +337,33 @@ h2 {
   border: 1px solid rgb(32 52 43 / 10%);
   border-radius: 16px;
   background: rgb(255 253 247 / 72%);
+}
+
+.document-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgb(32 52 43 / 10%);
+  border-radius: 16px;
+  background: rgb(255 253 247 / 72%);
+}
+
+.document-detail {
+  min-height: 560px;
+}
+
+.document-textarea,
+.document-body {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.document-body {
+  margin: 14px 0 0;
+  padding: 14px;
+  overflow: auto;
+  border-radius: 12px;
+  background: rgb(32 52 43 / 5%);
+  white-space: pre-wrap;
 }
 
 .provider-card-header {
@@ -415,6 +479,7 @@ h2 {
   }
 
   .workspace-grid,
+  .document-layout,
   .capability-list {
     grid-template-columns: 1fr;
   }

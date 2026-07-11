@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { DocumentLibrary } from '../document/DocumentLibrary'
 import { ProviderManager } from '../provider/ProviderManager'
 
 type RuntimeState =
@@ -9,6 +10,7 @@ type RuntimeState =
 
 export const App = (): React.JSX.Element => {
   const [runtime, setRuntime] = useState<RuntimeState>({ status: 'loading' })
+  const [page, setPage] = useState<'documents' | 'providers'>('documents')
 
   useEffect(() => {
     let active = true
@@ -41,10 +43,22 @@ export const App = (): React.JSX.Element => {
           <p className="brand-name">DeepStorming</p>
         </div>
         <nav>
-          <a className="nav-item nav-item-active" href="#providers" aria-current="page">
+          <button
+            type="button"
+            className={`nav-item ${page === 'documents' ? 'nav-item-active' : ''}`}
+            aria-current={page === 'documents' ? 'page' : undefined}
+            onClick={() => setPage('documents')}
+          >
+            文档库
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${page === 'providers' ? 'nav-item-active' : ''}`}
+            aria-current={page === 'providers' ? 'page' : undefined}
+            onClick={() => setPage('providers')}
+          >
             Provider
-          </a>
-          <span className="nav-item nav-item-disabled">文档库 · Phase 3</span>
+          </button>
           <span className="nav-item nav-item-disabled">课堂 · Phase 5</span>
           <span className="nav-item nav-item-disabled">复习 · Phase 6</span>
           <span className="nav-item nav-item-disabled">论文 · Phase 7</span>
@@ -60,8 +74,8 @@ export const App = (): React.JSX.Element => {
         </div>
       </aside>
 
-      <main className="main-content" id="providers">
-        <ProviderManager />
+      <main className="main-content" id={page}>
+        {page === 'documents' ? <DocumentLibrary /> : <ProviderManager />}
       </main>
     </div>
   )
