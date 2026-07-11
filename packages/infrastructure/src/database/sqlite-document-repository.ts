@@ -123,23 +123,6 @@ export class SqliteDocumentRepository implements DocumentRepositoryPort {
     })
   }
 
-  public async findByContentHash(hash: string): Promise<StoredDocument | undefined> {
-    return this.safe(() => {
-      const row = this.db
-        .prepare(
-          `SELECT d.id,d.document_type,d.title,d.source_kind,d.original_file_name,d.content_hash,
-                  d.created_at,d.updated_at,v.character_count
-           FROM learning_documents d
-           JOIN document_text_versions v ON v.document_id = d.id
-           WHERE d.content_hash=?
-           ORDER BY v.created_at DESC, v.id DESC
-           LIMIT 1`,
-        )
-        .get(hash) as DocumentRow | undefined
-      return row === undefined ? undefined : mapSummary(row)
-    })
-  }
-
   public async create(document: StoredDocumentDetail): Promise<StoredDocumentDetail> {
     return this.safeCreate(() =>
       this.db.transaction(() => {

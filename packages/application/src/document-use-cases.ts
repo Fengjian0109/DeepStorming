@@ -148,14 +148,6 @@ export class CreateDocumentFromText {
     } catch (error) {
       throw asInternalError(error)
     }
-    try {
-      if ((await this.repository.findByContentHash(contentHash)) !== undefined) {
-        throw duplicateError()
-      }
-    } catch (error) {
-      if (isDocumentUseCaseError(error)) throw error
-      throw asDatabaseError(error)
-    }
 
     let createdAt: string
     let id: string

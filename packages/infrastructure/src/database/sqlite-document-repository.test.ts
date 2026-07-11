@@ -48,11 +48,6 @@ describe('SqliteDocumentRepository', () => {
     await expect(repo.findById(document().id)).resolves.toMatchObject({ plainText: 'body' })
   })
 
-  it('finds duplicate content hashes', async () => {
-    await repo.create(document())
-    await expect(repo.findByContentHash('hash-a')).resolves.toMatchObject({ id: document().id })
-  })
-
   it('surfaces duplicate content hash with a structured duplicate code', async () => {
     await repo.create(document())
     await expect(
@@ -79,10 +74,6 @@ describe('SqliteDocumentRepository', () => {
     await expect(repo.findById(document().id)).resolves.toMatchObject({
       textVersionId: '00000000-0000-4000-8000-000000000099',
       plainText: 'latest body',
-      characterCount: 11,
-    })
-    await expect(repo.findByContentHash('hash-a')).resolves.toMatchObject({
-      id: document().id,
       characterCount: 11,
     })
   })

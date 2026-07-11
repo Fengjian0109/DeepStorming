@@ -26,7 +26,6 @@ export class DuplicateDocumentError extends Error {
 export interface DocumentRepositoryPort {
   list(): Promise<readonly StoredDocument[]>
   findById(id: string): Promise<StoredDocumentDetail | undefined>
-  findByContentHash(hash: string): Promise<StoredDocument | undefined>
   create(document: StoredDocumentDetail): Promise<StoredDocumentDetail>
   remove(id: string): Promise<boolean>
 }

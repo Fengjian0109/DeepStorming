@@ -21,7 +21,6 @@ class FakeRepository implements DocumentRepositoryPort {
   public records = new Map<string, StoredDocumentDetail>()
   public listError?: Error
   public findByIdError?: Error
-  public findByContentHashError?: Error
   public createError?: Error
   public removeError?: Error
 
@@ -51,15 +50,11 @@ class FakeRepository implements DocumentRepositoryPort {
     return this.records.get(id)
   }
 
-  async findByContentHash(hash: string): Promise<StoredDocument | undefined> {
-    if (this.findByContentHashError) throw this.findByContentHashError
-    const found = [...this.records.values()].find((item) => item.contentHash === hash)
-    if (!found) return undefined
-    return this.toSummary(found)
-  }
-
   async create(document: StoredDocumentDetail): Promise<StoredDocumentDetail> {
     if (this.createError) throw this.createError
+    if ([...this.records.values()].some((item) => item.contentHash === document.contentHash)) {
+      throw new DuplicateDocumentError()
+    }
     this.records.set(document.id, document)
     return document
   }
@@ -185,18 +180,6 @@ describe('document use cases', () => {
         code: 'SQLITE_CONSTRAINT_UNIQUE',
       },
     )
-
-    await expect(
-      new CreateDocumentFromText(repo, hasher, clock, idGenerator).execute({
-        title: 'Notes',
-        plainText: 'body',
-        sourceKind: 'pasted_text',
-      }),
-    ).rejects.toMatchObject({ code: 'DATABASE_UNAVAILABLE', retryable: true })
-  })
-
-  it('maps repository lookup failures during create to DATABASE_UNAVAILABLE', async () => {
-    repo.findByContentHashError = new Error('lookup failed')
 
     await expect(
       new CreateDocumentFromText(repo, hasher, clock, idGenerator).execute({
