@@ -17,6 +17,7 @@ const timestampSchema = z.iso.datetime()
 
 export const lessonSessionStatusSchema = z.enum(['active', 'archived'])
 export const lessonMessageRoleSchema = z.enum(['system', 'tutor', 'learner'])
+export const lessonModelRunStatusSchema = z.enum(['started', 'succeeded', 'failed', 'cancelled'])
 export const lessonSourceAnchorSchema = z
   .object({
     id: z.string().uuid(),
@@ -33,11 +34,55 @@ export const lessonMessageSchema = z
   .object({
     id: z.string().uuid(),
     lessonId: lessonIdSchema,
+    modelRunId: z.string().uuid().nullable(),
     role: lessonMessageRoleSchema,
     content: requiredTextSchema.max(2_000),
     sourceAnchorIds: z.array(z.string().uuid()),
     promptVersion: requiredTextSchema.max(80),
     createdAt: timestampSchema,
+  })
+  .strict()
+
+export const lessonPromptManifestSchema = z
+  .object({
+    key: requiredTextSchema.max(120),
+    version: z.number().int().positive(),
+    hash: z.string().regex(/^sha256:[\da-f]{64}$/u),
+  })
+  .strict()
+
+export const lessonModelRunInputSummarySchema = z
+  .object({
+    documentId: documentIdSchema,
+    documentTitle: requiredTextSchema,
+    sourceAnchorIds: z.array(z.string().uuid()).min(1),
+    sourceCharacterRange: z
+      .object({
+        startOffset: z.number().int().nonnegative(),
+        endOffset: z.number().int().positive(),
+      })
+      .strict()
+      .refine((value) => value.endOffset > value.startOffset, {
+        message: 'endOffset must be greater than startOffset',
+      }),
+    snippetCharacterCount: z.number().int().nonnegative(),
+  })
+  .strict()
+
+export const lessonModelRunSchema = z
+  .object({
+    id: z.string().uuid(),
+    lessonId: lessonIdSchema,
+    providerId: z.string().uuid().nullable(),
+    modelName: requiredTextSchema.max(120),
+    operation: z.literal('lesson_tutor_first_question'),
+    status: lessonModelRunStatusSchema,
+    promptManifest: lessonPromptManifestSchema,
+    inputSummary: lessonModelRunInputSummarySchema,
+    sourceAnchorIds: z.array(z.string().uuid()).min(1),
+    outputMessageId: z.string().uuid().nullable(),
+    startedAt: timestampSchema,
+    finishedAt: timestampSchema.nullable(),
   })
   .strict()
 
@@ -50,6 +95,7 @@ export const lessonSessionSchema = z
     documentTitle: requiredTextSchema,
     sourceAnchors: z.array(lessonSourceAnchorSchema).min(1),
     messages: z.array(lessonMessageSchema),
+    modelRuns: z.array(lessonModelRunSchema),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -123,6 +169,10 @@ export type LessonSessionStatusDto = z.infer<typeof lessonSessionStatusSchema>
 export type LessonSourceAnchorDto = z.infer<typeof lessonSourceAnchorSchema>
 export type LessonMessageRoleDto = z.infer<typeof lessonMessageRoleSchema>
 export type LessonMessageDto = z.infer<typeof lessonMessageSchema>
+export type LessonModelRunStatusDto = z.infer<typeof lessonModelRunStatusSchema>
+export type LessonPromptManifestDto = z.infer<typeof lessonPromptManifestSchema>
+export type LessonModelRunInputSummaryDto = z.infer<typeof lessonModelRunInputSummarySchema>
+export type LessonModelRunDto = z.infer<typeof lessonModelRunSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
 export type ListLessonsRequest = z.infer<typeof listLessonsRequestSchema>

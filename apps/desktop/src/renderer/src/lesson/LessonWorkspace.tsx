@@ -167,6 +167,22 @@ export const LessonWorkspace = ({
                   <p className="muted-state">这节课还没有消息。</p>
                 )}
               </div>
+              <div className="lesson-run-list">
+                <h3>生成记录</h3>
+                {detailState.session.modelRuns.map((modelRun) => (
+                  <article key={modelRun.id} className="lesson-run">
+                    <p>
+                      {modelRun.modelName} · {modelRun.status}
+                    </p>
+                    <footer>
+                      {modelRun.promptManifest.key} v{modelRun.promptManifest.version}
+                    </footer>
+                  </article>
+                ))}
+                {detailState.session.modelRuns.length === 0 && (
+                  <p className="muted-state">这节课还没有生成记录。</p>
+                )}
+              </div>
             </article>
           )}
         </section>

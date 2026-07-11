@@ -1,5 +1,6 @@
 import type {
   LessonMessage,
+  LessonModelRun,
   LessonSession,
   LessonSourceAnchor,
   LessonSessionStatus,
@@ -7,6 +8,7 @@ import type {
 
 export type StoredLessonSourceAnchor = LessonSourceAnchor
 export type StoredLessonMessage = LessonMessage
+export type StoredLessonModelRun = LessonModelRun
 
 export type StoredLessonSession = Readonly<{
   id: string
@@ -16,6 +18,7 @@ export type StoredLessonSession = Readonly<{
   documentTitle: string
   sourceAnchors: readonly StoredLessonSourceAnchor[]
   messages: readonly StoredLessonMessage[]
+  modelRuns: readonly StoredLessonModelRun[]
   createdAt: string
   updatedAt: string
 }>

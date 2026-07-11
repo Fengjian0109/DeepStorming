@@ -472,6 +472,33 @@ h2 {
   font-size: 0.8rem;
 }
 
+.lesson-run-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.lesson-run-list h3 {
+  margin: 0;
+}
+
+.lesson-run {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgb(32 52 43 / 5%);
+}
+
+.lesson-run p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.lesson-run footer {
+  margin-top: 8px;
+  color: #65766d;
+  font-size: 0.8rem;
+}
+
 .provider-card-header {
   display: flex;
   align-items: start;

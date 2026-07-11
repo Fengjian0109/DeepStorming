@@ -80,11 +80,29 @@ CREATE TABLE lesson_messages (
  UNIQUE(lesson_id,message_index)
 );`
 
+const LESSON_MODEL_RUN_SQL = `
+ALTER TABLE lesson_messages ADD COLUMN model_run_id TEXT;
+CREATE TABLE lesson_model_runs (
+ id TEXT PRIMARY KEY,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ provider_id TEXT REFERENCES ai_providers(id) ON DELETE SET NULL,
+ model_name TEXT NOT NULL,
+ operation TEXT NOT NULL CHECK (operation IN ('lesson_tutor_first_question')),
+ status TEXT NOT NULL CHECK (status IN ('started','succeeded','failed','cancelled')),
+ prompt_manifest_json TEXT NOT NULL,
+ input_summary_json TEXT NOT NULL,
+ source_anchor_ids_json TEXT NOT NULL,
+ output_message_id TEXT,
+ started_at TEXT NOT NULL,
+ finished_at TEXT
+);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
   { version: 3, name: 'lesson_session_foundation', sql: LESSON_SQL },
   { version: 4, name: 'lesson_message_foundation', sql: LESSON_MESSAGE_SQL },
+  { version: 5, name: 'lesson_model_run_foundation', sql: LESSON_MODEL_RUN_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { LESSON_MESSAGE_ROLES, LESSON_SESSION_STATUSES, normalizeLessonStartDraft } from './lesson'
+import {
+  LESSON_MESSAGE_ROLES,
+  LESSON_MODEL_RUN_STATUSES,
+  LESSON_SESSION_STATUSES,
+  normalizeLessonStartDraft,
+} from './lesson'
 
 describe('lesson domain', () => {
   it('normalizes a lesson start draft with a source anchor', () => {
@@ -48,5 +53,9 @@ describe('lesson domain', () => {
 
   it('defines the accepted lesson message roles', () => {
     expect(LESSON_MESSAGE_ROLES).toEqual(['system', 'tutor', 'learner'])
+  })
+
+  it('defines the accepted lesson model run statuses', () => {
+    expect(LESSON_MODEL_RUN_STATUSES).toEqual(['started', 'succeeded', 'failed', 'cancelled'])
   })
 })

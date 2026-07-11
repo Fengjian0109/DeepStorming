@@ -13,6 +13,7 @@ const lessonId = '00000000-0000-4000-8000-000000000101'
 const documentId = '00000000-0000-4000-8000-000000000201'
 const anchorId = '00000000-0000-4000-8000-000000000301'
 const messageId = '00000000-0000-4000-8000-000000000401'
+const modelRunId = '00000000-0000-4000-8000-000000000501'
 
 const session = {
   id: lessonId,
@@ -33,11 +34,38 @@ const session = {
     {
       id: messageId,
       lessonId,
+      modelRunId,
       role: 'tutor',
       content: '我们先从《Paper Map》的这段证据开始：Evidence\n\n你觉得它想解决的核心问题是什么？',
       sourceAnchorIds: [anchorId],
       promptVersion: 'mock-tutor-v1',
       createdAt: '2026-07-11T00:00:00.000Z',
+    },
+  ],
+  modelRuns: [
+    {
+      id: modelRunId,
+      lessonId,
+      providerId: null,
+      modelName: 'mock-local',
+      operation: 'lesson_tutor_first_question',
+      status: 'succeeded',
+      promptManifest: {
+        key: 'lesson.mockTutor.firstQuestion',
+        version: 1,
+        hash: 'sha256:035f771a5bb55108ad6e123a24d980c302bea46a6976322fefc7f5e81f6525ff',
+      },
+      inputSummary: {
+        documentId,
+        documentTitle: 'Paper Map',
+        sourceAnchorIds: [anchorId],
+        sourceCharacterRange: { startOffset: 4, endOffset: 12 },
+        snippetCharacterCount: 8,
+      },
+      sourceAnchorIds: [anchorId],
+      outputMessageId: messageId,
+      startedAt: '2026-07-11T00:00:00.000Z',
+      finishedAt: '2026-07-11T00:00:00.000Z',
     },
   ],
   createdAt: '2026-07-11T00:00:00.000Z',
@@ -90,6 +118,12 @@ describe('lesson contracts', () => {
       lessonSessionSchema.safeParse({
         ...session,
         messages: [{ ...session.messages[0], role: 'assistant' }],
+      }).success,
+    ).toBe(false)
+    expect(
+      lessonSessionSchema.safeParse({
+        ...session,
+        modelRuns: [{ ...session.modelRuns[0], inputSummary: { plainText: 'full text' } }],
       }).success,
     ).toBe(false)
   })

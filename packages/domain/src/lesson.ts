@@ -1,8 +1,10 @@
 export const LESSON_SESSION_STATUSES = ['active', 'archived'] as const
 export const LESSON_MESSAGE_ROLES = ['system', 'tutor', 'learner'] as const
+export const LESSON_MODEL_RUN_STATUSES = ['started', 'succeeded', 'failed', 'cancelled'] as const
 
 export type LessonSessionStatus = (typeof LESSON_SESSION_STATUSES)[number]
 export type LessonMessageRole = (typeof LESSON_MESSAGE_ROLES)[number]
+export type LessonModelRunStatus = (typeof LESSON_MODEL_RUN_STATUSES)[number]
 
 export type LessonSourceAnchor = Readonly<{
   id: string
@@ -20,6 +22,7 @@ export type LessonSession = Readonly<{
   documentTitle: string
   sourceAnchors: readonly LessonSourceAnchor[]
   messages: readonly LessonMessage[]
+  modelRuns: readonly LessonModelRun[]
   createdAt: string
   updatedAt: string
 }>
@@ -27,11 +30,44 @@ export type LessonSession = Readonly<{
 export type LessonMessage = Readonly<{
   id: string
   lessonId: string
+  modelRunId: string | null
   role: LessonMessageRole
   content: string
   sourceAnchorIds: readonly string[]
   promptVersion: string
   createdAt: string
+}>
+
+export type LessonPromptManifest = Readonly<{
+  key: string
+  version: number
+  hash: string
+}>
+
+export type LessonModelRunInputSummary = Readonly<{
+  documentId: string
+  documentTitle: string
+  sourceAnchorIds: readonly string[]
+  sourceCharacterRange: Readonly<{
+    startOffset: number
+    endOffset: number
+  }>
+  snippetCharacterCount: number
+}>
+
+export type LessonModelRun = Readonly<{
+  id: string
+  lessonId: string
+  providerId: string | null
+  modelName: string
+  operation: 'lesson_tutor_first_question'
+  status: LessonModelRunStatus
+  promptManifest: LessonPromptManifest
+  inputSummary: LessonModelRunInputSummary
+  sourceAnchorIds: readonly string[]
+  outputMessageId: string | null
+  startedAt: string
+  finishedAt: string | null
 }>
 
 export type LessonStartDraft = Readonly<{

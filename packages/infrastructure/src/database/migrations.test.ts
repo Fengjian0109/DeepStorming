@@ -55,6 +55,7 @@ test('applies migration two and creates document tables', async () => {
     { version: 2, name: 'document_text_import' },
     { version: 3, name: 'lesson_session_foundation' },
     { version: 4, name: 'lesson_message_foundation' },
+    { version: 5, name: 'lesson_model_run_foundation' },
   ])
 
   db.close()
@@ -73,11 +74,13 @@ test('applies migrations three and four and creates lesson tables', async () => 
   expect(tables.map((row) => row.name)).toContain('lesson_sessions')
   expect(tables.map((row) => row.name)).toContain('lesson_source_anchors')
   expect(tables.map((row) => row.name)).toContain('lesson_messages')
+  expect(tables.map((row) => row.name)).toContain('lesson_model_runs')
   expect(db.prepare('SELECT version,name FROM schema_migrations ORDER BY version').all()).toEqual([
     { version: 1, name: 'provider_foundation' },
     { version: 2, name: 'document_text_import' },
     { version: 3, name: 'lesson_session_foundation' },
     { version: 4, name: 'lesson_message_foundation' },
+    { version: 5, name: 'lesson_model_run_foundation' },
   ])
 
   db.close()
@@ -107,7 +110,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 5, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 6, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })

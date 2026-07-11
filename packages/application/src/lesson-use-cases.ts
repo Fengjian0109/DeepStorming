@@ -1,5 +1,6 @@
 import {
   normalizeLessonStartDraft,
+  type LessonPromptManifest,
   type LessonSession,
   type LessonStartDraft,
 } from '@deepstorming/domain'
@@ -32,18 +33,25 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   documentTitle: session.documentTitle,
   sourceAnchors: session.sourceAnchors,
   messages: session.messages,
+  modelRuns: session.modelRuns,
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })
 
+const MOCK_TUTOR_PROMPT_TEMPLATE =
+  '我们先从《{{documentTitle}}》的这段证据开始：{{snippet}}\n\n你觉得它想解决的核心问题是什么？'
+const MOCK_TUTOR_PROMPT_MANIFEST: LessonPromptManifest = {
+  key: 'lesson.mockTutor.firstQuestion',
+  version: 1,
+  hash: 'sha256:035f771a5bb55108ad6e123a24d980c302bea46a6976322fefc7f5e81f6525ff',
+}
 const MOCK_TUTOR_PROMPT_VERSION = 'mock-tutor-v1'
 
-const createMockTutorFirstQuestion = (
-  documentTitle: string,
-  snippet: string,
-): string => `我们先从《${documentTitle}》的这段证据开始：${snippet}
-
-你觉得它想解决的核心问题是什么？`
+const createMockTutorFirstQuestion = (documentTitle: string, snippet: string): string =>
+  MOCK_TUTOR_PROMPT_TEMPLATE.replace('{{documentTitle}}', documentTitle).replace(
+    '{{snippet}}',
+    snippet,
+  )
 
 const validationError = (error: unknown): LessonUseCaseError =>
   new LessonUseCaseError(
@@ -132,11 +140,13 @@ export class StartLessonFromDocument {
     let createdAt: string
     let sessionId: string
     let anchorId: string
+    let modelRunId: string
     let messageId: string
     try {
       createdAt = this.clock.now()
       sessionId = this.ids.generate()
       anchorId = this.ids.generate()
+      modelRunId = this.ids.generate()
       messageId = this.ids.generate()
     } catch (error) {
       throw asInternalError(error)
@@ -161,11 +171,37 @@ export class StartLessonFromDocument {
         {
           id: messageId,
           lessonId: sessionId,
+          modelRunId,
           role: 'tutor',
           content: createMockTutorFirstQuestion(draft.documentTitle, draft.source.snippet),
           sourceAnchorIds: [anchorId],
           promptVersion: MOCK_TUTOR_PROMPT_VERSION,
           createdAt,
+        },
+      ],
+      modelRuns: [
+        {
+          id: modelRunId,
+          lessonId: sessionId,
+          providerId: null,
+          modelName: 'mock-local',
+          operation: 'lesson_tutor_first_question',
+          status: 'succeeded',
+          promptManifest: MOCK_TUTOR_PROMPT_MANIFEST,
+          inputSummary: {
+            documentId: draft.documentId,
+            documentTitle: draft.documentTitle,
+            sourceAnchorIds: [anchorId],
+            sourceCharacterRange: {
+              startOffset: draft.source.startOffset,
+              endOffset: draft.source.endOffset,
+            },
+            snippetCharacterCount: draft.source.snippet.length,
+          },
+          sourceAnchorIds: [anchorId],
+          outputMessageId: messageId,
+          startedAt: createdAt,
+          finishedAt: createdAt,
         },
       ],
       createdAt,

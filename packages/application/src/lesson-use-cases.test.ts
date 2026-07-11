@@ -12,6 +12,7 @@ const now = '2026-07-11T00:00:00.000Z'
 const lessonId = '00000000-0000-4000-8000-000000000101'
 const anchorId = '00000000-0000-4000-8000-000000000102'
 const messageId = '00000000-0000-4000-8000-000000000103'
+const modelRunId = '00000000-0000-4000-8000-000000000104'
 const documentId = '00000000-0000-4000-8000-000000000001'
 
 const documentRecord: StoredDocumentDetail = {
@@ -80,7 +81,7 @@ describe('lesson use cases', () => {
   let documents: FakeDocumentRepository
   let lessons: FakeLessonRepository
   let idIndex: number
-  const ids = [lessonId, anchorId, messageId]
+  const ids = [lessonId, anchorId, modelRunId, messageId]
   const clock = { now: () => now }
   const idGenerator = { generate: () => ids[idIndex++]! }
 
@@ -125,12 +126,39 @@ describe('lesson use cases', () => {
         {
           id: messageId,
           lessonId,
+          modelRunId,
           role: 'tutor',
           content:
             '我们先从《Paper Map》的这段证据开始：Evidence\n\n你觉得它想解决的核心问题是什么？',
           sourceAnchorIds: [anchorId],
           promptVersion: 'mock-tutor-v1',
           createdAt: now,
+        },
+      ],
+      modelRuns: [
+        {
+          id: modelRunId,
+          lessonId,
+          providerId: null,
+          modelName: 'mock-local',
+          operation: 'lesson_tutor_first_question',
+          status: 'succeeded',
+          promptManifest: {
+            key: 'lesson.mockTutor.firstQuestion',
+            version: 1,
+            hash: 'sha256:035f771a5bb55108ad6e123a24d980c302bea46a6976322fefc7f5e81f6525ff',
+          },
+          inputSummary: {
+            documentId,
+            documentTitle: 'Paper Map',
+            sourceAnchorIds: [anchorId],
+            sourceCharacterRange: { startOffset: 13, endOffset: 21 },
+            snippetCharacterCount: 8,
+          },
+          sourceAnchorIds: [anchorId],
+          outputMessageId: messageId,
+          startedAt: now,
+          finishedAt: now,
         },
       ],
       createdAt: now,

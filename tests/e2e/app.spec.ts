@@ -147,6 +147,7 @@ test('creates text documents and persists them across restart', async () => {
         page.locator('.lesson-anchor').getByText('Why What How Evidence Limits Next'),
       ).toBeVisible()
       await expect(page.getByText(/你觉得它想解决的核心问题是什么/)).toBeVisible()
+      await expect(page.getByText('mock-local · succeeded')).toBeVisible()
       await page.getByRole('button', { name: '文档库' }).click()
 
       await page.getByRole('button', { name: '删除 Socratic Notes' }).click()
@@ -174,6 +175,7 @@ test('creates text documents and persists them across restart', async () => {
         page.locator('.lesson-anchor').getByText('Why What How Evidence Limits Next'),
       ).toBeVisible()
       await expect(page.getByText(/你觉得它想解决的核心问题是什么/)).toBeVisible()
+      await expect(page.getByText('mock-local · succeeded')).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Socratic Notes' })).not.toBeVisible()
     } finally {
       await second.close()
