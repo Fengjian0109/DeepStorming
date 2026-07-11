@@ -103,3 +103,19 @@ export interface ClockPort {
 export interface IdGeneratorPort {
   generate(): string
 }
+
+export interface CancellationToken {
+  readonly cancelled: boolean
+  onCancel(listener: () => void): () => void
+}
+
+export interface ProviderGatewayPort {
+  testConnection(
+    input: Readonly<{ modelName: string; apiKey?: string }>,
+    token: CancellationToken,
+  ): Promise<void>
+}
+
+export interface ProviderGatewayFactoryPort {
+  create(provider: ProviderProfile): ProviderGatewayPort
+}
