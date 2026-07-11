@@ -170,6 +170,28 @@ test('persists test status transitions with replay and CAS semantics', async () 
   ).toEqual({ status: 'stale' })
 })
 
+test('rejects terminal test status when a provider update cleared the live testing state', async () => {
+  await repo.create('r1', provider('p1', { modelName: 'before' }))
+  await repo.transitionTestStatus({
+    operationId: 'op1',
+    providerId: 'p1',
+    nextStatus: 'testing',
+    testedAt: 't1',
+  })
+  await repo.update('u1', 2, provider('p1', { modelName: 'after', revision: 2 }))
+
+  expect(
+    await repo.transitionTestStatus({
+      operationId: 'op1',
+      providerId: 'p1',
+      expectedStatus: 'testing',
+      nextStatus: 'success',
+      testedAt: 't2',
+    }),
+  ).toEqual({ status: 'stale' })
+  expect(await repo.findById('p1')).not.toHaveProperty('lastTestStatus')
+})
+
 test('replays the original test transition snapshot after later provider changes', async () => {
   await repo.create('r1', provider())
   const first = await repo.transitionTestStatus({

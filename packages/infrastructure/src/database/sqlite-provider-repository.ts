@@ -402,6 +402,9 @@ export class SqliteProviderRepository implements ProviderRepositoryPort {
           }
           const p = this.row(t.providerId)
           if (!p) return { status: 'not_found' }
+          if (t.expectedStatus !== undefined && p.lastTestStatus !== t.expectedStatus) {
+            return { status: 'stale' }
+          }
           this.db
             .prepare(
               'UPDATE ai_providers SET last_test_status=?,last_tested_at=?,revision=revision+1 WHERE id=?',
