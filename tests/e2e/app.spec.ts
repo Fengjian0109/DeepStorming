@@ -43,14 +43,22 @@ const createMockProvider = async (
   await expect(page.getByText(displayName)).toBeVisible()
 }
 
+const openProviderPage = async (
+  page: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
+): Promise<void> => {
+  await page.getByRole('button', { name: 'Provider' }).click()
+  await expect(page.getByRole('heading', { name: 'Provider 管理' })).toBeVisible()
+}
+
 test('boots securely and covers the mock provider lifecycle', async () => {
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-e2e-user-'))
   const app = await launchDevApp(userDataDir)
 
   try {
     const page = await app.firstWindow()
-    await expect(page.getByRole('heading', { name: 'Provider 管理' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
     await expect(page.getByTestId('app-version')).toContainText('v0.0.0')
+    await openProviderPage(page)
     await expect(page.getByText('还没有 Provider')).toBeVisible()
 
     const preferences = await app.evaluate(({ BrowserWindow }) => {
@@ -98,6 +106,61 @@ test('boots securely and covers the mock provider lifecycle', async () => {
     await expect(page.getByText('还没有 Provider')).toBeVisible()
   } finally {
     await app.close()
+    rmSync(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('creates text documents and persists them across restart', async () => {
+  const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-doc-e2e-user-'))
+
+  try {
+    const first = await launchDevApp(userDataDir)
+    try {
+      const page = await first.firstWindow()
+      await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
+      await expect(page.getByText('还没有文档')).toBeVisible()
+
+      await page.getByRole('button', { name: '粘贴文本' }).click()
+      await page.getByLabel('标题').fill('Socratic Notes')
+      await page.getByLabel('正文').fill('Understanding needs retrieval and explanation.')
+      await page.getByRole('button', { name: '保存文档' }).click()
+      await expect(page.getByText('文档已创建。')).toBeVisible()
+      await expect(
+        page.locator('.document-detail').getByRole('heading', { name: 'Socratic Notes' }),
+      ).toBeVisible()
+
+      await page.getByLabel('导入 .txt 或 .md').setInputFiles({
+        name: 'paper.md',
+        mimeType: 'text/markdown',
+        buffer: Buffer.from('# Paper Map\nWhy What How Evidence Limits Next', 'utf8'),
+      })
+      await page.getByRole('button', { name: '保存文档' }).click()
+      await expect(
+        page.locator('.document-detail').getByRole('heading', { name: 'paper.md' }),
+      ).toBeVisible()
+
+      await page.getByRole('button', { name: '删除 Socratic Notes' }).click()
+      await expect(page.getByRole('dialog', { name: '确认删除文档' })).toBeVisible()
+      await page.getByRole('button', { name: '确认删除' }).click()
+      await expect(page.getByText('文档已删除。')).toBeVisible()
+    } finally {
+      await first.close()
+    }
+
+    const second = await launchDevApp(userDataDir)
+    try {
+      const page = await second.firstWindow()
+      await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'paper.md' })).toBeVisible()
+      await page.getByRole('button', { name: '查看详情' }).click()
+      await expect(
+        page.locator('.document-detail').getByText('Why What How Evidence Limits Next'),
+      ).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Socratic Notes' })).not.toBeVisible()
+    } finally {
+      await second.close()
+    }
+  } finally {
     rmSync(userDataDir, { recursive: true, force: true })
   }
 })

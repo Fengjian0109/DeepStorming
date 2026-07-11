@@ -134,6 +134,42 @@ erDiagram
 
 ## 5. 文档与导入
 
+### 5.0 已实现的最小文本文档库（Migration 2）
+
+当前仓库在 Migration 2 (`document_text_import`) 里已经落地的是 Phase 3 最小切片，而不是本节后续更完整的 PDF/结构化导入蓝图。已实现表如下。
+
+### 5.0.1 `learning_documents`
+
+| 字段               | 类型 | 约束     | 说明                             |
+| ------------------ | ---- | -------- | -------------------------------- |
+| id                 | TEXT | PK       | 文档 ID                          |
+| document_type      | TEXT | NOT NULL | `generic/textbook/paper`         |
+| title              | TEXT | NOT NULL | 文档标题                         |
+| source_kind        | TEXT | NOT NULL | `pasted_text/text_file`          |
+| original_file_name | TEXT | NULL     | 导入文件名；粘贴文本时为空       |
+| content_hash       | TEXT | NOT NULL | 规范化正文 SHA-256，用于重复检测 |
+| created_at         | TEXT | NOT NULL | 创建时间                         |
+| updated_at         | TEXT | NOT NULL | 最近更新时间                     |
+
+索引与约束：
+
+- `UNIQUE(content_hash)`：当前最小切片按正文内容去重。
+- `document_type`、`source_kind` 通过 `CHECK` 约束限制枚举值。
+
+### 5.0.2 `document_text_versions`
+
+| 字段            | 类型    | 约束                                          | 说明                 |
+| --------------- | ------- | --------------------------------------------- | -------------------- |
+| id              | TEXT    | PK                                            | 文本版本 ID          |
+| document_id     | TEXT    | FK `learning_documents(id)` ON DELETE CASCADE | 所属文档             |
+| plain_text      | TEXT    | NOT NULL                                      | 当前存储的规范化正文 |
+| character_count | INTEGER | NOT NULL, `CHECK (character_count >= 0)`      | 字符数               |
+| created_at      | TEXT    | NOT NULL                                      | 该文本版本创建时间   |
+
+当前 Phase 3 最小切片每个文档只写入首个文本版本，未来若支持编辑历史或多版本导入，可在该表上继续扩展。
+
+> 下述 5.1 起的表结构仍保留为更完整文档导入/解析路线的目标蓝图，其中多数尚未实现。
+
 ### 5.1 `documents`
 
 | 字段              | 类型    | 约束                  | 说明                              |

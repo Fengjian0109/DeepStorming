@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process'
+import { rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
 import process from 'node:process'
@@ -31,10 +32,16 @@ const main = () => {
 
   const require = createRequire(new URL('../packages/infrastructure/package.json', import.meta.url))
   const nativeDir = dirname(require.resolve('better-sqlite3/package.json'))
+  const nativeBuildDir = new URL('../build/', new URL(`file://${nativeDir}/`))
+
+  const cleanNativeBuild = () => {
+    rmSync(nativeBuildDir, { recursive: true, force: true })
+  }
 
   return runE2eWithRestore((phase) => {
     if (phase === 'build') return run('build desktop app', [pnpmCli, 'build'], root)
-    if (phase === 'rebuild')
+    if (phase === 'rebuild') {
+      cleanNativeBuild()
       return run(
         'rebuild native modules for Electron',
         [
@@ -47,8 +54,10 @@ const main = () => {
         ],
         root,
       )
+    }
     if (phase === 'test')
       return run('run Playwright desktop tests', [pnpmCli, 'exec', 'playwright', 'test'], root)
+    cleanNativeBuild()
     return run(
       'restore native modules for Node',
       [pnpmCli, '--dir', nativeDir, 'run', 'build-release'],

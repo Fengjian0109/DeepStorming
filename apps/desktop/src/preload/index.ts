@@ -41,12 +41,28 @@ const invalidResponse = <Result extends WithRequestId>(requestId: string): Resul
     requestId,
   }) as unknown as Result
 
+const dispatchFailed = <Result extends WithRequestId>(requestId: string): Result =>
+  ({
+    ok: false,
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: 'DeepStorming could not reach the desktop process.',
+      retryable: true,
+    },
+    requestId,
+  }) as unknown as Result
+
 const invokeValidated = async <Result extends WithRequestId>(
   channel: string,
   payload: Record<string, unknown>,
   schema: ResultSchema<Result>,
 ): Promise<Result> => {
-  const rawResult: unknown = await ipcRenderer.invoke(channel, payload)
+  let rawResult: unknown
+  try {
+    rawResult = await ipcRenderer.invoke(channel, payload)
+  } catch {
+    return dispatchFailed<Result>(payload['requestId'] as string)
+  }
   const parsed = schema.safeParse(rawResult)
 
   if (!parsed.success) return invalidResponse<Result>(payload['requestId'] as string)

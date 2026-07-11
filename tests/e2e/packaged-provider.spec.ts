@@ -40,6 +40,8 @@ test('persists mock providers across packaged macOS restarts', async () => {
     const first = await launchPackagedApp(userDataDir)
     try {
       const page = await first.firstWindow()
+      await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
+      await page.getByRole('button', { name: 'Provider' }).click()
       await expect(page.getByRole('heading', { name: 'Provider 管理' })).toBeVisible()
       await page.getByLabel('Provider 类型').selectOption('mock')
       await page.getByLabel('显示名称').fill('Packaged Tutor')
@@ -54,6 +56,8 @@ test('persists mock providers across packaged macOS restarts', async () => {
     const second = await launchPackagedApp(userDataDir)
     try {
       const page = await second.firstWindow()
+      await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
+      await page.getByRole('button', { name: 'Provider' }).click()
       await expect(page.getByRole('heading', { name: 'Provider 管理' })).toBeVisible()
       await expect(page.getByText('Packaged Tutor')).toBeVisible()
       await expect(page.getByText('mock-success')).toBeVisible()

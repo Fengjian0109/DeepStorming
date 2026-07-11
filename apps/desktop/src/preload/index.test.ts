@@ -212,4 +212,19 @@ describe('preload API', () => {
       requestId: REQUEST_ID,
     })
   })
+
+  it('maps IPC invoke rejections to INTERNAL_ERROR with the generated request ID', async () => {
+    const api = await loadApi()
+    mocks.invoke.mockRejectedValueOnce(new Error('desktop unavailable'))
+
+    await expect(api.documents.list()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'DeepStorming could not reach the desktop process.',
+        retryable: true,
+      },
+      requestId: REQUEST_ID,
+    })
+  })
 })
