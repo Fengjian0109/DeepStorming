@@ -3,6 +3,7 @@ import React from 'react'
 
 type ProviderListProps = Readonly<{
   providers: readonly ProviderProfileDto[]
+  disabled?: boolean | undefined
   testingProviderId?: string | undefined
   busyProviderId?: string | undefined
   onEdit: (provider: ProviderProfileDto) => void
@@ -26,6 +27,7 @@ const testStatusText = {
 
 export const ProviderList = ({
   providers,
+  disabled = false,
   testingProviderId,
   busyProviderId,
   onEdit,
@@ -35,7 +37,7 @@ export const ProviderList = ({
 }: ProviderListProps): React.JSX.Element => (
   <section className="provider-list" aria-label="Provider 列表">
     {providers.map((provider) => {
-      const isBusy = busyProviderId === provider.id
+      const isBusy = disabled || busyProviderId === provider.id
       const isTesting = testingProviderId === provider.id
       return (
         <article className="provider-card" key={provider.id}>

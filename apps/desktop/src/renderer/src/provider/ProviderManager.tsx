@@ -33,10 +33,34 @@ export const ProviderManager = (): React.JSX.Element => {
   const [editingProvider, setEditingProvider] = useState<ProviderProfileDto>()
   const [deleteTarget, setDeleteTarget] = useState<ProviderProfileDto>()
   const cancelledTestOperationIds = useRef(new Set<string>())
+  const listRequestSequence = useRef(0)
+  const nextOperationToken = useRef(0)
+  const activeOperationToken = useRef<number | undefined>(undefined)
+
+  const startOperation = (operation: ActiveOperation): number | undefined => {
+    if (activeOperationToken.current !== undefined) return undefined
+    const token = nextOperationToken.current + 1
+    nextOperationToken.current = token
+    activeOperationToken.current = token
+    setActiveOperation(operation)
+    return token
+  }
+
+  const isCurrentOperation = (token: number): boolean => activeOperationToken.current === token
+
+  const clearCurrentOperation = (token: number): boolean => {
+    if (!isCurrentOperation(token)) return false
+    activeOperationToken.current = undefined
+    setActiveOperation(undefined)
+    return true
+  }
 
   const loadProviders = useCallback(async () => {
+    const requestSequence = listRequestSequence.current + 1
+    listRequestSequence.current = requestSequence
     setListState({ status: 'loading' })
     const result = await window.deepstorming.provider.list()
+    if (listRequestSequence.current !== requestSequence) return
     if (result.ok) {
       setListState({ status: 'ready', providers: result.data })
       return
@@ -50,15 +74,17 @@ export const ProviderManager = (): React.JSX.Element => {
   }, [loadProviders])
 
   const submitProvider = async (draft: ProviderDraftDto) => {
-    setActiveOperation({ kind: 'save' })
+    const token = startOperation({ kind: 'save' })
+    if (token === undefined) return
     setOperationState({ status: 'loading' })
 
     const result = editingProvider
       ? await window.deepstorming.provider.update(editingProvider.id, draft)
       : await window.deepstorming.provider.create(draft)
+    if (!isCurrentOperation(token)) return
 
     if (!result.ok) {
-      setActiveOperation(undefined)
+      clearCurrentOperation(token)
       setOperationState({
         status: 'error',
         message: getErrorMessage('Provider 保存失败。', result),
@@ -71,17 +97,19 @@ export const ProviderManager = (): React.JSX.Element => {
       status: 'success',
       message: editingProvider ? 'Provider 已更新。' : 'Provider 已添加。',
     })
-    setActiveOperation(undefined)
+    clearCurrentOperation(token)
     await loadProviders()
   }
 
   const activateProvider = async (provider: ProviderProfileDto) => {
-    setActiveOperation({ kind: 'activate', providerId: provider.id })
+    const token = startOperation({ kind: 'activate', providerId: provider.id })
+    if (token === undefined) return
     setOperationState({ status: 'loading' })
 
     const result = await window.deepstorming.provider.activate(provider.id)
+    if (!isCurrentOperation(token)) return
     if (!result.ok) {
-      setActiveOperation(undefined)
+      clearCurrentOperation(token)
       setOperationState({
         status: 'error',
         message: getErrorMessage('Provider 启用失败。', result),
@@ -90,31 +118,33 @@ export const ProviderManager = (): React.JSX.Element => {
     }
 
     setOperationState({ status: 'success', message: 'Provider 已启用。' })
-    setActiveOperation(undefined)
+    clearCurrentOperation(token)
     await loadProviders()
   }
 
   const testProvider = async (provider: ProviderProfileDto) => {
     const operationId = crypto.randomUUID()
     cancelledTestOperationIds.current.delete(operationId)
-    setActiveOperation({
+    const token = startOperation({
       kind: 'test',
       providerId: provider.id,
       providerName: provider.displayName,
       operationId,
     })
+    if (token === undefined) return
     setOperationState({ status: 'loading' })
 
     const result = await window.deepstorming.provider.testConnection(provider.id, operationId)
     if (cancelledTestOperationIds.current.has(operationId)) {
       cancelledTestOperationIds.current.delete(operationId)
-      setActiveOperation(undefined)
+      if (!clearCurrentOperation(token)) return
       setOperationState({ status: 'cancelled', message: '测试已取消。' })
       return
     }
 
+    if (!isCurrentOperation(token)) return
     if (!result.ok) {
-      setActiveOperation(undefined)
+      clearCurrentOperation(token)
       if (result.error.code === 'OPERATION_CANCELLED') {
         setOperationState({ status: 'cancelled', message: '测试已取消。' })
         return
@@ -127,15 +157,17 @@ export const ProviderManager = (): React.JSX.Element => {
     }
 
     setOperationState({ status: 'success', message: 'Provider 测试成功。' })
-    setActiveOperation(undefined)
+    clearCurrentOperation(token)
     await loadProviders()
   }
 
   const cancelTest = async () => {
     if (activeOperation?.kind !== 'test') return
+    const token = activeOperationToken.current
+    if (token === undefined) return
     const { operationId } = activeOperation
     const result = await window.deepstorming.provider.cancelTest(operationId)
-    setActiveOperation(undefined)
+    if (!clearCurrentOperation(token)) return
     if (result.ok && result.data.cancelled) {
       cancelledTestOperationIds.current.add(operationId)
       setOperationState({ status: 'cancelled', message: '测试已取消。' })
@@ -150,12 +182,14 @@ export const ProviderManager = (): React.JSX.Element => {
 
   const deleteProvider = async () => {
     if (!deleteTarget) return
-    setActiveOperation({ kind: 'delete', providerId: deleteTarget.id })
+    const token = startOperation({ kind: 'delete', providerId: deleteTarget.id })
+    if (token === undefined) return
     setOperationState({ status: 'loading' })
 
     const result = await window.deepstorming.provider.remove(deleteTarget.id)
+    if (!isCurrentOperation(token)) return
     if (!result.ok) {
-      setActiveOperation(undefined)
+      clearCurrentOperation(token)
       setOperationState({
         status: 'error',
         message: getErrorMessage('Provider 删除失败。', result),
@@ -166,11 +200,12 @@ export const ProviderManager = (): React.JSX.Element => {
     setDeleteTarget(undefined)
     setEditingProvider((current) => (current?.id === deleteTarget.id ? undefined : current))
     setOperationState({ status: 'success', message: 'Provider 已删除。' })
-    setActiveOperation(undefined)
+    clearCurrentOperation(token)
     await loadProviders()
   }
 
-  const isSaving = activeOperation?.kind === 'save'
+  const isOperating = activeOperation !== undefined
+  const isDeleting = activeOperation?.kind === 'delete'
   const busyProviderId =
     activeOperation?.kind === 'activate' || activeOperation?.kind === 'delete'
       ? activeOperation.providerId
@@ -194,7 +229,7 @@ export const ProviderManager = (): React.JSX.Element => {
           <ProviderForm
             mode={editingProvider ? 'edit' : 'create'}
             provider={editingProvider}
-            disabled={isSaving}
+            disabled={isOperating}
             onSubmit={submitProvider}
             onCancelEdit={() => setEditingProvider(undefined)}
           />
@@ -257,6 +292,7 @@ export const ProviderManager = (): React.JSX.Element => {
           {listState.status === 'ready' && listState.providers.length > 0 && (
             <ProviderList
               providers={listState.providers}
+              disabled={isOperating}
               testingProviderId={testingProviderId}
               busyProviderId={busyProviderId}
               onEdit={setEditingProvider}
@@ -280,13 +316,19 @@ export const ProviderManager = (): React.JSX.Element => {
             <p>删除 {deleteTarget.displayName}？</p>
             <p>删除后需要重新添加密钥才能恢复。</p>
             <div className="form-actions">
-              <button type="button" className="danger-button" onClick={() => void deleteProvider()}>
+              <button
+                type="button"
+                className="danger-button"
+                onClick={() => void deleteProvider()}
+                disabled={isDeleting}
+              >
                 确认删除
               </button>
               <button
                 type="button"
                 className="secondary-button"
                 onClick={() => setDeleteTarget(undefined)}
+                disabled={isDeleting}
               >
                 取消
               </button>

@@ -254,6 +254,15 @@ describe('ProviderManager', () => {
     expect(api.provider.testConnection).toHaveBeenCalledWith(providerId, operationId)
     expect(screen.getByText('正在测试 Local Router…')).toBeTruthy()
     expect(screen.getByRole('button', { name: '取消测试' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '添加 Provider' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: '编辑 Local Router' })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    expect(screen.getByRole('button', { name: '删除 Local Router' })).toHaveProperty(
+      'disabled',
+      true,
+    )
 
     await user.click(screen.getByRole('button', { name: '取消测试' }))
 
