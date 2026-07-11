@@ -62,7 +62,15 @@
 - Fallback：没有激活 Provider 时继续使用本地 deterministic Mock Tutor，不破坏现有离线课堂流程和 E2E。
 - Submit / Retry：`SubmitLessonReply` 与 `RetryLessonRun` 支持注入 tutor generator；成功生成后，message 使用 Provider 返回 content，model run 记录 active provider 的 `providerId/modelName`。
 - Main：组合根复用 `ProviderGatewayFactory`，把 Provider-backed generator 注入课堂 reply/retry use case。
-- 当前限制：Provider 失败/取消时尚未先持久化 `started` run，也没有保留失败摘要；下一步补失败状态持久化与取消。
+- 当前限制：取消 token 尚未贯穿 lesson IPC，run 也尚无错误摘要字段。
+
+## Lesson Provider started/failed 状态持久化增量
+
+- Submit：提交学习者回答后，先保存 learner message 和 `started` `lesson_tutor_follow_up` run，再调用 tutor generator。
+- Retry：重试 failed/cancelled run 时，先追加新的 `started` retry run，再调用 tutor generator；原 failed/cancelled run 保持不变。
+- Success：Provider 返回内容后追加 tutor message，并把同一个 run 更新为 `succeeded`，补 `outputMessageId/finishedAt/providerId/modelName`。
+- Failure：Provider/generator 抛错时保留已保存的 learner message（reply 场景）和 `failed` run，`outputMessageId` 保持 `null`，因此课堂页可显示失败记录并允许后续重试。
+- 当前限制：`cancelled` 状态仍待 lesson 取消 token 接入；稳定错误摘要字段待新增 schema/migration。
 
 ## 当前非目标
 
@@ -74,12 +82,13 @@
 
 ## 已验证命令
 
-- `pnpm vitest run packages/application/src/lesson-use-cases.test.ts`：10 通过。
+- `pnpm vitest run packages/application/src/lesson-use-cases.test.ts`：12 通过。
 - `pnpm test:e2e`：2 通过，1 跳过；覆盖首条 Mock Tutor 提问、生成记录、学习者回复和下一轮追问在创建后与重启后可见。
-- `pnpm check`：Prettier、typecheck、37 个测试文件 / 425 个测试、桌面端构建全部通过。
+- `pnpm check`：Prettier、typecheck、37 个测试文件 / 427 个测试、桌面端构建全部通过。
 
 ## 下一步建议
 
-1. 落地 Provider 失败/取消时的 `started/failed/cancelled` 持久化和稳定错误摘要。
-2. 增加真实云 Provider 手动验收清单。
-3. 把来源 anchor 从文本 offset 扩展到 PDF page/block/chunk。
+1. 新增 Lesson run 安全错误摘要字段，并在 failed/cancelled run 上展示稳定原因。
+2. 贯穿 Lesson Provider 取消 token，把取消保存为 `cancelled`。
+3. 增加真实云 Provider 手动验收清单。
+4. 把来源 anchor 从文本 offset 扩展到 PDF page/block/chunk。

@@ -74,16 +74,20 @@
   - Application：新增 `LessonTutorReplyGeneratorPort` 与 `ProviderLessonTutorReplyGenerator`，由 Application 选择当前激活 Provider、读取 Vault 密钥并调用 Gateway；没有激活 Provider 时保留本地 mock fallback。
   - Lesson use cases：`SubmitLessonReply` 与 `RetryLessonRun` 支持注入 tutor generator；成功生成后把 Provider 返回的 content 写入 tutor message，并把 active provider 的 `providerId/modelName` 写入 `lesson_model_runs`。
   - Main composition root：复用同一个 `ProviderGatewayFactory`，把 Provider-backed tutor generator 注入课堂 reply/retry use case。
-  - 当前接线状态：成功路径已接入 Gateway；Provider 失败时目前映射为稳定 lesson internal error，下一步补 started/failed/cancelled 的中间状态持久化与取消语义。
+- Phase 5 Lesson Provider 运行状态持久化：
+  - Application：`SubmitLessonReply` 与 `RetryLessonRun` 在调用 tutor generator 前先保存 learner message（reply 场景）和 `started` `lesson_tutor_follow_up` run。
+  - 成功路径：Provider 返回后追加 tutor message，并把同一个 run 更新为 `succeeded`、补 `outputMessageId/finishedAt/providerId/modelName`。
+  - 失败路径：Provider/generator 抛错时保留 learner message 和 `failed` run，`outputMessageId` 保持 `null`，课堂页重新加载后可看到失败记录并使用既有重试入口。
+  - 当前限制：Lesson IPC 尚未贯穿取消 token，`lesson_model_runs` 尚无错误摘要字段；下一步补 `cancelled` 语义和稳定错误摘要持久化。
 
 ## Phase 5 当前范围与非目标
 
-- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、正文搜索、snippet 与字符 offset、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口，以及 Lesson reply/retry 的 Provider 成功路径接线。
-- 非目标：PDF/OCR、页面块结构化解析、FTS5/BM25、chunking、embeddings、Lesson Provider 失败状态持久化、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
+- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、正文搜索、snippet 与字符 offset、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功路径接线，以及 reply/retry 的 `started/failed/succeeded` run 持久化。
+- 非目标：PDF/OCR、页面块结构化解析、FTS5/BM25、chunking、embeddings、Lesson Provider 取消语义、Lesson run 错误摘要字段、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
 
 ## 当前门禁
 
-1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 425 个测试，以及桌面端构建全部通过。
+1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 427 个测试，以及桌面端构建全部通过。
 2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖正文搜索、从搜索结果启动课堂、首条 Mock Tutor 提问、生成记录、提交学习者回复、下一轮 Mock Tutor 追问，以及重启后课堂来源片段/多轮消息/生成记录仍可读取；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
@@ -104,4 +108,4 @@ pnpm package:dir
 
 ## 下一步
 
-进入 Lesson Provider 失败状态持久化：在 reply/retry 调用 Gateway 前先落地 `started` run，成功后更新为 `succeeded` 并补 output message；失败/取消时保留 `failed/cancelled` run 和稳定错误摘要。发布前仍需补真实云 Provider 手动验收、签名、图标与公证。
+进入 Lesson Provider 取消与错误摘要持久化：为 lesson run 增加安全错误摘要字段，贯穿取消 token，将取消保存为 `cancelled`，并在 failed/cancelled run 上展示稳定原因。发布前仍需补真实云 Provider 手动验收、签名、图标与公证。

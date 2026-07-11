@@ -3,6 +3,7 @@ import {
   type LessonPromptManifest,
   type LessonReplyDraft,
   type LessonRunRetryDraft,
+  type LessonModelRun,
   type LessonSession,
   type LessonStartDraft,
 } from '@deepstorming/domain'
@@ -147,6 +148,73 @@ const generateTutorReply = async (
     throw asInternalError(error)
   }
 }
+
+const saveLesson = async (
+  lessons: LessonRepositoryPort,
+  session: StoredLessonSession,
+): Promise<StoredLessonSession> => {
+  try {
+    return await lessons.save(session)
+  } catch (error) {
+    throw asDatabaseError(error)
+  }
+}
+
+const followUpModelRun = (
+  input: Readonly<{
+    id: string
+    lessonId: string
+    documentId: string
+    documentTitle: string
+    anchor: StoredLessonSession['sourceAnchors'][number]
+    learnerReply: string
+    startedAt: string
+  }>,
+): LessonModelRun => ({
+  id: input.id,
+  lessonId: input.lessonId,
+  providerId: null,
+  modelName: 'mock-local',
+  operation: 'lesson_tutor_follow_up',
+  status: 'started',
+  promptManifest: MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST,
+  inputSummary: {
+    documentId: input.documentId,
+    documentTitle: input.documentTitle,
+    sourceAnchorIds: [input.anchor.id],
+    sourceCharacterRange: {
+      startOffset: input.anchor.startOffset,
+      endOffset: input.anchor.endOffset,
+    },
+    snippetCharacterCount: input.anchor.snippet.length,
+    learnerReplyCharacterCount: input.learnerReply.length,
+  },
+  sourceAnchorIds: [input.anchor.id],
+  outputMessageId: null,
+  startedAt: input.startedAt,
+  finishedAt: null,
+})
+
+const finishModelRun = (
+  modelRun: LessonModelRun,
+  tutorReply: LessonTutorReplyResult,
+  outputMessageId: string,
+  finishedAt: string,
+): LessonModelRun => ({
+  ...modelRun,
+  providerId: tutorReply.providerId,
+  modelName: tutorReply.modelName,
+  status: 'succeeded',
+  outputMessageId,
+  finishedAt,
+})
+
+const failModelRun = (modelRun: LessonModelRun, finishedAt: string): LessonModelRun => ({
+  ...modelRun,
+  status: 'failed',
+  outputMessageId: null,
+  finishedAt,
+})
 
 export class ListLessonSessions {
   public constructor(private readonly repository: LessonRepositoryPort) {}
@@ -325,13 +393,17 @@ export class SubmitLessonReply {
     } catch (error) {
       throw asInternalError(error)
     }
-    const tutorReply = await generateTutorReply(this.tutorReplyGenerator, {
-      documentTitle: session.documentTitle,
-      sourceSnippet: anchor.snippet,
-      learnerReply: draft.content,
-    })
 
-    const updated: StoredLessonSession = {
+    const startedRun = followUpModelRun({
+      id: modelRunId,
+      lessonId: session.id,
+      documentId: session.documentId,
+      documentTitle: session.documentTitle,
+      anchor,
+      learnerReply: draft.content,
+      startedAt: createdAt,
+    })
+    const pending: StoredLessonSession = {
       ...session,
       messages: [
         ...session.messages,
@@ -345,6 +417,33 @@ export class SubmitLessonReply {
           promptVersion: LEARNER_INPUT_PROMPT_VERSION,
           createdAt,
         },
+      ],
+      modelRuns: [...session.modelRuns, startedRun],
+      updatedAt: createdAt,
+    }
+    await saveLesson(this.lessons, pending)
+
+    let tutorReply: LessonTutorReplyResult
+    try {
+      tutorReply = await generateTutorReply(this.tutorReplyGenerator, {
+        documentTitle: session.documentTitle,
+        sourceSnippet: anchor.snippet,
+        learnerReply: draft.content,
+      })
+    } catch (error) {
+      await saveLesson(this.lessons, {
+        ...pending,
+        modelRuns: pending.modelRuns.map((run) =>
+          run.id === modelRunId ? failModelRun(run, createdAt) : run,
+        ),
+      })
+      throw error
+    }
+
+    const updated: StoredLessonSession = {
+      ...pending,
+      messages: [
+        ...pending.messages,
         {
           id: tutorMessageId,
           lessonId: session.id,
@@ -356,41 +455,13 @@ export class SubmitLessonReply {
           createdAt,
         },
       ],
-      modelRuns: [
-        ...session.modelRuns,
-        {
-          id: modelRunId,
-          lessonId: session.id,
-          providerId: tutorReply.providerId,
-          modelName: tutorReply.modelName,
-          operation: 'lesson_tutor_follow_up',
-          status: 'succeeded',
-          promptManifest: MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST,
-          inputSummary: {
-            documentId: session.documentId,
-            documentTitle: session.documentTitle,
-            sourceAnchorIds: [anchor.id],
-            sourceCharacterRange: {
-              startOffset: anchor.startOffset,
-              endOffset: anchor.endOffset,
-            },
-            snippetCharacterCount: anchor.snippet.length,
-            learnerReplyCharacterCount: draft.content.length,
-          },
-          sourceAnchorIds: [anchor.id],
-          outputMessageId: tutorMessageId,
-          startedAt: createdAt,
-          finishedAt: createdAt,
-        },
-      ],
+      modelRuns: pending.modelRuns.map((run) =>
+        run.id === modelRunId ? finishModelRun(run, tutorReply, tutorMessageId, createdAt) : run,
+      ),
       updatedAt: createdAt,
     }
 
-    try {
-      return toView(await this.lessons.save(updated))
-    } catch (error) {
-      throw asDatabaseError(error)
-    }
+    return toView(await saveLesson(this.lessons, updated))
   }
 }
 
@@ -450,16 +521,44 @@ export class RetryLessonRun {
     } catch (error) {
       throw asInternalError(error)
     }
-    const tutorReply = await generateTutorReply(this.tutorReplyGenerator, {
+
+    const startedRun = followUpModelRun({
+      id: modelRunId,
+      lessonId: session.id,
+      documentId: session.documentId,
       documentTitle: session.documentTitle,
-      sourceSnippet: anchor.snippet,
+      anchor,
       learnerReply: learnerMessage.content,
+      startedAt: createdAt,
     })
+    const pending: StoredLessonSession = {
+      ...session,
+      modelRuns: [...session.modelRuns, startedRun],
+      updatedAt: createdAt,
+    }
+    await saveLesson(this.lessons, pending)
+
+    let tutorReply: LessonTutorReplyResult
+    try {
+      tutorReply = await generateTutorReply(this.tutorReplyGenerator, {
+        documentTitle: session.documentTitle,
+        sourceSnippet: anchor.snippet,
+        learnerReply: learnerMessage.content,
+      })
+    } catch (error) {
+      await saveLesson(this.lessons, {
+        ...pending,
+        modelRuns: pending.modelRuns.map((run) =>
+          run.id === modelRunId ? failModelRun(run, createdAt) : run,
+        ),
+      })
+      throw error
+    }
 
     const updated: StoredLessonSession = {
-      ...session,
+      ...pending,
       messages: [
-        ...session.messages,
+        ...pending.messages,
         {
           id: tutorMessageId,
           lessonId: session.id,
@@ -471,41 +570,13 @@ export class RetryLessonRun {
           createdAt,
         },
       ],
-      modelRuns: [
-        ...session.modelRuns,
-        {
-          id: modelRunId,
-          lessonId: session.id,
-          providerId: tutorReply.providerId,
-          modelName: tutorReply.modelName,
-          operation: 'lesson_tutor_follow_up',
-          status: 'succeeded',
-          promptManifest: MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST,
-          inputSummary: {
-            documentId: session.documentId,
-            documentTitle: session.documentTitle,
-            sourceAnchorIds: [anchor.id],
-            sourceCharacterRange: {
-              startOffset: anchor.startOffset,
-              endOffset: anchor.endOffset,
-            },
-            snippetCharacterCount: anchor.snippet.length,
-            learnerReplyCharacterCount: learnerMessage.content.length,
-          },
-          sourceAnchorIds: [anchor.id],
-          outputMessageId: tutorMessageId,
-          startedAt: createdAt,
-          finishedAt: createdAt,
-        },
-      ],
+      modelRuns: pending.modelRuns.map((run) =>
+        run.id === modelRunId ? finishModelRun(run, tutorReply, tutorMessageId, createdAt) : run,
+      ),
       updatedAt: createdAt,
     }
 
-    try {
-      return toView(await this.lessons.save(updated))
-    } catch (error) {
-      throw asDatabaseError(error)
-    }
+    return toView(await saveLesson(this.lessons, updated))
   }
 }
 

@@ -145,6 +145,22 @@ class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
   }
 }
 
+class ObservingTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
+  public fail = false
+
+  public constructor(private readonly observe: () => void) {}
+
+  async generateFollowUp() {
+    this.observe()
+    if (this.fail) throw new Error('provider failed')
+    return {
+      content: 'Provider 追问',
+      providerId: '00000000-0000-4000-8000-000000000501',
+      modelName: 'deepseek-chat',
+    }
+  }
+}
+
 class FakeProviderRepository implements ProviderRepositoryPort {
   public constructor(public providers: readonly StoredProvider[] = [activeProvider]) {}
 
@@ -460,6 +476,101 @@ describe('lesson use cases', () => {
       modelName: 'deepseek-chat',
       status: 'succeeded',
       outputMessageId: followUpMessageId,
+    })
+  })
+
+  it('persists a started provider run before requesting a tutor follow-up', async () => {
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(documents, lessons, clock, {
+      generate: () => startIds[startIndex++]!,
+    }).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+    const generator = new ObservingTutorReplyGenerator(() => {
+      const pending = lessons.records.get(lessonId)
+      expect(pending?.messages.at(-1)).toMatchObject({
+        id: learnerMessageId,
+        role: 'learner',
+        content: '它在说明证据如何支撑判断。',
+      })
+      expect(pending?.messages.some((message) => message.id === followUpMessageId)).toBe(false)
+      expect(pending?.modelRuns.at(-1)).toMatchObject({
+        id: followUpRunId,
+        providerId: null,
+        modelName: 'mock-local',
+        status: 'started',
+        outputMessageId: null,
+        finishedAt: null,
+      })
+    })
+
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      generator,
+    ).execute({
+      lessonId: created.id,
+      content: '它在说明证据如何支撑判断。',
+    })
+
+    expect(updated.messages.at(-1)).toMatchObject({
+      id: followUpMessageId,
+      content: 'Provider 追问',
+    })
+    expect(updated.modelRuns.at(-1)).toMatchObject({
+      id: followUpRunId,
+      providerId: '00000000-0000-4000-8000-000000000501',
+      modelName: 'deepseek-chat',
+      status: 'succeeded',
+      outputMessageId: followUpMessageId,
+      finishedAt: now,
+    })
+  })
+
+  it('persists a failed provider run when tutor follow-up generation fails', async () => {
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(documents, lessons, clock, {
+      generate: () => startIds[startIndex++]!,
+    }).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+    const generator = new ObservingTutorReplyGenerator(() => undefined)
+    generator.fail = true
+
+    await expect(
+      new SubmitLessonReply(
+        lessons,
+        clock,
+        { generate: () => replyIds[replyIndex++]! },
+        generator,
+      ).execute({
+        lessonId: created.id,
+        content: '它在说明证据如何支撑判断。',
+      }),
+    ).rejects.toMatchObject({ code: 'INTERNAL_ERROR', retryable: true })
+
+    const failed = lessons.records.get(lessonId)
+    expect(failed?.messages.at(-1)).toMatchObject({
+      id: learnerMessageId,
+      role: 'learner',
+    })
+    expect(failed?.messages.some((message) => message.id === followUpMessageId)).toBe(false)
+    expect(failed?.modelRuns.at(-1)).toMatchObject({
+      id: followUpRunId,
+      status: 'failed',
+      outputMessageId: null,
+      finishedAt: now,
     })
   })
 
