@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 
+import { ProviderManager } from '../provider/ProviderManager'
+
 type RuntimeState =
   | { status: 'loading' }
   | { status: 'ready'; version: string; platform: string }
@@ -39,8 +41,8 @@ export const App = (): React.JSX.Element => {
           <p className="brand-name">DeepStorming</p>
         </div>
         <nav>
-          <a className="nav-item nav-item-active" href="#home" aria-current="page">
-            首页
+          <a className="nav-item nav-item-active" href="#providers" aria-current="page">
+            Provider
           </a>
           <span className="nav-item nav-item-disabled">文档库 · Phase 3</span>
           <span className="nav-item nav-item-disabled">课堂 · Phase 5</span>
@@ -58,40 +60,8 @@ export const App = (): React.JSX.Element => {
         </div>
       </aside>
 
-      <main className="main-content" id="home">
-        <section className="hero-card">
-          <p className="eyebrow">PHASE 0–1 · FOUNDATION</p>
-          <h1>让理解发生，而不只是得到答案。</h1>
-          <p className="hero-copy">
-            DeepStorming 正在建立可靠的桌面基础：安全
-            IPC、清晰模块边界、可测试错误模型和可恢复任务。
-          </p>
-          <div className="status-row">
-            <span className="status-dot" aria-hidden="true" />
-            <span>工程骨架已加载</span>
-          </div>
-        </section>
-
-        <section className="principles" aria-labelledby="principles-title">
-          <div>
-            <p className="section-kicker">BUILD RULES</p>
-            <h2 id="principles-title">这次重建从边界开始</h2>
-          </div>
-          <div className="principle-grid">
-            <article>
-              <strong>证据优先</strong>
-              <p>未来的每个教学结论都要能回到教材或论文原页。</p>
-            </article>
-            <article>
-              <strong>无静默失败</strong>
-              <p>每个异步动作都有加载、成功、错误或取消状态。</p>
-            </article>
-            <article>
-              <strong>模块解耦</strong>
-              <p>界面不碰数据库，领域层不依赖 Electron 或模型 SDK。</p>
-            </article>
-          </div>
-        </section>
+      <main className="main-content" id="providers">
+        <ProviderManager />
       </main>
     </div>
   )

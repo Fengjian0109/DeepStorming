@@ -25,12 +25,15 @@
   "devDependencies": {
     "@deepstorming/testkit": "workspace:*",
     "@swc/core": "1.15.43",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.2.0",
     "electron": "43.1.0",
     "electron-builder": "26.15.3",
     "electron-vite": "5.0.0",
+    "jsdom": "29.1.1",
     "vite": "7.3.6"
   }
 }
