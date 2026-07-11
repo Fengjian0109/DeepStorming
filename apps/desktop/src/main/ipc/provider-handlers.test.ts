@@ -172,6 +172,22 @@ describe('provider IPC handlers', () => {
     },
   )
 
+  it('uses a generated safe request ID when rejecting malformed sensitive request IDs', async () => {
+    const dependencies = createDependencies()
+    const handlers = createProviderIpcHandlers(dependencies as unknown as ProviderIpcDependencies)
+
+    const result = await handlers.list({
+      requestId: `Authorization: Bearer ${API_KEY}`,
+      extra: true,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.requestId).toMatch(
+      /^[\da-f]{8}-[\da-f]{4}-[1-5][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u,
+    )
+    expectNoSensitiveSerialization(result)
+  })
+
   it.each(cases)('maps ProviderUseCaseError safely for $name', async (testCase) => {
     const dependencies = createDependencies()
     dependencies[testCase.useCase].execute.mockRejectedValueOnce(

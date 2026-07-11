@@ -37,6 +37,7 @@ type ResultSchema<T> = Readonly<{
 type ProviderProfile = ProviderProfileDto
 type ProviderList = readonly ProviderProfileDto[]
 type CancelProviderTestData = CancelProviderTestResult extends AppResult<infer T> ? T : never
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[1-5][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u
 
 export type ProviderIpcHandlers = Readonly<{
   list(input: unknown): Promise<ListProvidersResult>
@@ -69,7 +70,8 @@ const requestIdFrom = (input: unknown): string => {
     input !== null &&
     typeof input === 'object' &&
     'requestId' in input &&
-    typeof input.requestId === 'string'
+    typeof input.requestId === 'string' &&
+    UUID.test(input.requestId)
   ) {
     return input.requestId
   }
@@ -134,7 +136,9 @@ const handle = async <
 ): Promise<Result> => {
   const requestId = requestIdFrom(input)
   const parsed = requestSchema.safeParse(input)
-  if (!parsed.success) return invalidRequest(requestId, parsed.error.issues.length) as Result
+  if (!parsed.success) {
+    return validated(invalidRequest(requestId, parsed.error.issues.length) as Result, resultSchema)
+  }
 
   try {
     const data = await execute(parsed.data)
