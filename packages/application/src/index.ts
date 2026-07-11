@@ -1,4 +1,6 @@
 export * from './app-info-port'
+export * from './document-ports'
+export * from './document-use-cases'
 export * from './get-application-info'
 export * from './provider-errors'
 export * from './provider-ports'

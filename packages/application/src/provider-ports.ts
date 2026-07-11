@@ -1,4 +1,5 @@
 import type { ProviderProfile, ProviderTestStatus } from '@deepstorming/domain'
+export type { ClockPort, IdGeneratorPort } from './document-ports'
 
 export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & {
   readonly revision: number
@@ -94,14 +95,6 @@ export interface SecretCleanupReporterPort {
       code: 'SECRET_DELETE_FAILED'
     }>,
   ): void
-}
-
-export interface ClockPort {
-  now(): string
-}
-
-export interface IdGeneratorPort {
-  generate(): string
 }
 
 export interface CancellationToken {
