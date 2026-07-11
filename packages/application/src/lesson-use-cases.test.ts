@@ -1,14 +1,29 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { ProviderProfile } from '@deepstorming/domain'
 import type { DocumentRepositoryPort, StoredDocumentDetail } from './document-ports'
-import type { LessonRepositoryPort, StoredLessonSession } from './lesson-ports'
+import type {
+  LessonRepositoryPort,
+  LessonTutorReplyGeneratorPort,
+  StoredLessonSession,
+} from './lesson-ports'
 import {
   GetLessonSession,
   LessonUseCaseError,
   ListLessonSessions,
+  ProviderLessonTutorReplyGenerator,
   RetryLessonRun,
   StartLessonFromDocument,
   SubmitLessonReply,
 } from './lesson-use-cases'
+import type {
+  CancellationToken,
+  ProviderGatewayFactoryPort,
+  ProviderGatewayPort,
+  ProviderRepositoryPort,
+  ProviderTestStatusTransitionResult,
+  SecretVaultPort,
+  StoredProvider,
+} from './provider-ports'
 
 const now = '2026-07-11T00:00:00.000Z'
 const lessonId = '00000000-0000-4000-8000-000000000101'
@@ -33,6 +48,25 @@ const documentRecord: StoredDocumentDetail = {
   plainText: 'Why What How Evidence Limits Next',
   createdAt: now,
   updatedAt: now,
+}
+
+const activeProvider: StoredProvider = {
+  id: '00000000-0000-4000-8000-000000000501',
+  providerType: 'deepseek',
+  displayName: 'DeepSeek',
+  baseUrl: 'https://api.deepseek.com',
+  modelName: 'deepseek-chat',
+  secretRef: 'secret-ref',
+  capabilities: {
+    streaming: true,
+    structuredOutput: true,
+    embedding: false,
+    vision: false,
+  },
+  isActive: true,
+  createdAt: now,
+  updatedAt: now,
+  revision: 1,
 }
 
 class FakeDocumentRepository implements DocumentRepositoryPort {
@@ -87,6 +121,123 @@ class FakeLessonRepository implements LessonRepositoryPort {
     if (this.createError) throw this.createError
     this.records.set(session.id, session)
     return session
+  }
+}
+
+class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
+  public readonly calls: Array<{
+    readonly documentTitle: string
+    readonly sourceSnippet: string
+    readonly learnerReply: string
+  }> = []
+
+  async generateFollowUp(input: {
+    documentTitle: string
+    sourceSnippet: string
+    learnerReply: string
+  }) {
+    this.calls.push(input)
+    return {
+      content: `Provider 追问：${input.learnerReply} / ${input.sourceSnippet}`,
+      providerId: '00000000-0000-4000-8000-000000000501',
+      modelName: 'deepseek-chat',
+    }
+  }
+}
+
+class FakeProviderRepository implements ProviderRepositoryPort {
+  public constructor(public providers: readonly StoredProvider[] = [activeProvider]) {}
+
+  async list(): Promise<readonly StoredProvider[]> {
+    return this.providers
+  }
+
+  async findById(): Promise<undefined> {
+    return undefined
+  }
+
+  async findWriteOutcome(): Promise<undefined> {
+    return undefined
+  }
+
+  async create(): Promise<never> {
+    throw new Error('not used')
+  }
+
+  async update(): Promise<never> {
+    throw new Error('not used')
+  }
+
+  async removeIfUnreferenced(): Promise<never> {
+    throw new Error('not used')
+  }
+
+  async activate(): Promise<never> {
+    throw new Error('not used')
+  }
+
+  async transitionTestStatus(): Promise<ProviderTestStatusTransitionResult> {
+    throw new Error('not used')
+  }
+
+  async referencedSecretRefs(): Promise<ReadonlySet<string>> {
+    return new Set()
+  }
+}
+
+class FakeVault implements SecretVaultPort {
+  public readonly refs: string[] = []
+
+  async put(): Promise<never> {
+    throw new Error('not used')
+  }
+
+  async get(ref: string): Promise<string> {
+    this.refs.push(ref)
+    return 'api-key'
+  }
+
+  async remove(): Promise<void> {}
+
+  async reconcile(): Promise<void> {}
+}
+
+class FakeGateway implements ProviderGatewayPort {
+  public readonly calls: Array<{
+    readonly input: {
+      readonly modelName: string
+      readonly apiKey?: string
+      readonly documentTitle: string
+      readonly sourceSnippet: string
+      readonly learnerReply: string
+    }
+    readonly token: CancellationToken
+  }> = []
+
+  async testConnection(): Promise<void> {}
+
+  async generateLessonTutorReply(
+    input: {
+      modelName: string
+      apiKey?: string
+      documentTitle: string
+      sourceSnippet: string
+      learnerReply: string
+    },
+    token: CancellationToken,
+  ) {
+    this.calls.push({ input, token })
+    return { content: 'Provider 追问' }
+  }
+}
+
+class FakeGatewayFactory implements ProviderGatewayFactoryPort {
+  public readonly gateway = new FakeGateway()
+  public readonly providers: ProviderProfile[] = []
+
+  create(provider: ProviderProfile): ProviderGatewayPort {
+    this.providers.push(provider)
+    return this.gateway
   }
 }
 
@@ -265,6 +416,93 @@ describe('lesson use cases', () => {
       finishedAt: now,
     })
     expect(JSON.stringify(updated)).not.toContain('plainText')
+  })
+
+  it('uses an injected tutor generator for follow-up content and model metadata', async () => {
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(documents, lessons, clock, {
+      generate: () => startIds[startIndex++]!,
+    }).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+    const generator = new FakeTutorReplyGenerator()
+
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      generator,
+    ).execute({
+      lessonId: created.id,
+      content: '它在说明证据如何支撑判断。',
+    })
+
+    expect(generator.calls).toEqual([
+      {
+        documentTitle: 'Paper Map',
+        sourceSnippet: 'Evidence',
+        learnerReply: '它在说明证据如何支撑判断。',
+      },
+    ])
+    expect(updated.messages.at(-1)).toMatchObject({
+      id: followUpMessageId,
+      content: 'Provider 追问：它在说明证据如何支撑判断。 / Evidence',
+      modelRunId: followUpRunId,
+    })
+    expect(updated.modelRuns.at(-1)).toMatchObject({
+      id: followUpRunId,
+      providerId: '00000000-0000-4000-8000-000000000501',
+      modelName: 'deepseek-chat',
+      status: 'succeeded',
+      outputMessageId: followUpMessageId,
+    })
+  })
+
+  it('generates tutor replies through the active provider gateway', async () => {
+    const providers = new FakeProviderRepository()
+    const vault = new FakeVault()
+    const factory = new FakeGatewayFactory()
+
+    const result = await new ProviderLessonTutorReplyGenerator(
+      providers,
+      vault,
+      factory,
+    ).generateFollowUp({
+      documentTitle: 'Paper Map',
+      sourceSnippet: 'Evidence',
+      learnerReply: '它在说明证据如何支撑判断。',
+    })
+
+    expect(result).toEqual({
+      content: 'Provider 追问',
+      providerId: activeProvider.id,
+      modelName: 'deepseek-chat',
+    })
+    expect(vault.refs).toEqual(['secret-ref'])
+    expect(factory.providers).toEqual([
+      expect.objectContaining({
+        id: activeProvider.id,
+        hasApiKey: true,
+        modelName: 'deepseek-chat',
+      }),
+    ])
+    expect(factory.gateway.calls).toEqual([
+      {
+        input: {
+          modelName: 'deepseek-chat',
+          apiKey: 'api-key',
+          documentTitle: 'Paper Map',
+          sourceSnippet: 'Evidence',
+          learnerReply: '它在说明证据如何支撑判断。',
+        },
+        token: expect.objectContaining({ cancelled: false }),
+      },
+    ])
   })
 
   it('retries a failed tutor run with a deterministic follow-up', async () => {

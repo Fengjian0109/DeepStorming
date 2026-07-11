@@ -25,6 +25,22 @@ export type StoredLessonSession = Readonly<{
 
 export type LessonSessionView = LessonSession
 
+export type LessonTutorReplyRequest = Readonly<{
+  documentTitle: string
+  sourceSnippet: string
+  learnerReply: string
+}>
+
+export type LessonTutorReplyResult = Readonly<{
+  content: string
+  providerId: string | null
+  modelName: string
+}>
+
+export interface LessonTutorReplyGeneratorPort {
+  generateFollowUp(input: LessonTutorReplyRequest): Promise<LessonTutorReplyResult>
+}
+
 export interface LessonRepositoryPort {
   list(): Promise<readonly StoredLessonSession[]>
   findById(id: string): Promise<StoredLessonSession | undefined>

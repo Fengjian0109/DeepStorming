@@ -7,7 +7,20 @@ import {
   type LessonStartDraft,
 } from '@deepstorming/domain'
 import type { ClockPort, DocumentRepositoryPort, IdGeneratorPort } from './document-ports'
-import type { LessonRepositoryPort, StoredLessonSession } from './lesson-ports'
+import type {
+  LessonRepositoryPort,
+  LessonTutorReplyRequest,
+  LessonTutorReplyGeneratorPort,
+  LessonTutorReplyResult,
+  StoredLessonSession,
+} from './lesson-ports'
+import type {
+  CancellationToken,
+  ProviderGatewayFactoryPort,
+  ProviderRepositoryPort,
+  SecretVaultPort,
+} from './provider-ports'
+import { toProviderProfile } from './provider-use-cases'
 
 export type LessonUseCaseErrorCode =
   | 'LESSON_VALIDATION_FAILED'
@@ -70,6 +83,17 @@ const createMockTutorFollowUp = (learnerReply: string, snippet: string): string 
     snippet,
   )
 
+const localTutorReply = (learnerReply: string, snippet: string): LessonTutorReplyResult => ({
+  content: createMockTutorFollowUp(learnerReply, snippet),
+  providerId: null,
+  modelName: 'mock-local',
+})
+
+const liveToken = (): CancellationToken => ({
+  cancelled: false,
+  onCancel: () => () => undefined,
+})
+
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[1-5][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu
 
 const normalizeLessonReplyDraft = (draft: LessonReplyDraft): LessonReplyDraft => {
@@ -110,6 +134,18 @@ const asDatabaseError = (error: unknown): LessonUseCaseError => {
 const asInternalError = (error: unknown): LessonUseCaseError => {
   if (isLessonError(error)) return error
   return internalError()
+}
+
+const generateTutorReply = async (
+  generator: LessonTutorReplyGeneratorPort | undefined,
+  input: LessonTutorReplyRequest,
+): Promise<LessonTutorReplyResult> => {
+  if (generator === undefined) return localTutorReply(input.learnerReply, input.sourceSnippet)
+  try {
+    return await generator.generateFollowUp(input)
+  } catch (error) {
+    throw asInternalError(error)
+  }
 }
 
 export class ListLessonSessions {
@@ -254,6 +290,7 @@ export class SubmitLessonReply {
     private readonly lessons: LessonRepositoryPort,
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
+    private readonly tutorReplyGenerator?: LessonTutorReplyGeneratorPort,
   ) {}
 
   public async execute(input: LessonReplyDraft): Promise<LessonSession> {
@@ -288,6 +325,11 @@ export class SubmitLessonReply {
     } catch (error) {
       throw asInternalError(error)
     }
+    const tutorReply = await generateTutorReply(this.tutorReplyGenerator, {
+      documentTitle: session.documentTitle,
+      sourceSnippet: anchor.snippet,
+      learnerReply: draft.content,
+    })
 
     const updated: StoredLessonSession = {
       ...session,
@@ -308,7 +350,7 @@ export class SubmitLessonReply {
           lessonId: session.id,
           modelRunId,
           role: 'tutor',
-          content: createMockTutorFollowUp(draft.content, anchor.snippet),
+          content: tutorReply.content,
           sourceAnchorIds: [anchor.id],
           promptVersion: MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION,
           createdAt,
@@ -319,8 +361,8 @@ export class SubmitLessonReply {
         {
           id: modelRunId,
           lessonId: session.id,
-          providerId: null,
-          modelName: 'mock-local',
+          providerId: tutorReply.providerId,
+          modelName: tutorReply.modelName,
           operation: 'lesson_tutor_follow_up',
           status: 'succeeded',
           promptManifest: MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST,
@@ -357,6 +399,7 @@ export class RetryLessonRun {
     private readonly lessons: LessonRepositoryPort,
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
+    private readonly tutorReplyGenerator?: LessonTutorReplyGeneratorPort,
   ) {}
 
   public async execute(input: LessonRunRetryDraft): Promise<LessonSession> {
@@ -407,6 +450,11 @@ export class RetryLessonRun {
     } catch (error) {
       throw asInternalError(error)
     }
+    const tutorReply = await generateTutorReply(this.tutorReplyGenerator, {
+      documentTitle: session.documentTitle,
+      sourceSnippet: anchor.snippet,
+      learnerReply: learnerMessage.content,
+    })
 
     const updated: StoredLessonSession = {
       ...session,
@@ -417,7 +465,7 @@ export class RetryLessonRun {
           lessonId: session.id,
           modelRunId,
           role: 'tutor',
-          content: createMockTutorFollowUp(learnerMessage.content, anchor.snippet),
+          content: tutorReply.content,
           sourceAnchorIds: [anchor.id],
           promptVersion: MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION,
           createdAt,
@@ -428,8 +476,8 @@ export class RetryLessonRun {
         {
           id: modelRunId,
           lessonId: session.id,
-          providerId: null,
-          modelName: 'mock-local',
+          providerId: tutorReply.providerId,
+          modelName: tutorReply.modelName,
           operation: 'lesson_tutor_follow_up',
           status: 'succeeded',
           promptManifest: MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST,
@@ -457,6 +505,60 @@ export class RetryLessonRun {
       return toView(await this.lessons.save(updated))
     } catch (error) {
       throw asDatabaseError(error)
+    }
+  }
+}
+
+export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
+  public constructor(
+    private readonly providers: ProviderRepositoryPort,
+    private readonly vault: SecretVaultPort,
+    private readonly gatewayFactory: ProviderGatewayFactoryPort,
+  ) {}
+
+  public async generateFollowUp(input: LessonTutorReplyRequest): Promise<LessonTutorReplyResult> {
+    let activeProvider
+    try {
+      activeProvider = (await this.providers.list()).find((provider) => provider.isActive)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (activeProvider === undefined) {
+      return localTutorReply(input.learnerReply, input.sourceSnippet)
+    }
+
+    let apiKey: string | undefined
+    if (activeProvider.providerType !== 'mock') {
+      if (activeProvider.secretRef === undefined) throw internalError()
+      try {
+        apiKey = await this.vault.get(activeProvider.secretRef)
+      } catch (error) {
+        throw asInternalError(error)
+      }
+    }
+
+    const gateway = this.gatewayFactory.create(toProviderProfile(activeProvider))
+    const generated = await gateway.generateLessonTutorReply(
+      apiKey === undefined
+        ? {
+            modelName: activeProvider.modelName,
+            documentTitle: input.documentTitle,
+            sourceSnippet: input.sourceSnippet,
+            learnerReply: input.learnerReply,
+          }
+        : {
+            modelName: activeProvider.modelName,
+            apiKey,
+            documentTitle: input.documentTitle,
+            sourceSnippet: input.sourceSnippet,
+            learnerReply: input.learnerReply,
+          },
+      liveToken(),
+    )
+    return {
+      content: generated.content,
+      providerId: activeProvider.id,
+      modelName: activeProvider.modelName,
     }
   }
 }
