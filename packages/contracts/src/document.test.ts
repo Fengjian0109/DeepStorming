@@ -113,6 +113,8 @@ describe('document contracts', () => {
     expect(documentErrorCodeSchema.safeParse('DATABASE_UNAVAILABLE').success).toBe(true)
     expect(documentErrorCodeSchema.safeParse('INTERNAL_ERROR').success).toBe(true)
     expect(documentErrorCodeSchema.safeParse('DOCUMENT_NOT_FOUND').success).toBe(true)
+    expect(documentErrorCodeSchema.safeParse('PROVIDER_AUTH_FAILED').success).toBe(false)
+    expect(documentErrorCodeSchema.safeParse('SECRET_WRITE_FAILED').success).toBe(false)
 
     expect(
       documentSummaryResultSchema.safeParse({

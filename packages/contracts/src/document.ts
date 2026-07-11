@@ -24,7 +24,17 @@ export const documentBusinessErrorCodeSchema = z.enum([
   'DOCUMENT_NOT_FOUND',
 ])
 
-export const documentErrorCodeSchema = z.union([appErrorCodeSchema, documentBusinessErrorCodeSchema])
+const documentSharedErrorCodeSchema = appErrorCodeSchema.extract([
+  'INVALID_REQUEST',
+  'INTERNAL_ERROR',
+  'IPC_RESPONSE_INVALID',
+  'DATABASE_UNAVAILABLE',
+])
+
+export const documentErrorCodeSchema = z.union([
+  documentSharedErrorCodeSchema,
+  documentBusinessErrorCodeSchema,
+])
 
 export const documentDraftSchema = z
   .object({
