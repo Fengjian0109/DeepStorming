@@ -1,8 +1,8 @@
 # Phase 5 课堂最小会话进度
 
 - 更新时间：2026-07-12
-- 范围：从文档详情或搜索结果启动本地 `LessonSession`，生成首条本地 Mock Tutor 提问，记录 Prompt / Model Run，支持学习者回复触发下一轮本地追问，并为 failed/cancelled run 提供本地重试入口
-- 状态：课堂会话、消息基础、生成记录、本地多轮闭环与运行恢复基础已完成并通过开发版门禁
+- 范围：从文档详情或搜索结果启动本地 `LessonSession`，生成首条本地 Mock Tutor 提问，记录 Prompt / Model Run，支持学习者回复触发下一轮本地追问，为 failed/cancelled run 提供本地重试入口，并准备 Provider Gateway 课堂追问生成端口
+- 状态：课堂会话、消息基础、生成记录、本地多轮闭环、运行恢复基础与 Gateway 生成端口已完成并通过开发版门禁
 
 ## 本轮落地内容
 
@@ -49,6 +49,14 @@
 - Renderer：生成记录展示原始状态；`failed/cancelled` run 显示“重试生成 …”按钮，重试过程覆盖 loading/success/error UI。
 - Infrastructure：无新增 migration；复用现有 `lesson_model_runs.status`、`output_message_id` 和 Repository `save(session)` 保存重试后的追加消息/运行记录。
 
+## Provider Gateway 课堂生成端口增量
+
+- Application：`ProviderGatewayPort` 新增 `generateLessonTutorReply`，输入包含模型名、可选 API Key、文档标题、证据片段和学习者回答；输出为安全的 `{ content }`。
+- Mock Gateway：复用 deterministic 追问模板，支持 `mock-success` / `mock-delay` 等现有模型行为，并在 pending 期间响应取消。
+- OpenAI-compatible Gateway：向规范化后的 `/chat/completions` 发送非流式请求；system prompt 限制“只基于证据片段和学习者回答继续追问”，user prompt 包含文档标题、snippet 和 learner reply。
+- 错误边界：空 assistant content、缺失 choices、HTTP、网络、超时和取消都映射为稳定 Provider 错误；错误消息不泄露 Authorization、API Key 或原始响应正文。
+- 当前未接线：`SubmitLessonReply` / `RetryLessonRun` 仍使用 Application 内本地 deterministic 模板。下一步再把课堂 use case 接入 Gateway，并持久化真实 started/failed/cancelled 状态。
+
 ## 当前非目标
 
 - 不调用真实 Provider。
@@ -59,12 +67,12 @@
 
 ## 已验证命令
 
-- `pnpm vitest run packages/application/src/lesson-use-cases.test.ts packages/contracts/src/lesson.test.ts apps/desktop/src/main/ipc/lesson-handlers.test.ts apps/desktop/src/preload/index.test.ts apps/desktop/src/renderer/src/lesson/LessonWorkspace.test.tsx`：43 通过。
+- `pnpm vitest run packages/infrastructure/src/providers/mock-provider-gateway.test.ts packages/infrastructure/src/providers/openai-compatible-gateway.test.ts`：19 通过。
 - `pnpm test:e2e`：2 通过，1 跳过；覆盖首条 Mock Tutor 提问、生成记录、学习者回复和下一轮追问在创建后与重启后可见。
-- `pnpm check`：Prettier、typecheck、37 个测试文件 / 419 个测试、桌面端构建全部通过。
+- `pnpm check`：Prettier、typecheck、37 个测试文件 / 423 个测试、桌面端构建全部通过。
 
 ## 下一步建议
 
-1. 引入真实 Provider 课堂调用，把 deterministic Mock Tutor run 替换为 Provider Gateway 驱动。
+1. 把 `SubmitLessonReply` / `RetryLessonRun` 接入 Provider Gateway 驱动。
 2. 落地真实 `started/succeeded/failed/cancelled` 状态转换、取消语义和 Provider 错误摘要。
 3. 把来源 anchor 从文本 offset 扩展到 PDF page/block/chunk。

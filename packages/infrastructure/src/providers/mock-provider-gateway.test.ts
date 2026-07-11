@@ -41,3 +41,46 @@ test('honors cancellation while mock-delay is pending', async () => {
     new ProviderUseCaseError('OPERATION_CANCELLED', 'The provider test was cancelled.', false),
   )
 })
+
+test('generates deterministic lesson tutor replies from source evidence and learner text', async () => {
+  await expect(
+    new MockProviderGateway().generateLessonTutorReply(
+      {
+        modelName: 'mock-success',
+        documentTitle: 'Research Notes',
+        sourceSnippet: 'Evidence',
+        learnerReply: '它在说明证据如何支撑判断。',
+      },
+      liveToken(),
+    ),
+  ).resolves.toEqual({
+    content:
+      '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来：下一步你会如何验证这个判断？',
+  })
+})
+
+test('honors cancellation while mock lesson generation is pending', async () => {
+  let listener: (() => void) | undefined
+  const token: CancellationToken = {
+    get cancelled() {
+      return listener === undefined ? false : true
+    },
+    onCancel: (next) => {
+      listener = next
+      return () => undefined
+    },
+  }
+  const pending = new MockProviderGateway({ delayMs: 60_000 }).generateLessonTutorReply(
+    {
+      modelName: 'mock-delay',
+      documentTitle: 'Research Notes',
+      sourceSnippet: 'Evidence',
+      learnerReply: '它在说明证据如何支撑判断。',
+    },
+    token,
+  )
+  listener?.()
+  await expect(pending).rejects.toEqual(
+    new ProviderUseCaseError('OPERATION_CANCELLED', 'The provider test was cancelled.', false),
+  )
+})

@@ -107,6 +107,16 @@ export interface ProviderGatewayPort {
     input: Readonly<{ modelName: string; apiKey?: string }>,
     token: CancellationToken,
   ): Promise<void>
+  generateLessonTutorReply(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      documentTitle: string
+      sourceSnippet: string
+      learnerReply: string
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>>
 }
 
 export interface ProviderGatewayFactoryPort {

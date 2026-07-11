@@ -80,6 +80,103 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
       unsubscribe()
     }
   }
+
+  public async generateLessonTutorReply(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      documentTitle: string
+      sourceSnippet: string
+      learnerReply: string
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>> {
+    if (token.cancelled) throw cancelledError()
+    const request =
+      input.apiKey === undefined
+        ? {
+            modelName: input.modelName,
+            messages: lessonTutorMessages(input),
+            maxTokens: 220,
+          }
+        : {
+            modelName: input.modelName,
+            apiKey: input.apiKey,
+            messages: lessonTutorMessages(input),
+            maxTokens: 220,
+          }
+    const body = await this.postChatCompletion(
+      request,
+      token,
+      'The provider lesson generation timed out.',
+      'The provider lesson generation could not reach the provider.',
+    )
+    const content = firstAssistantContent(body)
+    if (content === undefined) {
+      throw new ProviderUseCaseError(
+        'PROVIDER_RESPONSE_INVALID',
+        'The provider returned an invalid response.',
+        true,
+        { fieldName: 'choices.message.content' },
+      )
+    }
+    return { content }
+  }
+
+  private async postChatCompletion(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      messages: readonly Readonly<{ role: 'system' | 'user'; content: string }>[]
+      maxTokens: number
+    }>,
+    token: CancellationToken,
+    timeoutMessage: string,
+    networkMessage: string,
+  ): Promise<unknown> {
+    const controller = new AbortController()
+    let timedOut = false
+    const timeout = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, this.timeoutMs)
+    const unsubscribe = token.onCancel(() => controller.abort())
+
+    try {
+      const response = await this.fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(input.apiKey === undefined ? {} : { authorization: `Bearer ${input.apiKey}` }),
+        },
+        body: JSON.stringify({
+          model: input.modelName,
+          messages: input.messages,
+          max_tokens: input.maxTokens,
+          stream: false,
+        }),
+        signal: controller.signal,
+      })
+      if (!response.ok) throw await httpError(response)
+      return await response.json().catch(() => {
+        throw new ProviderUseCaseError(
+          'PROVIDER_RESPONSE_INVALID',
+          'The provider returned an invalid response.',
+          true,
+        )
+      })
+    } catch (error) {
+      if (token.cancelled) throw cancelledError()
+      if (timedOut) {
+        throw new ProviderUseCaseError('PROVIDER_TIMEOUT', timeoutMessage, true)
+      }
+      if (error instanceof ProviderUseCaseError) throw error
+      throw new ProviderUseCaseError('PROVIDER_NETWORK_ERROR', networkMessage, true)
+    } finally {
+      clearTimeout(timeout)
+      unsubscribe()
+    }
+  }
 }
 
 const normalizeBaseUrl = (rawBaseUrl: string): string => {
@@ -150,4 +247,34 @@ const hasChoices = (body: unknown): boolean => {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return false
   const choices = (body as Record<string, unknown>)['choices']
   return Array.isArray(choices) && choices.length > 0
+}
+
+const lessonTutorMessages = (input: {
+  readonly documentTitle: string
+  readonly sourceSnippet: string
+  readonly learnerReply: string
+}): readonly Readonly<{ role: 'system' | 'user'; content: string }>[] => [
+  {
+    role: 'system',
+    content:
+      '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段和学习者回答继续追问，不编造来源。',
+  },
+  {
+    role: 'user',
+    content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n学习者回答：${input.learnerReply}\n请用中文提出一个简短追问，帮助学习者验证自己的判断。`,
+  },
+]
+
+const firstAssistantContent = (body: unknown): string | undefined => {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return undefined
+  const choices = (body as Record<string, unknown>)['choices']
+  if (!Array.isArray(choices)) return undefined
+  const first = choices[0]
+  if (typeof first !== 'object' || first === null || Array.isArray(first)) return undefined
+  const message = (first as Record<string, unknown>)['message']
+  if (typeof message !== 'object' || message === null || Array.isArray(message)) return undefined
+  const content = (message as Record<string, unknown>)['content']
+  if (typeof content !== 'string') return undefined
+  const trimmed = content.trim()
+  return trimmed.length === 0 ? undefined : trimmed
 }

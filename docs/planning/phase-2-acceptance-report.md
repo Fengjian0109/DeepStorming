@@ -110,7 +110,7 @@ Secret Vault 使用 Electron `safeStorage` 加密字符串，SQLite 只保存随
 ## 6. 已知限制
 
 - macOS 目录包未签名；发布前需要 Developer ID 签名、公证与品牌图标。
-- OpenAI-compatible Gateway 目前实现 Chat Completions 基线，不包含流式响应、结构化输出或 embeddings。
+- OpenAI-compatible Gateway 目前实现非流式 Chat Completions 基线，覆盖连接测试与课堂追问生成端口；不包含流式响应、结构化输出或 embeddings。
 - Phase 2 尚未实现课堂/文档业务对 Provider 的消费；Provider 基线为 Phase 3 的学习工作流入口。
 - 当前 E2E 以 Mock Provider 为主，云 Provider 的真实凭据联调需要用户本地手动验证。
 

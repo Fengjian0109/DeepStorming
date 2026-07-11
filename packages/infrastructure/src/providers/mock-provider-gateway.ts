@@ -50,6 +50,23 @@ export class MockProviderGateway implements ProviderGatewayPort {
         )
     }
   }
+
+  public async generateLessonTutorReply(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      documentTitle: string
+      sourceSnippet: string
+      learnerReply: string
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>> {
+    await this.testConnection({ modelName: input.modelName }, token)
+    if (input.modelName === 'mock-delay') await waitForDelay(this.options.delayMs ?? 1_000, token)
+    return {
+      content: `你刚才提到：“${input.learnerReply}”。我们把它和证据“${input.sourceSnippet}”连起来：下一步你会如何验证这个判断？`,
+    }
+  }
 }
 
 const cancelledError = (): ProviderUseCaseError =>

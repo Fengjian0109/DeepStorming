@@ -2,8 +2,8 @@
 
 - 更新时间：2026-07-12
 - 当前分支：`main`
-- 当前阶段：Phase 5 课堂运行恢复基础
-- 状态：本地 LessonSession、多轮 Mock Tutor、生成记录和 failed/cancelled run 重试入口已完成
+- 当前阶段：Phase 5 Provider 课堂生成接入准备
+- 状态：本地 LessonSession、多轮 Mock Tutor、生成记录、failed/cancelled run 重试入口，以及 Provider Gateway 课堂生成端口已完成
 
 ## 已完成
 
@@ -66,15 +66,20 @@
   - Main / Preload：组合根注入 `RetryLessonRun`，IPC 只做输入校验、调用单个 use case 和稳定错误映射；Preload 暴露 `window.deepstorming.lessons.retryRun({ lessonId, modelRunId })`。
   - Renderer：生成记录列表直接显示 `started/succeeded/failed/cancelled` 状态；对 `failed/cancelled` run 显示“重试生成 …”按钮，并覆盖 loading/success/error 反馈。
   - 数据库：无新增 migration；复用既有 `lesson_model_runs.status` 与 Repository `save(session)`，以追加新 run/message 的方式记录重试历史。
+- Phase 5 Provider 课堂生成接入准备：
+  - Application：`ProviderGatewayPort` 新增 `generateLessonTutorReply(input, token)`，为课堂追问生成提供可替换端口。
+  - Infrastructure：Mock Gateway 用 deterministic 模板生成中文追问，并沿用取消语义；OpenAI-compatible Gateway 发送非流式 Chat Completions 请求，解析首个 assistant message content，并把空内容、缺失 choices、HTTP/网络/超时/取消映射为稳定 Provider 错误。
+  - 安全边界：Gateway 请求不进入 Renderer；错误不包含 Authorization、API Key 或原始响应正文。
+  - 当前接线状态：课堂 use case 仍使用本地 deterministic Mock Tutor；下一步再把 `SubmitLessonReply` / `RetryLessonRun` 切到 Provider Gateway 驱动。
 
 ## Phase 5 当前范围与非目标
 
-- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、正文搜索、snippet 与字符 offset、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问，以及 failed/cancelled 生成记录的本地重试入口。
-- 非目标：PDF/OCR、页面块结构化解析、FTS5/BM25、chunking、embeddings、AI Provider 调用、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
+- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、正文搜索、snippet 与字符 offset、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口，以及 Provider Gateway 的课堂追问生成端口。
+- 非目标：PDF/OCR、页面块结构化解析、FTS5/BM25、chunking、embeddings、Lesson use case 真实 AI Provider 接线、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
 
 ## 当前门禁
 
-1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 419 个测试，以及桌面端构建全部通过。
+1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 423 个测试，以及桌面端构建全部通过。
 2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖正文搜索、从搜索结果启动课堂、首条 Mock Tutor 提问、生成记录、提交学习者回复、下一轮 Mock Tutor 追问，以及重启后课堂来源片段/多轮消息/生成记录仍可读取；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
@@ -95,4 +100,4 @@ pnpm package:dir
 
 ## 下一步
 
-进入真实 Provider 课堂调用接入：把当前 deterministic Mock Tutor run 迁移到可替换 Provider Gateway，落地 `started/succeeded/failed/cancelled` 的实际状态转换、取消语义和真实云 Provider 手动验收清单；发布前仍需补签名、图标与公证。
+进入 Lesson use case 的 Provider Gateway 接线：把 `SubmitLessonReply` / `RetryLessonRun` 从内置 deterministic 模板切到已就绪的 `generateLessonTutorReply`，落地真实 `started/succeeded/failed/cancelled` 状态转换、取消语义和真实云 Provider 手动验收清单；发布前仍需补签名、图标与公证。

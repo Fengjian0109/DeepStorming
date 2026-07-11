@@ -180,3 +180,62 @@ test('bridges cancellation token to AbortController', async () => {
 
   await expect(pending).rejects.toMatchObject({ code: 'OPERATION_CANCELLED' })
 })
+
+test('posts lesson tutor prompt and returns first assistant message content', async () => {
+  await startServer((_request, response) => {
+    response.setHeader('content-type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: '下一步请验证这个判断。' } }] }))
+  })
+
+  const result = await new OpenAICompatibleGateway(baseUrl).generateLessonTutorReply(
+    {
+      modelName: 'model-a',
+      apiKey: 'secret-api-key',
+      documentTitle: 'Research Notes',
+      sourceSnippet: 'Evidence',
+      learnerReply: '它在说明证据如何支撑判断。',
+    },
+    liveToken(),
+  )
+
+  expect(result).toEqual({ content: '下一步请验证这个判断。' })
+  expect(requests).toHaveLength(1)
+  expect(requests[0]?.url).toBe('/v1/chat/completions')
+  expect(requests[0]?.authorization).toBe('Bearer secret-api-key')
+  expect(JSON.parse(requests[0]?.body ?? '{}')).toEqual({
+    model: 'model-a',
+    messages: [
+      {
+        role: 'system',
+        content:
+          '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段和学习者回答继续追问，不编造来源。',
+      },
+      {
+        role: 'user',
+        content:
+          '文档：Research Notes\n证据片段：Evidence\n学习者回答：它在说明证据如何支撑判断。\n请用中文提出一个简短追问，帮助学习者验证自己的判断。',
+      },
+    ],
+    max_tokens: 220,
+    stream: false,
+  })
+})
+
+test('rejects empty lesson tutor content as invalid provider response', async () => {
+  await startServer((_request, response) => {
+    response.setHeader('content-type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: '   ' } }] }))
+  })
+
+  await expect(
+    new OpenAICompatibleGateway(baseUrl).generateLessonTutorReply(
+      {
+        modelName: 'model-a',
+        documentTitle: 'Research Notes',
+        sourceSnippet: 'Evidence',
+        learnerReply: '它在说明证据如何支撑判断。',
+      },
+      liveToken(),
+    ),
+  ).rejects.toMatchObject({ code: 'PROVIDER_RESPONSE_INVALID' })
+})

@@ -180,6 +180,26 @@ class CapturingGateway implements ProviderGatewayPort {
       )
     })
   }
+
+  public async generateLessonTutorReply(
+    input: {
+      modelName: string
+      apiKey?: string
+      documentTitle: string
+      sourceSnippet: string
+      learnerReply: string
+    },
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>> {
+    this.calls.push({
+      input:
+        input.apiKey === undefined
+          ? { modelName: input.modelName }
+          : { modelName: input.modelName, apiKey: input.apiKey },
+      token,
+    })
+    return { content: '追问' }
+  }
 }
 
 class FakeGatewayFactory implements ProviderGatewayFactoryPort {
