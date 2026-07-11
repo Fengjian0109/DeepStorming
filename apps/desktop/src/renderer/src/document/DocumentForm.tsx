@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 
 type DocumentFormProps = Readonly<{
   disabled?: boolean | undefined
-  onSubmit: (draft: DocumentDraftDto) => Promise<void>
+  onSubmit: (draft: DocumentDraftDto) => Promise<boolean>
   onError: (message: string) => void
 }>
 
@@ -40,14 +40,16 @@ export const DocumentForm = ({
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    await onSubmit({
+    const saved = await onSubmit({
       title: draft.title.trim(),
       plainText: draft.plainText.trim(),
       sourceKind: draft.sourceKind,
       ...(draft.originalFileName ? { originalFileName: draft.originalFileName } : {}),
     })
 
-    setDraft(defaultDraft)
+    if (saved) {
+      setDraft(defaultDraft)
+    }
   }
 
   const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,14 +63,19 @@ export const DocumentForm = ({
       return
     }
 
-    const text = await file.text()
-    setDraft({
-      title: file.name,
-      plainText: text,
-      sourceKind: 'text_file',
-      originalFileName: file.name,
-    })
-    input.value = ''
+    try {
+      const text = await file.text()
+      setDraft({
+        title: file.name,
+        plainText: text,
+        sourceKind: 'text_file',
+        originalFileName: file.name,
+      })
+      input.value = ''
+    } catch {
+      input.value = ''
+      onError('读取文件失败，请重试。')
+    }
   }
 
   return (

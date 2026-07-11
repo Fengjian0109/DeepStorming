@@ -17,6 +17,27 @@ const document = {
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
 
+const documentTwo = {
+  id: '00000000-0000-4000-8000-000000000002',
+  documentType: 'generic' as const,
+  title: 'Draft 2',
+  sourceKind: 'pasted_text' as const,
+  characterCount: 6,
+  createdAt: '2026-07-11T00:00:00.000Z',
+  updatedAt: '2026-07-11T00:00:00.000Z',
+}
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+
+  return { promise, resolve, reject }
+}
+
 beforeEach(() => {
   vi.stubGlobal('deepstorming', {
     app: {
@@ -102,5 +123,92 @@ describe('DocumentLibrary', () => {
     await waitFor(() =>
       expect(window.deepstorming.documents.remove).toHaveBeenCalledWith(document.id),
     )
+  })
+
+  it('preserves the draft when save fails', async () => {
+    window.deepstorming.documents.createFromText = vi.fn().mockResolvedValue({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR', message: '文档保存失败。', retryable: true },
+      requestId: crypto.randomUUID(),
+    })
+
+    const user = userEvent.setup()
+    render(<DocumentLibrary />)
+
+    await user.type(screen.getByLabelText('标题'), 'Broken Notes')
+    await user.type(screen.getByLabelText('正文'), 'draft body')
+    await user.click(screen.getByRole('button', { name: '保存文档' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('文档保存失败。')
+    expect(screen.getByLabelText('标题')).toHaveProperty('value', 'Broken Notes')
+    expect(screen.getByLabelText('正文')).toHaveProperty('value', 'draft body')
+  })
+
+  it('does not show stale detail content while a new selection is loading or after that request fails', async () => {
+    const firstDetail = deferred<{
+      ok: true
+      data: typeof document & { plainText: string }
+      requestId: string
+    }>()
+    const secondDetail = deferred<
+      | { ok: true; data: typeof documentTwo & { plainText: string }; requestId: string }
+      | {
+          ok: false
+          error: { code: 'INTERNAL_ERROR'; message: string; retryable: true }
+          requestId: string
+        }
+    >()
+
+    window.deepstorming.documents.list = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [document, documentTwo],
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.documents.get = vi
+      .fn()
+      .mockReturnValueOnce(firstDetail.promise)
+      .mockReturnValueOnce(secondDetail.promise)
+
+    const user = userEvent.setup()
+    render(<DocumentLibrary />)
+
+    await user.click((await screen.findAllByRole('button', { name: '查看详情' }))[0]!)
+    firstDetail.resolve({
+      ok: true,
+      data: { ...document, plainText: 'first body' },
+      requestId: crypto.randomUUID(),
+    })
+
+    expect(await screen.findByText('first body')).toBeTruthy()
+
+    await user.click((await screen.findAllByRole('button', { name: '查看详情' }))[1]!)
+
+    await waitFor(() => expect(screen.queryByText('first body')).toBeNull())
+    expect(screen.getByText('正在加载文档详情…')).toBeTruthy()
+
+    secondDetail.resolve({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR', message: '文档详情加载失败。', retryable: true },
+      requestId: crypto.randomUUID(),
+    })
+
+    expect((await screen.findByRole('alert')).textContent).toContain('文档详情加载失败。')
+    expect(screen.queryByText('first body')).toBeNull()
+    expect(screen.getByText('选择一篇文档后可查看正文。')).toBeTruthy()
+  })
+
+  it('shows a stable error when file reading fails', async () => {
+    const user = userEvent.setup()
+    render(<DocumentLibrary />)
+
+    const file = new File(['broken'], 'broken.md', { type: 'text/markdown' })
+    Object.defineProperty(file, 'text', {
+      value: vi.fn().mockRejectedValue(new Error('read failed')),
+    })
+
+    await user.upload(screen.getByLabelText('导入 .txt 或 .md'), file)
+
+    expect((await screen.findByRole('alert')).textContent).toContain('读取文件失败，请重试。')
+    expect(window.deepstorming.documents.createFromText).not.toHaveBeenCalled()
   })
 })

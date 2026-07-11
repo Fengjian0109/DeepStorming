@@ -19,14 +19,20 @@ type ListState =
   | { status: 'ready'; documents: DocumentSummaryDto[] }
   | { status: 'error'; message: string }
 
+type DetailState =
+  | { status: 'idle' }
+  | { status: 'loading'; documentId: string }
+  | { status: 'ready'; document: DocumentDetailDto }
+  | { status: 'error'; documentId: string }
+
 const getErrorMessage = (fallback: string, result?: { ok: false; error: { message: string } }) =>
   result?.error.message ?? fallback
 
 export const DocumentLibrary = (): React.JSX.Element => {
   const [listState, setListState] = useState<ListState>({ status: 'loading' })
   const [asyncState, setAsyncState] = useState<AsyncState>({ status: 'idle' })
-  const [selectedDocument, setSelectedDocument] = useState<DocumentDetailDto>()
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>()
+  const [detailState, setDetailState] = useState<DetailState>({ status: 'idle' })
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummaryDto>()
   const listRequestSequence = useRef(0)
   const detailRequestSequence = useRef(0)
@@ -55,39 +61,42 @@ export const DocumentLibrary = (): React.JSX.Element => {
     const requestSequence = detailRequestSequence.current + 1
     detailRequestSequence.current = requestSequence
     setSelectedDocumentId(document.id)
+    setDetailState({ status: 'loading', documentId: document.id })
     const result = await window.deepstorming.documents.get(document.id)
     if (detailRequestSequence.current !== requestSequence) return
 
     if (result.ok) {
-      setSelectedDocument(result.data)
+      setDetailState({ status: 'ready', document: result.data })
       return
     }
 
+    setDetailState({ status: 'error', documentId: document.id })
     setAsyncState({
       status: 'error',
       message: getErrorMessage('文档详情加载失败。', result),
     })
   }, [])
 
-  const createDocument = async (draft: DocumentDraftDto) => {
+  const createDocument = async (draft: DocumentDraftDto): Promise<boolean> => {
     const token = operationSequence.current + 1
     operationSequence.current = token
     setAsyncState({ status: 'loading', message: '正在保存文档…' })
 
     const result = await window.deepstorming.documents.createFromText(draft)
-    if (operationSequence.current !== token) return
+    if (operationSequence.current !== token) return false
 
     if (!result.ok) {
       setAsyncState({
         status: 'error',
         message: getErrorMessage('文档保存失败。', result),
       })
-      return
+      return false
     }
 
     setAsyncState({ status: 'success', message: '文档已创建。' })
     await loadDetail(result.data)
     await loadDocuments()
+    return true
   }
 
   const deleteDocument = async () => {
@@ -109,8 +118,8 @@ export const DocumentLibrary = (): React.JSX.Element => {
     }
 
     if (selectedDocumentId === deleteTarget.id) {
-      setSelectedDocument(undefined)
       setSelectedDocumentId(undefined)
+      setDetailState({ status: 'idle' })
     }
     setDeleteTarget(undefined)
     setAsyncState({ status: 'success', message: '文档已删除。' })
@@ -192,16 +201,22 @@ export const DocumentLibrary = (): React.JSX.Element => {
             <h2>文档详情</h2>
           </div>
 
-          {!selectedDocument && <p className="muted-state">选择一篇文档后可查看正文。</p>}
+          {detailState.status !== 'ready' && (
+            <p className="muted-state">
+              {detailState.status === 'loading'
+                ? '正在加载文档详情…'
+                : '选择一篇文档后可查看正文。'}
+            </p>
+          )}
 
-          {selectedDocument && (
+          {detailState.status === 'ready' && (
             <article>
-              <h2>{selectedDocument.title}</h2>
+              <h2>{detailState.document.title}</h2>
               <p className="field-help">
-                {selectedDocument.sourceKind === 'pasted_text' ? '粘贴文本' : '文本文件'} ·{' '}
-                {selectedDocument.characterCount} 字符
+                {detailState.document.sourceKind === 'pasted_text' ? '粘贴文本' : '文本文件'} ·{' '}
+                {detailState.document.characterCount} 字符
               </p>
-              <pre className="document-body">{selectedDocument.plainText}</pre>
+              <pre className="document-body">{detailState.document.plainText}</pre>
             </article>
           )}
         </section>
