@@ -13,6 +13,7 @@ import type {
   StoredDocument,
   StoredDocumentDetail,
 } from './document-ports'
+import { DuplicateDocumentError } from './document-ports'
 
 export type DocumentUseCaseErrorCode =
   | 'DOCUMENT_VALIDATION_FAILED'
@@ -33,8 +34,6 @@ export class DocumentUseCaseError extends Error {
 }
 
 export type DocumentDetail = LearningDocument & Readonly<{ plainText: string }>
-
-type ErrorWithCode = Readonly<{ code?: unknown; message?: unknown; details?: unknown }>
 
 const toSummary = (document: StoredDocument): LearningDocument => ({
   id: document.id,
@@ -69,11 +68,7 @@ const databaseError = (): DocumentUseCaseError =>
   )
 
 const internalError = (): DocumentUseCaseError =>
-  new DocumentUseCaseError(
-    'INTERNAL_ERROR',
-    'The document operation could not be completed.',
-    true,
-  )
+  new DocumentUseCaseError('INTERNAL_ERROR', 'The document operation could not be completed.', true)
 
 const duplicateError = (): DocumentUseCaseError =>
   new DocumentUseCaseError(
@@ -85,20 +80,7 @@ const duplicateError = (): DocumentUseCaseError =>
 const isDocumentUseCaseError = (error: unknown): error is DocumentUseCaseError =>
   error instanceof DocumentUseCaseError
 
-const isDuplicateStorageError = (error: unknown): boolean => {
-  if (typeof error !== 'object' || error === null) return false
-  const candidate = error as ErrorWithCode
-  if (candidate.code === 'DOCUMENT_DUPLICATE') return true
-  if (candidate.code === 'SQLITE_CONSTRAINT_UNIQUE') return true
-  if (candidate.code === 'SQLITE_CONSTRAINT') {
-    return typeof candidate.message === 'string' && candidate.message.includes('content_hash')
-  }
-  return (
-    typeof candidate.message === 'string' &&
-    candidate.message.includes('UNIQUE constraint failed') &&
-    candidate.message.includes('content_hash')
-  )
-}
+const isDuplicateStorageError = (error: unknown): boolean => error instanceof DuplicateDocumentError
 
 const asDatabaseError = (error: unknown): DocumentUseCaseError => {
   if (isDocumentUseCaseError(error)) return error

@@ -12,6 +12,7 @@ import {
   GetDocument,
   ListDocuments,
 } from './document-use-cases'
+import { DuplicateDocumentError } from './document-ports'
 
 const now = '2026-07-11T00:00:00.000Z'
 const ids = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002']
@@ -166,9 +167,7 @@ describe('document use cases', () => {
   })
 
   it('maps repository duplicate races during create to DOCUMENT_DUPLICATE', async () => {
-    repo.createError = Object.assign(new Error('UNIQUE constraint failed: documents.content_hash'), {
-      code: 'DOCUMENT_DUPLICATE',
-    })
+    repo.createError = new DuplicateDocumentError()
 
     await expect(
       new CreateDocumentFromText(repo, hasher, clock, idGenerator).execute({
@@ -177,6 +176,23 @@ describe('document use cases', () => {
         sourceKind: 'pasted_text',
       }),
     ).rejects.toMatchObject({ code: 'DOCUMENT_DUPLICATE', retryable: false })
+  })
+
+  it('does not treat storage-specific sqlite duplicate details as a stable contract', async () => {
+    repo.createError = Object.assign(
+      new Error('UNIQUE constraint failed: learning_documents.content_hash'),
+      {
+        code: 'SQLITE_CONSTRAINT_UNIQUE',
+      },
+    )
+
+    await expect(
+      new CreateDocumentFromText(repo, hasher, clock, idGenerator).execute({
+        title: 'Notes',
+        plainText: 'body',
+        sourceKind: 'pasted_text',
+      }),
+    ).rejects.toMatchObject({ code: 'DATABASE_UNAVAILABLE', retryable: true })
   })
 
   it('maps repository lookup failures during create to DATABASE_UNAVAILABLE', async () => {

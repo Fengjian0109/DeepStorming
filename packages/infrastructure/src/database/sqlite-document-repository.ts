@@ -3,7 +3,7 @@ import type {
   StoredDocument,
   StoredDocumentDetail,
 } from '@deepstorming/application'
-import { DocumentUseCaseError } from '@deepstorming/application'
+import { DuplicateDocumentError } from '@deepstorming/application'
 import { databaseError, type SqliteDatabase } from './database'
 
 type DocumentRow = {
@@ -78,11 +78,7 @@ export class SqliteDocumentRepository implements DocumentRepositoryPort {
       return fn()
     } catch (error) {
       if (isDuplicateContentHashError(error)) {
-        throw new DocumentUseCaseError(
-          'DOCUMENT_DUPLICATE',
-          'This document text has already been imported.',
-          false,
-        )
+        throw new DuplicateDocumentError()
       }
       throw databaseError('DATABASE_UNAVAILABLE')
     }
@@ -96,7 +92,14 @@ export class SqliteDocumentRepository implements DocumentRepositoryPort {
             `SELECT d.id,d.document_type,d.title,d.source_kind,d.original_file_name,d.content_hash,
                     d.created_at,d.updated_at,v.character_count
              FROM learning_documents d
-             JOIN document_text_versions v ON v.document_id = d.id
+             JOIN document_text_versions v
+               ON v.id = (
+                 SELECT v2.id
+                 FROM document_text_versions v2
+                 WHERE v2.document_id = d.id
+                 ORDER BY v2.created_at DESC, v2.id DESC
+                 LIMIT 1
+               )
              ORDER BY d.created_at,d.id`,
           )
           .all() as DocumentRow[]
@@ -112,7 +115,7 @@ export class SqliteDocumentRepository implements DocumentRepositoryPort {
            FROM learning_documents d
            JOIN document_text_versions v ON v.document_id = d.id
            WHERE d.id=?
-           ORDER BY v.created_at DESC
+           ORDER BY v.created_at DESC, v.id DESC
            LIMIT 1`,
         )
         .get(id) as DocumentRow | undefined
@@ -129,7 +132,7 @@ export class SqliteDocumentRepository implements DocumentRepositoryPort {
            FROM learning_documents d
            JOIN document_text_versions v ON v.document_id = d.id
            WHERE d.content_hash=?
-           ORDER BY v.created_at DESC
+           ORDER BY v.created_at DESC, v.id DESC
            LIMIT 1`,
         )
         .get(hash) as DocumentRow | undefined

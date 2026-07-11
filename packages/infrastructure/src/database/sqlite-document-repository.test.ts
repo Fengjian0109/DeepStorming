@@ -60,6 +60,33 @@ describe('SqliteDocumentRepository', () => {
     ).rejects.toMatchObject({ code: 'DOCUMENT_DUPLICATE' })
   })
 
+  it('lists and fetches the latest text version exactly once per document', async () => {
+    await repo.create(document())
+    db.prepare('INSERT INTO document_text_versions VALUES (?,?,?,?,?)').run(
+      '00000000-0000-4000-8000-000000000099',
+      document().id,
+      'latest body',
+      11,
+      document().createdAt,
+    )
+
+    await expect(repo.list()).resolves.toEqual([
+      expect.objectContaining({
+        id: document().id,
+        characterCount: 11,
+      }),
+    ])
+    await expect(repo.findById(document().id)).resolves.toMatchObject({
+      textVersionId: '00000000-0000-4000-8000-000000000099',
+      plainText: 'latest body',
+      characterCount: 11,
+    })
+    await expect(repo.findByContentHash('hash-a')).resolves.toMatchObject({
+      id: document().id,
+      characterCount: 11,
+    })
+  })
+
   it('deletes text versions through cascade', async () => {
     await repo.create(document())
     await expect(repo.remove(document().id)).resolves.toBe(true)

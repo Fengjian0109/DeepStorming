@@ -15,6 +15,14 @@ export type StoredDocument = Readonly<{
 export type StoredDocumentDetail = StoredDocument &
   Readonly<{ plainText: string; textVersionId: string }>
 
+export class DuplicateDocumentError extends Error {
+  public readonly code = 'DOCUMENT_DUPLICATE' as const
+
+  public constructor(message = 'This document text has already been imported.') {
+    super(message)
+  }
+}
+
 export interface DocumentRepositoryPort {
   list(): Promise<readonly StoredDocument[]>
   findById(id: string): Promise<StoredDocumentDetail | undefined>
