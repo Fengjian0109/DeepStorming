@@ -64,6 +64,63 @@ const session = {
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
 
+const repliedSession = {
+  ...session,
+  messages: [
+    ...session.messages,
+    {
+      id: '00000000-0000-4000-8000-000000000402',
+      lessonId: session.id,
+      modelRunId: null,
+      role: 'learner' as const,
+      content: '它在说明证据如何支撑判断。',
+      sourceAnchorIds: [],
+      promptVersion: 'learner-input-v1',
+      createdAt: '2026-07-11T00:01:00.000Z',
+    },
+    {
+      id: '00000000-0000-4000-8000-000000000403',
+      lessonId: session.id,
+      modelRunId: '00000000-0000-4000-8000-000000000502',
+      role: 'tutor' as const,
+      content:
+        '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来：下一步你会如何验证这个判断？',
+      sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      promptVersion: 'mock-tutor-follow-up-v1',
+      createdAt: '2026-07-11T00:01:00.000Z',
+    },
+  ],
+  modelRuns: [
+    ...session.modelRuns,
+    {
+      id: '00000000-0000-4000-8000-000000000502',
+      lessonId: session.id,
+      providerId: null,
+      modelName: 'mock-local',
+      operation: 'lesson_tutor_follow_up' as const,
+      status: 'succeeded' as const,
+      promptManifest: {
+        key: 'lesson.mockTutor.followUp',
+        version: 1,
+        hash: 'sha256:e9fdc89091ea362a238d87daa6f1fd75a8866698de8a9094e786414f5d3863f8',
+      },
+      inputSummary: {
+        documentId: session.documentId,
+        documentTitle: session.documentTitle,
+        sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+        sourceCharacterRange: { startOffset: 4, endOffset: 12 },
+        snippetCharacterCount: 8,
+        learnerReplyCharacterCount: 13,
+      },
+      sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      outputMessageId: '00000000-0000-4000-8000-000000000403',
+      startedAt: '2026-07-11T00:01:00.000Z',
+      finishedAt: '2026-07-11T00:01:00.000Z',
+    },
+  ],
+  updatedAt: '2026-07-11T00:01:00.000Z',
+}
+
 beforeEach(() => {
   vi.stubGlobal('deepstorming', {
     lessons: {
@@ -72,6 +129,9 @@ beforeEach(() => {
         .mockResolvedValue({ ok: true, data: [session], requestId: crypto.randomUUID() }),
       get: vi.fn().mockResolvedValue({ ok: true, data: session, requestId: crypto.randomUUID() }),
       startFromDocument: vi.fn(),
+      reply: vi
+        .fn()
+        .mockResolvedValue({ ok: true, data: repliedSession, requestId: crypto.randomUUID() }),
     },
   })
 })
@@ -97,5 +157,24 @@ describe('LessonWorkspace', () => {
 
     await user.click(screen.getByRole('button', { name: '打开 Paper Map 课堂' }))
     await waitFor(() => expect(window.deepstorming.lessons.get).toHaveBeenCalledWith(session.id))
+  })
+
+  it('submits a learner reply and renders the deterministic tutor follow-up', async () => {
+    const user = userEvent.setup()
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    await screen.findByText(/你觉得它想解决的核心问题是什么/)
+    await user.type(screen.getByLabelText('你的回答'), '它在说明证据如何支撑判断。')
+    await user.click(screen.getByRole('button', { name: '提交回答' }))
+
+    await waitFor(() =>
+      expect(window.deepstorming.lessons.reply).toHaveBeenCalledWith({
+        lessonId: session.id,
+        content: '它在说明证据如何支撑判断。',
+      }),
+    )
+    expect(await screen.findByText('它在说明证据如何支撑判断。')).toBeTruthy()
+    expect(await screen.findByText(/下一步你会如何验证这个判断/)).toBeTruthy()
+    expect(screen.getByText('lesson.mockTutor.followUp v1')).toBeTruthy()
   })
 })

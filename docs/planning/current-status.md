@@ -1,9 +1,9 @@
 # DeepStorming 当前开发状态
 
-- 更新时间：2026-07-11
+- 更新时间：2026-07-12
 - 当前分支：`main`
-- 当前阶段：Phase 5 Prompt / Model Run 基础
-- 状态：本地 LessonSession、首轮 Mock Tutor 提问与生成记录已完成
+- 当前阶段：Phase 5 本地多轮课堂闭环
+- 状态：本地 LessonSession、Mock Tutor 首问、学习者回复和下一轮追问已完成
 
 ## 已完成
 
@@ -54,16 +54,22 @@
   - Infrastructure：Migration 5 `lesson_model_run_foundation`，新增 `lesson_model_runs`，并在 `lesson_messages` 上新增可空 `model_run_id`。
   - Renderer：课堂详情新增“生成记录”，显示模型名、运行状态和 prompt manifest 版本。
   - E2E：文档导入流程覆盖生成记录在创建后和重启后可见。
+- Phase 5 本地多轮课堂闭环：
+  - Contracts / Main / Preload：新增显式 `lessons:reply` 与 `window.deepstorming.lessons.reply({ lessonId, content })`。
+  - Application：新增 `SubmitLessonReply`，持久化 learner message，并生成 deterministic `lesson_tutor_follow_up` 追问。
+  - Infrastructure：新增 Repository `save(session)`，事务性重写同一课堂的 messages/modelRuns；Migration 6 `lesson_follow_up_operation` 允许 follow-up operation。
+  - Renderer：课堂详情新增“你的回答”表单，提交后展示学习者回答、导师追问和 follow-up Prompt Manifest。
+  - E2E：文档课堂流程覆盖提交回答、下一轮追问、follow-up 生成记录，以及重启后的持久化读取。
 
 ## Phase 5 当前范围与非目标
 
-- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、正文搜索、snippet 与字符 offset、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录。
+- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、正文搜索、snippet 与字符 offset、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复和下一轮 Mock Tutor 追问。
 - 非目标：PDF/OCR、页面块结构化解析、FTS5/BM25、chunking、embeddings、AI Provider 调用、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
 
 ## 当前门禁
 
-1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 408 个测试，以及桌面端构建全部通过。
-2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖正文搜索、从搜索结果启动课堂、首条 Mock Tutor 提问、生成记录、重启后课堂来源片段/导师提问/生成记录仍可读取；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
+1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 414 个测试，以及桌面端构建全部通过。
+2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖正文搜索、从搜索结果启动课堂、首条 Mock Tutor 提问、生成记录、提交学习者回复、下一轮 Mock Tutor 追问，以及重启后课堂来源片段/多轮消息/生成记录仍可读取；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
 5. 原生模块证据：`Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node` 为 Mach-O 64-bit arm64 bundle；使用该目录包的 Electron runtime 从 `app.asar` 加载模块并完成临时 SQLite 的 create/insert/select，输出 `{"value":"ok"}`。
@@ -83,4 +89,4 @@ pnpm package:dir
 
 ## 下一步
 
-进入学习者回复与下一轮 Mock Tutor 状态转换：新增本地 learner message 写入、下一轮 deterministic tutor 回复和可取消/失败的运行状态占位；发布前仍需补签名、图标、公证和真实云 Provider 手动验收清单。
+进入真实 Provider 调用前的取消/失败运行状态 UI：在本地 deterministic 流程上补 `started/failed/cancelled` 可视状态、重试入口和稳定错误映射；发布前仍需补签名、图标、公证和真实云 Provider 手动验收清单。

@@ -21,6 +21,7 @@ import {
   type DocumentDetailResult,
   type DocumentSummaryResult,
   type ListDocumentsResult,
+  type LessonReplyDraftDto,
   type LessonSessionResult,
   type LessonSessionsResult,
   type LessonStartDraftDto,
@@ -134,6 +135,14 @@ const api: DeepStormingBootstrapApi = {
     get: async (id: string): Promise<LessonSessionResult> => {
       const requestId = globalThis.crypto.randomUUID()
       return invokeValidated(LESSON_CHANNELS.get, { requestId, id }, lessonSessionResultSchema)
+    },
+    reply: async (reply: LessonReplyDraftDto): Promise<LessonSessionResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LESSON_CHANNELS.reply,
+        { requestId, lessonId: reply.lessonId, content: reply.content },
+        lessonSessionResultSchema,
+      )
     },
   },
   provider: {

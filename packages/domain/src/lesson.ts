@@ -53,6 +53,7 @@ export type LessonModelRunInputSummary = Readonly<{
     endOffset: number
   }>
   snippetCharacterCount: number
+  learnerReplyCharacterCount?: number
 }>
 
 export type LessonModelRun = Readonly<{
@@ -60,7 +61,7 @@ export type LessonModelRun = Readonly<{
   lessonId: string
   providerId: string | null
   modelName: string
-  operation: 'lesson_tutor_first_question'
+  operation: 'lesson_tutor_first_question' | 'lesson_tutor_follow_up'
   status: LessonModelRunStatus
   promptManifest: LessonPromptManifest
   inputSummary: LessonModelRunInputSummary
@@ -68,6 +69,11 @@ export type LessonModelRun = Readonly<{
   outputMessageId: string | null
   startedAt: string
   finishedAt: string | null
+}>
+
+export type LessonReplyDraft = Readonly<{
+  lessonId: string
+  content: string
 }>
 
 export type LessonStartDraft = Readonly<{

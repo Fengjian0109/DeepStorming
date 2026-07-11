@@ -5,6 +5,7 @@ export const LESSON_CHANNELS = {
   list: 'lessons:list',
   startFromDocument: 'lessons:start-from-document',
   get: 'lessons:get',
+  reply: 'lessons:reply',
 } as const
 
 const requestIdSchema = z.string().uuid()
@@ -66,6 +67,7 @@ export const lessonModelRunInputSummarySchema = z
         message: 'endOffset must be greater than startOffset',
       }),
     snippetCharacterCount: z.number().int().nonnegative(),
+    learnerReplyCharacterCount: z.number().int().nonnegative().optional(),
   })
   .strict()
 
@@ -75,7 +77,7 @@ export const lessonModelRunSchema = z
     lessonId: lessonIdSchema,
     providerId: z.string().uuid().nullable(),
     modelName: requiredTextSchema.max(120),
-    operation: z.literal('lesson_tutor_first_question'),
+    operation: z.enum(['lesson_tutor_first_question', 'lesson_tutor_follow_up']),
     status: lessonModelRunStatusSchema,
     promptManifest: lessonPromptManifestSchema,
     inputSummary: lessonModelRunInputSummarySchema,
@@ -119,6 +121,13 @@ export const lessonStartDraftSchema = z
   })
   .strict()
 
+export const lessonReplyDraftSchema = z
+  .object({
+    lessonId: lessonIdSchema,
+    content: requiredTextSchema.max(1_000),
+  })
+  .strict()
+
 export const lessonBusinessErrorCodeSchema = z.enum([
   'LESSON_VALIDATION_FAILED',
   'LESSON_DOCUMENT_NOT_FOUND',
@@ -143,6 +152,13 @@ export const startLessonFromDocumentRequestSchema = z
   .strict()
 export const getLessonRequestSchema = z
   .object({ requestId: requestIdSchema, id: lessonIdSchema })
+  .strict()
+export const replyToLessonRequestSchema = z
+  .object({
+    requestId: requestIdSchema,
+    lessonId: lessonIdSchema,
+    content: requiredTextSchema.max(1_000),
+  })
   .strict()
 
 const lessonErrorSchema = z
@@ -175,8 +191,10 @@ export type LessonModelRunInputSummaryDto = z.infer<typeof lessonModelRunInputSu
 export type LessonModelRunDto = z.infer<typeof lessonModelRunSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
+export type LessonReplyDraftDto = z.infer<typeof lessonReplyDraftSchema>
 export type ListLessonsRequest = z.infer<typeof listLessonsRequestSchema>
 export type StartLessonFromDocumentRequest = z.infer<typeof startLessonFromDocumentRequestSchema>
 export type GetLessonRequest = z.infer<typeof getLessonRequestSchema>
+export type ReplyToLessonRequest = z.infer<typeof replyToLessonRequestSchema>
 export type LessonSessionsResult = z.infer<typeof lessonSessionsResultSchema>
 export type LessonSessionResult = z.infer<typeof lessonSessionResultSchema>

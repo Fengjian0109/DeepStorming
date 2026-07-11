@@ -147,7 +147,18 @@ test('creates text documents and persists them across restart', async () => {
         page.locator('.lesson-anchor').getByText('Why What How Evidence Limits Next'),
       ).toBeVisible()
       await expect(page.getByText(/你觉得它想解决的核心问题是什么/)).toBeVisible()
-      await expect(page.getByText('mock-local · succeeded')).toBeVisible()
+      await expect(page.getByText('lesson.mockTutor.firstQuestion v1')).toBeVisible()
+      await page.getByLabel('你的回答').fill('它在说明证据如何支撑判断。')
+      await page.getByRole('button', { name: '提交回答' }).click()
+      await expect(page.getByText('回答已提交。')).toBeVisible()
+      await expect(
+        page
+          .locator('.lesson-message')
+          .filter({ hasText: '学习者 · Prompt learner-input-v1' })
+          .getByText('它在说明证据如何支撑判断。'),
+      ).toBeVisible()
+      await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
+      await expect(page.getByText('lesson.mockTutor.followUp v1')).toBeVisible()
       await page.getByRole('button', { name: '文档库' }).click()
 
       await page.getByRole('button', { name: '删除 Socratic Notes' }).click()
@@ -175,7 +186,15 @@ test('creates text documents and persists them across restart', async () => {
         page.locator('.lesson-anchor').getByText('Why What How Evidence Limits Next'),
       ).toBeVisible()
       await expect(page.getByText(/你觉得它想解决的核心问题是什么/)).toBeVisible()
-      await expect(page.getByText('mock-local · succeeded')).toBeVisible()
+      await expect(page.getByText('lesson.mockTutor.firstQuestion v1')).toBeVisible()
+      await expect(
+        page
+          .locator('.lesson-message')
+          .filter({ hasText: '学习者 · Prompt learner-input-v1' })
+          .getByText('它在说明证据如何支撑判断。'),
+      ).toBeVisible()
+      await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
+      await expect(page.getByText('lesson.mockTutor.followUp v1')).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Socratic Notes' })).not.toBeVisible()
     } finally {
       await second.close()

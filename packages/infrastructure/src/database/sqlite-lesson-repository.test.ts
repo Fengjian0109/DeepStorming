@@ -139,4 +139,67 @@ describe('SqliteLessonRepository', () => {
       { title: 'Paper Map 课堂' },
     ])
   })
+
+  it('saves appended learner and tutor messages with follow-up model runs', async () => {
+    await repo.create(session())
+    const updated = session({
+      messages: [
+        ...session().messages,
+        {
+          id: '00000000-0000-4000-8000-000000000403',
+          lessonId: '00000000-0000-4000-8000-000000000101',
+          modelRunId: null,
+          role: 'learner',
+          content: '它在说明证据如何支撑判断。',
+          sourceAnchorIds: [],
+          promptVersion: 'learner-input-v1',
+          createdAt: '2026-07-11T00:01:00.000Z',
+        },
+        {
+          id: '00000000-0000-4000-8000-000000000404',
+          lessonId: '00000000-0000-4000-8000-000000000101',
+          modelRunId: '00000000-0000-4000-8000-000000000503',
+          role: 'tutor',
+          content:
+            '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来：下一步你会如何验证这个判断？',
+          sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+          promptVersion: 'mock-tutor-follow-up-v1',
+          createdAt: '2026-07-11T00:01:00.000Z',
+        },
+      ],
+      modelRuns: [
+        ...session().modelRuns,
+        {
+          id: '00000000-0000-4000-8000-000000000503',
+          lessonId: '00000000-0000-4000-8000-000000000101',
+          providerId: null,
+          modelName: 'mock-local',
+          operation: 'lesson_tutor_follow_up',
+          status: 'succeeded',
+          promptManifest: {
+            key: 'lesson.mockTutor.followUp',
+            version: 1,
+            hash: 'sha256:e9fdc89091ea362a238d87daa6f1fd75a8866698de8a9094e786414f5d3863f8',
+          },
+          inputSummary: {
+            documentId: '00000000-0000-4000-8000-000000000201',
+            documentTitle: 'Paper Map',
+            sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+            sourceCharacterRange: { startOffset: 4, endOffset: 12 },
+            snippetCharacterCount: 8,
+            learnerReplyCharacterCount: 13,
+          },
+          sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+          outputMessageId: '00000000-0000-4000-8000-000000000404',
+          startedAt: '2026-07-11T00:01:00.000Z',
+          finishedAt: '2026-07-11T00:01:00.000Z',
+        },
+      ],
+      updatedAt: '2026-07-11T00:01:00.000Z',
+    })
+
+    await repo.save(updated)
+
+    await expect(repo.findById(session().id)).resolves.toEqual(updated)
+  })
 })

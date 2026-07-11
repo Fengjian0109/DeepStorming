@@ -1,6 +1,7 @@
 import {
   normalizeLessonStartDraft,
   type LessonPromptManifest,
+  type LessonReplyDraft,
   type LessonSession,
   type LessonStartDraft,
 } from '@deepstorming/domain'
@@ -46,12 +47,37 @@ const MOCK_TUTOR_PROMPT_MANIFEST: LessonPromptManifest = {
   hash: 'sha256:035f771a5bb55108ad6e123a24d980c302bea46a6976322fefc7f5e81f6525ff',
 }
 const MOCK_TUTOR_PROMPT_VERSION = 'mock-tutor-v1'
+const MOCK_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE =
+  '你刚才提到：“{{learnerReply}}”。我们把它和证据“{{snippet}}”连起来：下一步你会如何验证这个判断？'
+const MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST: LessonPromptManifest = {
+  key: 'lesson.mockTutor.followUp',
+  version: 1,
+  hash: 'sha256:e9fdc89091ea362a238d87daa6f1fd75a8866698de8a9094e786414f5d3863f8',
+}
+const MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION = 'mock-tutor-follow-up-v1'
+const LEARNER_INPUT_PROMPT_VERSION = 'learner-input-v1'
 
 const createMockTutorFirstQuestion = (documentTitle: string, snippet: string): string =>
   MOCK_TUTOR_PROMPT_TEMPLATE.replace('{{documentTitle}}', documentTitle).replace(
     '{{snippet}}',
     snippet,
   )
+
+const createMockTutorFollowUp = (learnerReply: string, snippet: string): string =>
+  MOCK_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE.replace('{{learnerReply}}', learnerReply).replace(
+    '{{snippet}}',
+    snippet,
+  )
+
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[1-5][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu
+
+const normalizeLessonReplyDraft = (draft: LessonReplyDraft): LessonReplyDraft => {
+  if (!UUID.test(draft.lessonId)) throw new Error('Lesson id is invalid')
+  const content = draft.content.trim()
+  if (content.length === 0) throw new Error('Lesson reply must not be blank')
+  if (content.length > 1_000) throw new Error('Lesson reply is too long')
+  return { lessonId: draft.lessonId, content }
+}
 
 const validationError = (error: unknown): LessonUseCaseError =>
   new LessonUseCaseError(
@@ -210,6 +236,109 @@ export class StartLessonFromDocument {
 
     try {
       return toView(await this.lessons.create(session))
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+  }
+}
+
+export class SubmitLessonReply {
+  public constructor(
+    private readonly lessons: LessonRepositoryPort,
+    private readonly clock: ClockPort,
+    private readonly ids: IdGeneratorPort,
+  ) {}
+
+  public async execute(input: LessonReplyDraft): Promise<LessonSession> {
+    let draft: LessonReplyDraft
+    try {
+      draft = normalizeLessonReplyDraft(input)
+    } catch (error) {
+      throw validationError(error)
+    }
+
+    let session: StoredLessonSession | undefined
+    try {
+      session = await this.lessons.findById(draft.lessonId)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (!session)
+      throw new LessonUseCaseError('LESSON_NOT_FOUND', 'The lesson was not found.', false)
+
+    const anchor = session.sourceAnchors[0]
+    if (anchor === undefined) throw internalError()
+
+    let createdAt: string
+    let learnerMessageId: string
+    let modelRunId: string
+    let tutorMessageId: string
+    try {
+      createdAt = this.clock.now()
+      learnerMessageId = this.ids.generate()
+      modelRunId = this.ids.generate()
+      tutorMessageId = this.ids.generate()
+    } catch (error) {
+      throw asInternalError(error)
+    }
+
+    const updated: StoredLessonSession = {
+      ...session,
+      messages: [
+        ...session.messages,
+        {
+          id: learnerMessageId,
+          lessonId: session.id,
+          modelRunId: null,
+          role: 'learner',
+          content: draft.content,
+          sourceAnchorIds: [],
+          promptVersion: LEARNER_INPUT_PROMPT_VERSION,
+          createdAt,
+        },
+        {
+          id: tutorMessageId,
+          lessonId: session.id,
+          modelRunId,
+          role: 'tutor',
+          content: createMockTutorFollowUp(draft.content, anchor.snippet),
+          sourceAnchorIds: [anchor.id],
+          promptVersion: MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION,
+          createdAt,
+        },
+      ],
+      modelRuns: [
+        ...session.modelRuns,
+        {
+          id: modelRunId,
+          lessonId: session.id,
+          providerId: null,
+          modelName: 'mock-local',
+          operation: 'lesson_tutor_follow_up',
+          status: 'succeeded',
+          promptManifest: MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST,
+          inputSummary: {
+            documentId: session.documentId,
+            documentTitle: session.documentTitle,
+            sourceAnchorIds: [anchor.id],
+            sourceCharacterRange: {
+              startOffset: anchor.startOffset,
+              endOffset: anchor.endOffset,
+            },
+            snippetCharacterCount: anchor.snippet.length,
+            learnerReplyCharacterCount: draft.content.length,
+          },
+          sourceAnchorIds: [anchor.id],
+          outputMessageId: tutorMessageId,
+          startedAt: createdAt,
+          finishedAt: createdAt,
+        },
+      ],
+      updatedAt: createdAt,
+    }
+
+    try {
+      return toView(await this.lessons.save(updated))
     } catch (error) {
       throw asDatabaseError(error)
     }

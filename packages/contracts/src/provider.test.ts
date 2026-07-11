@@ -471,6 +471,30 @@ describe('provider error and API contracts', () => {
           },
           requestId,
         }),
+        reply: async (_reply: { lessonId: string; content: string }) => ({
+          ok: true as const,
+          data: {
+            id: providerId,
+            title: 'Notes 课堂',
+            status: 'active' as const,
+            documentId: providerId,
+            documentTitle: 'Notes',
+            sourceAnchors: [
+              {
+                id: operationId,
+                documentId: providerId,
+                startOffset: 0,
+                endOffset: 6,
+                snippet: 'detail',
+              },
+            ],
+            messages: [],
+            modelRuns: [],
+            createdAt: '2026-07-10T05:00:00.000Z',
+            updatedAt: '2026-07-10T05:10:00.000Z',
+          },
+          requestId,
+        }),
       },
       provider: {
         list: async () => ({ ok: true as const, data: [providerProfile], requestId }),

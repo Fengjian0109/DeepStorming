@@ -287,4 +287,55 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
       })(),
     )
   }
+
+  public async save(session: StoredLessonSession): Promise<StoredLessonSession> {
+    return this.safe(() =>
+      this.db.transaction(() => {
+        this.db
+          .prepare('UPDATE lesson_sessions SET title=?,status=?,updated_at=? WHERE id=?')
+          .run(session.title, session.status, session.updatedAt, session.id)
+        this.db.prepare('DELETE FROM lesson_model_runs WHERE lesson_id=?').run(session.id)
+        this.db.prepare('DELETE FROM lesson_messages WHERE lesson_id=?').run(session.id)
+
+        const insertMessage = this.db.prepare(
+          'INSERT INTO lesson_messages VALUES (?,?,?,?,?,?,?,?,?)',
+        )
+        session.messages.forEach((message, index) => {
+          insertMessage.run(
+            message.id,
+            session.id,
+            message.role,
+            message.content,
+            JSON.stringify(message.sourceAnchorIds),
+            message.promptVersion,
+            index,
+            message.createdAt,
+            message.modelRunId,
+          )
+        })
+
+        const insertModelRun = this.db.prepare(
+          'INSERT INTO lesson_model_runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        )
+        for (const modelRun of session.modelRuns) {
+          insertModelRun.run(
+            modelRun.id,
+            session.id,
+            modelRun.providerId,
+            modelRun.modelName,
+            modelRun.operation,
+            modelRun.status,
+            JSON.stringify(modelRun.promptManifest),
+            JSON.stringify(modelRun.inputSummary),
+            JSON.stringify(modelRun.sourceAnchorIds),
+            modelRun.outputMessageId,
+            modelRun.startedAt,
+            modelRun.finishedAt,
+          )
+        }
+
+        return session
+      })(),
+    )
+  }
 }

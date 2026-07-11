@@ -67,6 +67,7 @@ const dependencies = () => ({
   listLessonSessions: { execute: vi.fn().mockResolvedValue([session]) },
   startLessonFromDocument: { execute: vi.fn().mockResolvedValue(session) },
   getLessonSession: { execute: vi.fn().mockResolvedValue(session) },
+  submitLessonReply: { execute: vi.fn().mockResolvedValue(session) },
 })
 
 describe('lesson IPC handlers', () => {
@@ -101,6 +102,33 @@ describe('lesson IPC handlers', () => {
       documentTitle: 'Paper Map',
       source: { startOffset: 4, endOffset: 12, snippet: 'Evidence' },
     })
+  })
+
+  it('submits a learner reply through one use case', async () => {
+    const deps = dependencies()
+    const result = await createLessonIpcHandlers(deps as unknown as LessonIpcDependencies).reply({
+      requestId,
+      lessonId,
+      content: '它在说明证据如何支撑判断。',
+    })
+
+    expect(result).toEqual({ ok: true, data: session, requestId })
+    expect(deps.submitLessonReply.execute).toHaveBeenCalledWith({
+      lessonId,
+      content: '它在说明证据如何支撑判断。',
+    })
+  })
+
+  it('strictly rejects blank learner replies without calling use cases', async () => {
+    const deps = dependencies()
+    const result = await createLessonIpcHandlers(deps as unknown as LessonIpcDependencies).reply({
+      requestId,
+      lessonId,
+      content: '   ',
+    })
+
+    expect(result.ok).toBe(false)
+    expect(deps.submitLessonReply.execute).not.toHaveBeenCalled()
   })
 
   it('strictly rejects malformed requests without calling use cases', async () => {

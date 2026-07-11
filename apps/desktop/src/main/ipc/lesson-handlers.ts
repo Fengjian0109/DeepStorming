@@ -3,6 +3,7 @@ import type {
   GetLessonSession,
   ListLessonSessions,
   StartLessonFromDocument,
+  SubmitLessonReply,
 } from '@deepstorming/application'
 import { LessonUseCaseError } from '@deepstorming/application'
 import {
@@ -10,9 +11,11 @@ import {
   lessonSessionResultSchema,
   lessonSessionsResultSchema,
   listLessonsRequestSchema,
+  replyToLessonRequestSchema,
   startLessonFromDocumentRequestSchema,
   type LessonSessionResult,
   type LessonSessionsResult,
+  type ReplyToLessonRequest,
   type StartLessonFromDocumentRequest,
 } from '@deepstorming/contracts'
 
@@ -33,12 +36,14 @@ export type LessonIpcHandlers = Readonly<{
   list(input: unknown): Promise<LessonSessionsResult>
   startFromDocument(input: unknown): Promise<LessonSessionResult>
   get(input: unknown): Promise<LessonSessionResult>
+  reply(input: unknown): Promise<LessonSessionResult>
 }>
 
 export type LessonIpcDependencies = Readonly<{
   listLessonSessions: ListLessonSessions
   startLessonFromDocument: StartLessonFromDocument
   getLessonSession: GetLessonSession
+  submitLessonReply: SubmitLessonReply
 }>
 
 const requestIdFrom = (input: unknown): string => {
@@ -143,5 +148,16 @@ export const createLessonIpcHandlers = (
   get: (input) =>
     handle(input, getLessonRequestSchema, lessonSessionResultSchema, (request) =>
       dependencies.getLessonSession.execute(request.id),
+    ),
+  reply: (input) =>
+    handle(
+      input,
+      replyToLessonRequestSchema,
+      lessonSessionResultSchema,
+      (request: ReplyToLessonRequest) =>
+        dependencies.submitLessonReply.execute({
+          lessonId: request.lessonId,
+          content: request.content,
+        }),
     ),
 })

@@ -12,6 +12,12 @@ type LessonDetailState =
   | { status: 'ready'; session: LessonSessionDto }
   | { status: 'error'; message: string }
 
+type ReplyState =
+  | { status: 'idle' }
+  | { status: 'submitting' }
+  | { status: 'success'; message: string }
+  | { status: 'error'; message: string }
+
 export const LessonWorkspace = ({
   selectedLessonId,
 }: {
@@ -19,6 +25,8 @@ export const LessonWorkspace = ({
 }): React.JSX.Element => {
   const [listState, setListState] = useState<LessonListState>({ status: 'loading' })
   const [detailState, setDetailState] = useState<LessonDetailState>({ status: 'idle' })
+  const [replyText, setReplyText] = useState('')
+  const [replyState, setReplyState] = useState<ReplyState>({ status: 'idle' })
   const listRequestSequence = useRef(0)
   const detailRequestSequence = useRef(0)
 
@@ -31,6 +39,7 @@ export const LessonWorkspace = ({
 
     if (result.ok) {
       setDetailState({ status: 'ready', session: result.data })
+      setReplyState({ status: 'idle' })
       return
     }
 
@@ -53,6 +62,44 @@ export const LessonWorkspace = ({
 
     setListState({ status: 'error', message: result.error.message })
   }, [openLesson, selectedLessonId])
+
+  const submitReply = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      if (detailState.status !== 'ready') return
+      const content = replyText.trim()
+      if (content.length === 0) {
+        setReplyState({ status: 'error', message: '请输入回答。' })
+        return
+      }
+
+      setReplyState({ status: 'submitting' })
+      const result = await window.deepstorming.lessons.reply({
+        lessonId: detailState.session.id,
+        content,
+      })
+
+      if (result.ok) {
+        setDetailState({ status: 'ready', session: result.data })
+        setListState((current) =>
+          current.status === 'ready'
+            ? {
+                status: 'ready',
+                sessions: current.sessions.map((session) =>
+                  session.id === result.data.id ? result.data : session,
+                ),
+              }
+            : current,
+        )
+        setReplyText('')
+        setReplyState({ status: 'success', message: '回答已提交。' })
+        return
+      }
+
+      setReplyState({ status: 'error', message: result.error.message })
+    },
+    [detailState, replyText],
+  )
 
   useEffect(() => {
     void loadLessons()
@@ -183,6 +230,34 @@ export const LessonWorkspace = ({
                   <p className="muted-state">这节课还没有生成记录。</p>
                 )}
               </div>
+              <form className="lesson-reply-form" onSubmit={(event) => void submitReply(event)}>
+                <label htmlFor="lesson-reply">你的回答</label>
+                <textarea
+                  id="lesson-reply"
+                  value={replyText}
+                  onChange={(event) => setReplyText(event.target.value)}
+                  rows={4}
+                  maxLength={1000}
+                  disabled={replyState.status === 'submitting'}
+                />
+                <div className="card-actions">
+                  <button
+                    type="submit"
+                    className="primary-button"
+                    disabled={replyState.status === 'submitting'}
+                  >
+                    {replyState.status === 'submitting' ? '提交中…' : '提交回答'}
+                  </button>
+                </div>
+                {replyState.status === 'success' && (
+                  <p className="success-state">{replyState.message}</p>
+                )}
+                {replyState.status === 'error' && (
+                  <p role="alert" className="error-state">
+                    {replyState.message}
+                  </p>
+                )}
+              </form>
             </article>
           )}
         </section>

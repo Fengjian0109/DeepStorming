@@ -17,6 +17,7 @@ import {
   ProviderTestOperations,
   SearchDocuments,
   StartLessonFromDocument,
+  SubmitLessonReply,
   TestProviderConnection,
   UpdateProvider,
 } from '@deepstorming/application'
@@ -108,6 +109,7 @@ export const createCompositionRoot = async (
         ids,
       ),
       getLessonSession: new GetLessonSession(lessonRepository),
+      submitLessonReply: new SubmitLessonReply(lessonRepository, clock, ids),
       listProviders: new ListProviders(repository),
       createProvider: new CreateProvider(repository, vault, clock, ids, cleanupReporter),
       updateProvider: new UpdateProvider(repository, vault, cleanupReporter, clock),

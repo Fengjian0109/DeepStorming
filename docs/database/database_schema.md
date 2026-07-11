@@ -222,22 +222,26 @@ erDiagram
 
 Migration 5 (`lesson_model_run_foundation`) 为本地 Mock Tutor 首轮提问增加生成记录，并为后续真实 Provider 调用预留审计骨架。
 
-| 字段                   | 类型 | 约束                                           | 说明                                 |
-| ---------------------- | ---- | ---------------------------------------------- | ------------------------------------ |
-| id                     | TEXT | PK                                             | Model Run ID                         |
-| lesson_id              | TEXT | FK `lesson_sessions(id)` ON DELETE CASCADE     | 所属课堂会话                         |
-| provider_id            | TEXT | FK `ai_providers(id)` ON DELETE SET NULL, NULL | 真实 Provider ID；本地 Mock 为空     |
-| model_name             | TEXT | NOT NULL                                       | 模型快照；当前为 `mock-local`        |
-| operation              | TEXT | NOT NULL                                       | 当前仅 `lesson_tutor_first_question` |
-| status                 | TEXT | NOT NULL                                       | `started/succeeded/failed/cancelled` |
-| prompt_manifest_json   | TEXT | NOT NULL                                       | Prompt key、version 和 hash          |
-| input_summary_json     | TEXT | NOT NULL                                       | 脱敏输入摘要，不含完整正文           |
-| source_anchor_ids_json | TEXT | NOT NULL                                       | JSON 字符串数组，指向证据锚点        |
-| output_message_id      | TEXT | NULL                                           | 生成的消息 ID                        |
-| started_at             | TEXT | NOT NULL                                       | 运行开始时间                         |
-| finished_at            | TEXT | NULL                                           | 运行结束时间                         |
+| 字段                   | 类型 | 约束                                           | 说明                                                 |
+| ---------------------- | ---- | ---------------------------------------------- | ---------------------------------------------------- |
+| id                     | TEXT | PK                                             | Model Run ID                                         |
+| lesson_id              | TEXT | FK `lesson_sessions(id)` ON DELETE CASCADE     | 所属课堂会话                                         |
+| provider_id            | TEXT | FK `ai_providers(id)` ON DELETE SET NULL, NULL | 真实 Provider ID；本地 Mock 为空                     |
+| model_name             | TEXT | NOT NULL                                       | 模型快照；当前为 `mock-local`                        |
+| operation              | TEXT | NOT NULL                                       | `lesson_tutor_first_question/lesson_tutor_follow_up` |
+| status                 | TEXT | NOT NULL                                       | `started/succeeded/failed/cancelled`                 |
+| prompt_manifest_json   | TEXT | NOT NULL                                       | Prompt key、version 和 hash                          |
+| input_summary_json     | TEXT | NOT NULL                                       | 脱敏输入摘要，不含完整正文                           |
+| source_anchor_ids_json | TEXT | NOT NULL                                       | JSON 字符串数组，指向证据锚点                        |
+| output_message_id      | TEXT | NULL                                           | 生成的消息 ID                                        |
+| started_at             | TEXT | NOT NULL                                       | 运行开始时间                                         |
+| finished_at            | TEXT | NULL                                           | 运行结束时间                                         |
 
-当前 `input_summary_json` 只保存 `documentId`、`documentTitle`、`sourceAnchorIds`、字符范围和 snippet 字符数；不保存完整文档正文、API Key、Authorization header、原始 prompt 或原始响应。
+当前 `input_summary_json` 只保存 `documentId`、`documentTitle`、`sourceAnchorIds`、字符范围、snippet 字符数，以及 follow-up 场景下的 learner reply 字符数；不保存完整文档正文、完整学习者回答以外的派生 prompt、API Key、Authorization header、原始 prompt 或原始响应。
+
+### 5.0.7 `lesson_model_runs` operation 扩展（Migration 6）
+
+Migration 6 (`lesson_follow_up_operation`) 重建 `lesson_model_runs` 表的 `operation` 检查约束，使本地多轮课堂可以记录 `lesson_tutor_follow_up`。该迁移保留已有 run 行，只扩大允许的 operation 枚举，不改变已保存数据。
 
 > 下述 5.1 起的表结构仍保留为更完整文档导入/解析路线的目标蓝图，其中多数尚未实现。
 

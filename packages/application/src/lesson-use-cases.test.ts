@@ -6,6 +6,7 @@ import {
   LessonUseCaseError,
   ListLessonSessions,
   StartLessonFromDocument,
+  SubmitLessonReply,
 } from './lesson-use-cases'
 
 const now = '2026-07-11T00:00:00.000Z'
@@ -13,6 +14,9 @@ const lessonId = '00000000-0000-4000-8000-000000000101'
 const anchorId = '00000000-0000-4000-8000-000000000102'
 const messageId = '00000000-0000-4000-8000-000000000103'
 const modelRunId = '00000000-0000-4000-8000-000000000104'
+const learnerMessageId = '00000000-0000-4000-8000-000000000105'
+const followUpRunId = '00000000-0000-4000-8000-000000000106'
+const followUpMessageId = '00000000-0000-4000-8000-000000000107'
 const documentId = '00000000-0000-4000-8000-000000000001'
 
 const documentRecord: StoredDocumentDetail = {
@@ -71,6 +75,12 @@ class FakeLessonRepository implements LessonRepositoryPort {
   }
 
   async create(session: StoredLessonSession): Promise<StoredLessonSession> {
+    if (this.createError) throw this.createError
+    this.records.set(session.id, session)
+    return session
+  }
+
+  async save(session: StoredLessonSession): Promise<StoredLessonSession> {
     if (this.createError) throw this.createError
     this.records.set(session.id, session)
     return session
@@ -181,6 +191,77 @@ describe('lesson use cases', () => {
 
     await expect(new ListLessonSessions(lessons).execute()).resolves.toEqual([created])
     await expect(new GetLessonSession(lessons).execute(created.id)).resolves.toEqual(created)
+  })
+
+  it('appends a learner reply and deterministic tutor follow-up', async () => {
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(documents, lessons, clock, {
+      generate: () => startIds[startIndex++]!,
+    }).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+
+    const updated = await new SubmitLessonReply(lessons, clock, {
+      generate: () => replyIds[replyIndex++]!,
+    }).execute({
+      lessonId: created.id,
+      content: '它在说明证据如何支撑判断。',
+    })
+
+    expect(updated.messages.slice(1)).toEqual([
+      {
+        id: learnerMessageId,
+        lessonId,
+        modelRunId: null,
+        role: 'learner',
+        content: '它在说明证据如何支撑判断。',
+        sourceAnchorIds: [],
+        promptVersion: 'learner-input-v1',
+        createdAt: now,
+      },
+      {
+        id: followUpMessageId,
+        lessonId,
+        modelRunId: followUpRunId,
+        role: 'tutor',
+        content:
+          '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来：下一步你会如何验证这个判断？',
+        sourceAnchorIds: [anchorId],
+        promptVersion: 'mock-tutor-follow-up-v1',
+        createdAt: now,
+      },
+    ])
+    expect(updated.modelRuns.at(-1)).toEqual({
+      id: followUpRunId,
+      lessonId,
+      providerId: null,
+      modelName: 'mock-local',
+      operation: 'lesson_tutor_follow_up',
+      status: 'succeeded',
+      promptManifest: {
+        key: 'lesson.mockTutor.followUp',
+        version: 1,
+        hash: 'sha256:e9fdc89091ea362a238d87daa6f1fd75a8866698de8a9094e786414f5d3863f8',
+      },
+      inputSummary: {
+        documentId,
+        documentTitle: 'Paper Map',
+        sourceAnchorIds: [anchorId],
+        sourceCharacterRange: { startOffset: 13, endOffset: 21 },
+        snippetCharacterCount: 8,
+        learnerReplyCharacterCount: 13,
+      },
+      sourceAnchorIds: [anchorId],
+      outputMessageId: followUpMessageId,
+      startedAt: now,
+      finishedAt: now,
+    })
+    expect(JSON.stringify(updated)).not.toContain('plainText')
   })
 
   it('maps missing documents to LESSON_DOCUMENT_NOT_FOUND', async () => {

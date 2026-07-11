@@ -5,6 +5,7 @@ import {
   lessonSessionResultSchema,
   lessonSessionSchema,
   lessonSessionsResultSchema,
+  replyToLessonRequestSchema,
   startLessonFromDocumentRequestSchema,
 } from './lesson'
 
@@ -78,6 +79,7 @@ describe('lesson contracts', () => {
       list: 'lessons:list',
       startFromDocument: 'lessons:start-from-document',
       get: 'lessons:get',
+      reply: 'lessons:reply',
     })
   })
 
@@ -104,6 +106,20 @@ describe('lesson contracts', () => {
     ).toBe(false)
     expect(getLessonRequestSchema.safeParse({ requestId, id: lessonId }).success).toBe(true)
     expect(getLessonRequestSchema.safeParse({ requestId, id: 'not-a-uuid' }).success).toBe(false)
+    expect(
+      replyToLessonRequestSchema.safeParse({
+        requestId,
+        lessonId,
+        content: '它在说明证据如何支撑判断。',
+      }).success,
+    ).toBe(true)
+    expect(
+      replyToLessonRequestSchema.safeParse({
+        requestId,
+        lessonId,
+        content: '   ',
+      }).success,
+    ).toBe(false)
   })
 
   it('rejects full document text and SQLite internals on session DTOs', () => {

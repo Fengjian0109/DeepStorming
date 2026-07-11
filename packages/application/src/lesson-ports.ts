@@ -29,4 +29,5 @@ export interface LessonRepositoryPort {
   list(): Promise<readonly StoredLessonSession[]>
   findById(id: string): Promise<StoredLessonSession | undefined>
   create(session: StoredLessonSession): Promise<StoredLessonSession>
+  save(session: StoredLessonSession): Promise<StoredLessonSession>
 }

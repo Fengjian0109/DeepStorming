@@ -56,6 +56,7 @@ test('applies migration two and creates document tables', async () => {
     { version: 3, name: 'lesson_session_foundation' },
     { version: 4, name: 'lesson_message_foundation' },
     { version: 5, name: 'lesson_model_run_foundation' },
+    { version: 6, name: 'lesson_follow_up_operation' },
   ])
 
   db.close()
@@ -81,6 +82,7 @@ test('applies migrations three and four and creates lesson tables', async () => 
     { version: 3, name: 'lesson_session_foundation' },
     { version: 4, name: 'lesson_message_foundation' },
     { version: 5, name: 'lesson_model_run_foundation' },
+    { version: 6, name: 'lesson_follow_up_operation' },
   ])
 
   db.close()
@@ -110,7 +112,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 6, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 7, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })

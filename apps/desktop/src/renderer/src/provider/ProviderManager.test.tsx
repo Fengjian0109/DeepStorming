@@ -118,6 +118,7 @@ const installApi = (overrides: Partial<DeepStormingBootstrapApi['provider']> = {
         .mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
       startFromDocument: vi.fn<DeepStormingBootstrapApi['lessons']['startFromDocument']>(),
       get: vi.fn<DeepStormingBootstrapApi['lessons']['get']>(),
+      reply: vi.fn<DeepStormingBootstrapApi['lessons']['reply']>(),
     },
     provider: {
       list: vi.fn<DeepStormingBootstrapApi['provider']['list']>().mockResolvedValue(okList([])),

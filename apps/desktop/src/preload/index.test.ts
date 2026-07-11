@@ -186,6 +186,7 @@ describe('preload API', () => {
       list: expect.any(Function),
       startFromDocument: expect.any(Function),
       get: expect.any(Function),
+      reply: expect.any(Function),
     })
   })
 
@@ -304,6 +305,18 @@ describe('preload API', () => {
       call: (api: DeepStormingApi) => api.lessons.get(OPERATION_ID),
       channel: LESSON_CHANNELS.get,
       payload: { requestId: REQUEST_ID, id: OPERATION_ID },
+      response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
+    },
+    {
+      name: 'lessons.reply',
+      call: (api: DeepStormingApi) =>
+        api.lessons.reply({ lessonId: OPERATION_ID, content: '它在说明证据如何支撑判断。' }),
+      channel: LESSON_CHANNELS.reply,
+      payload: {
+        requestId: REQUEST_ID,
+        lessonId: OPERATION_ID,
+        content: '它在说明证据如何支撑判断。',
+      },
       response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
     },
   ])('invokes one fixed IPC channel and validates $name responses', async (testCase) => {
