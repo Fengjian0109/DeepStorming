@@ -1,6 +1,10 @@
 import {
   APP_CHANNELS,
+  DOCUMENT_CHANNELS,
   PROVIDER_CHANNELS,
+  type DocumentDetailDto,
+  type DocumentDraftDto,
+  type DocumentSummaryDto,
   type DeepStormingApi,
   type ProviderDraftDto,
   type ProviderProfileDto,
@@ -47,6 +51,27 @@ const providerProfile: ProviderProfileDto = {
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
 
+const documentDraft: DocumentDraftDto = {
+  title: 'Notes',
+  plainText: 'body',
+  sourceKind: 'pasted_text',
+}
+
+const documentSummary: DocumentSummaryDto = {
+  id: PROVIDER_ID,
+  documentType: 'generic',
+  title: 'Notes',
+  sourceKind: 'pasted_text',
+  characterCount: 4,
+  createdAt: '2026-07-11T00:00:00.000Z',
+  updatedAt: '2026-07-11T00:00:00.000Z',
+}
+
+const documentDetail: DocumentDetailDto = {
+  ...documentSummary,
+  plainText: 'body',
+}
+
 const loadApi = async (): Promise<DeepStormingApi> => {
   vi.resetModules()
   vi.stubGlobal('crypto', { randomUUID: vi.fn(() => REQUEST_ID) })
@@ -64,8 +89,14 @@ describe('preload API', () => {
     const api = await loadApi()
 
     expect(mocks.exposeInMainWorld).toHaveBeenCalledWith('deepstorming', expect.any(Object))
-    expect(Object.keys(api)).toEqual(['app', 'provider'])
+    expect(Object.keys(api)).toEqual(['app', 'documents', 'provider'])
     expect(api).not.toHaveProperty('invoke')
+    expect(api.documents).toEqual({
+      list: expect.any(Function),
+      createFromText: expect.any(Function),
+      get: expect.any(Function),
+      remove: expect.any(Function),
+    })
   })
 
   it.each([
@@ -128,6 +159,34 @@ describe('preload API', () => {
       channel: PROVIDER_CHANNELS.cancelTest,
       payload: { requestId: REQUEST_ID, operationId: OPERATION_ID },
       response: { ok: true, data: { cancelled: true }, requestId: REQUEST_ID },
+    },
+    {
+      name: 'documents.list',
+      call: (api: DeepStormingApi) => api.documents.list(),
+      channel: DOCUMENT_CHANNELS.list,
+      payload: { requestId: REQUEST_ID },
+      response: { ok: true, data: [documentSummary], requestId: REQUEST_ID },
+    },
+    {
+      name: 'documents.createFromText',
+      call: (api: DeepStormingApi) => api.documents.createFromText(documentDraft),
+      channel: DOCUMENT_CHANNELS.createFromText,
+      payload: { requestId: REQUEST_ID, document: documentDraft },
+      response: { ok: true, data: documentSummary, requestId: REQUEST_ID },
+    },
+    {
+      name: 'documents.get',
+      call: (api: DeepStormingApi) => api.documents.get(PROVIDER_ID),
+      channel: DOCUMENT_CHANNELS.get,
+      payload: { requestId: REQUEST_ID, id: PROVIDER_ID },
+      response: { ok: true, data: documentDetail, requestId: REQUEST_ID },
+    },
+    {
+      name: 'documents.remove',
+      call: (api: DeepStormingApi) => api.documents.remove(PROVIDER_ID),
+      channel: DOCUMENT_CHANNELS.remove,
+      payload: { requestId: REQUEST_ID, id: PROVIDER_ID },
+      response: { ok: true, data: {}, requestId: REQUEST_ID },
     },
   ])('invokes one fixed IPC channel and validates $name responses', async (testCase) => {
     const api = await loadApi()

@@ -4,10 +4,14 @@ import type {
   AppInfoResult,
   CancelProviderTestResult,
   DeepStormingBootstrapApi,
+  DocumentDetailResult,
+  DocumentSummaryResult,
   ListProvidersResult,
+  ListDocumentsResult,
   ProviderDraftDto,
   ProviderProfileDto,
   ProviderResult,
+  RemoveDocumentResult,
   VoidResult,
 } from '@deepstorming/contracts'
 import { act, cleanup, render, screen, within } from '@testing-library/react'
@@ -50,6 +54,13 @@ const okList = (data: ProviderProfileDto[]): ListProvidersResult => ({
 
 const okProvider = (data: ProviderProfileDto): ProviderResult => ({ ok: true, data, requestId })
 const okVoid = (): VoidResult => ({ ok: true, data: {}, requestId })
+const okDocuments = (): ListDocumentsResult => ({ ok: true, data: [], requestId })
+const okDocumentSummary = (): DocumentSummaryResult =>
+  errorResult<DocumentSummaryResult>('Document API should not be used in provider tests')
+const okDocumentDetail = (): DocumentDetailResult =>
+  errorResult<DocumentDetailResult>('Document API should not be used in provider tests')
+const okRemoveDocument = (): RemoveDocumentResult =>
+  errorResult<RemoveDocumentResult>('Document API should not be used in provider tests')
 const okCancel = (cancelled: boolean): CancelProviderTestResult => ({
   ok: true,
   data: { cancelled },
@@ -59,7 +70,7 @@ const okCancel = (cancelled: boolean): CancelProviderTestResult => ({
 const errorResult = <T,>(message: string): T =>
   ({
     ok: false,
-    error: { code: 'PROVIDER_NETWORK_ERROR', message, retryable: true },
+    error: { code: 'INTERNAL_ERROR', message, retryable: true },
     requestId,
   }) as T
 
@@ -85,6 +96,18 @@ const installApi = (overrides: Partial<DeepStormingBootstrapApi['provider']> = {
         data: { name: 'DeepStorming', version: '0.0.0-test', platform: 'linux' },
         requestId,
       } satisfies AppInfoResult),
+    },
+    documents: {
+      list: vi.fn<DeepStormingBootstrapApi['documents']['list']>().mockResolvedValue(okDocuments()),
+      createFromText: vi
+        .fn<DeepStormingBootstrapApi['documents']['createFromText']>()
+        .mockResolvedValue(okDocumentSummary()),
+      get: vi
+        .fn<DeepStormingBootstrapApi['documents']['get']>()
+        .mockResolvedValue(okDocumentDetail()),
+      remove: vi
+        .fn<DeepStormingBootstrapApi['documents']['remove']>()
+        .mockResolvedValue(okRemoveDocument()),
     },
     provider: {
       list: vi.fn<DeepStormingBootstrapApi['provider']['list']>().mockResolvedValue(okList([])),

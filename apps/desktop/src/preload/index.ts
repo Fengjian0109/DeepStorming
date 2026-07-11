@@ -1,14 +1,23 @@
 import {
   APP_CHANNELS,
+  DOCUMENT_CHANNELS,
   PROVIDER_CHANNELS,
+  documentDetailResultSchema,
+  documentSummaryResultSchema,
+  listDocumentsResultSchema,
+  removeDocumentResultSchema,
   type DeepStormingBootstrapApi,
   appInfoResultSchema,
   cancelProviderTestResultSchema,
   listProvidersResultSchema,
   providerResultSchema,
   voidResultSchema,
-  type AppResult,
   type CancelProviderTestResult,
+  type DocumentDraftDto,
+  type DocumentDetailResult,
+  type DocumentSummaryResult,
+  type ListDocumentsResult,
+  type RemoveDocumentResult,
   type ListProvidersResult,
   type ProviderDraftDto,
   type ProviderResult,
@@ -19,8 +28,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 type ResultSchema<T> = Readonly<{
   safeParse(input: unknown): Readonly<{ success: true; data: T }> | Readonly<{ success: false }>
 }>
+type WithRequestId = Readonly<{ requestId: string }>
 
-const invalidResponse = <Result extends AppResult<unknown>>(requestId: string): Result =>
+const invalidResponse = <Result extends WithRequestId>(requestId: string): Result =>
   ({
     ok: false,
     error: {
@@ -29,9 +39,9 @@ const invalidResponse = <Result extends AppResult<unknown>>(requestId: string): 
       retryable: true,
     },
     requestId,
-  }) as Result
+  }) as unknown as Result
 
-const invokeValidated = async <Result extends AppResult<unknown>>(
+const invokeValidated = async <Result extends WithRequestId>(
   channel: string,
   payload: Record<string, unknown>,
   schema: ResultSchema<Result>,
@@ -48,6 +58,32 @@ const api: DeepStormingBootstrapApi = {
     getInfo: async () => {
       const requestId = globalThis.crypto.randomUUID()
       return invokeValidated(APP_CHANNELS.getInfo, { requestId }, appInfoResultSchema)
+    },
+  },
+  documents: {
+    list: async (): Promise<ListDocumentsResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(DOCUMENT_CHANNELS.list, { requestId }, listDocumentsResultSchema)
+    },
+    createFromText: async (document: DocumentDraftDto): Promise<DocumentSummaryResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        DOCUMENT_CHANNELS.createFromText,
+        { requestId, document },
+        documentSummaryResultSchema,
+      )
+    },
+    get: async (id: string): Promise<DocumentDetailResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(DOCUMENT_CHANNELS.get, { requestId, id }, documentDetailResultSchema)
+    },
+    remove: async (id: string): Promise<RemoveDocumentResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        DOCUMENT_CHANNELS.remove,
+        { requestId, id },
+        removeDocumentResultSchema,
+      )
     },
   },
   provider: {
