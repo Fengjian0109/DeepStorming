@@ -4,6 +4,8 @@ import {
   createDocumentFromTextRequestSchema,
   documentDetailSchema,
   documentErrorCodeSchema,
+  documentBusinessErrorCodeSchema,
+  documentSummaryResultSchema,
   documentSummarySchema,
   listDocumentsRequestSchema,
 } from './document'
@@ -54,18 +56,32 @@ describe('document contracts', () => {
     ).toBe(false)
   })
 
-  it('does not expose full text or SQLite internals in summaries', () => {
-    const parsed = documentSummarySchema.parse({
-      id: requestId,
-      documentType: 'generic',
-      title: 'Notes',
-      sourceKind: 'pasted_text',
-      characterCount: 12,
-      createdAt: '2026-07-11T00:00:00.000Z',
-      updatedAt: '2026-07-11T00:00:00.000Z',
-    })
-    expect(JSON.stringify(parsed)).not.toContain('plainText')
-    expect(JSON.stringify(parsed)).not.toContain('contentHash')
+  it('rejects full text and SQLite internals on summaries', () => {
+    expect(
+      documentSummarySchema.safeParse({
+        id: requestId,
+        documentType: 'generic',
+        title: 'Notes',
+        sourceKind: 'pasted_text',
+        characterCount: 12,
+        plainText: 'detail text',
+        createdAt: '2026-07-11T00:00:00.000Z',
+        updatedAt: '2026-07-11T00:00:00.000Z',
+      }).success,
+    ).toBe(false)
+
+    expect(
+      documentSummarySchema.safeParse({
+        id: requestId,
+        documentType: 'generic',
+        title: 'Notes',
+        sourceKind: 'pasted_text',
+        characterCount: 12,
+        contentHash: 'abc123',
+        createdAt: '2026-07-11T00:00:00.000Z',
+        updatedAt: '2026-07-11T00:00:00.000Z',
+      }).success,
+    ).toBe(false)
   })
 
   it('exposes plain text only on detail DTOs', () => {
@@ -83,14 +99,32 @@ describe('document contracts', () => {
     ).toBe(true)
   })
 
-  it('parses document error codes', () => {
-    expect(documentErrorCodeSchema.options).toEqual([
+  it('parses document business error codes', () => {
+    expect(documentBusinessErrorCodeSchema.options).toEqual([
       'DOCUMENT_VALIDATION_FAILED',
       'DOCUMENT_DUPLICATE',
       'DOCUMENT_NOT_FOUND',
       'DATABASE_UNAVAILABLE',
       'INTERNAL_ERROR',
     ])
+  })
+
+  it('accepts shared and document-specific error codes on document results', () => {
+    expect(documentErrorCodeSchema.safeParse('INVALID_REQUEST').success).toBe(true)
+    expect(documentErrorCodeSchema.safeParse('IPC_RESPONSE_INVALID').success).toBe(true)
+    expect(documentErrorCodeSchema.safeParse('DOCUMENT_NOT_FOUND').success).toBe(true)
+
+    expect(
+      documentSummaryResultSchema.safeParse({
+        ok: false,
+        requestId,
+        error: {
+          code: 'DOCUMENT_NOT_FOUND',
+          message: 'Missing',
+          retryable: false,
+        },
+      }).success,
+    ).toBe(true)
   })
 
   it('validates list requests', () => {

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { createAppResultSchema } from './app-result'
+import { appErrorDetailsSchema, appErrorCodeSchema } from './app-result'
 
 export const DOCUMENT_CHANNELS = {
   list: 'documents:list',
@@ -18,13 +18,15 @@ const timestampSchema = z.iso.datetime()
 
 export const documentTypeSchema = z.enum(['generic', 'textbook', 'paper'])
 export const documentSourceKindSchema = z.enum(['pasted_text', 'text_file'])
-export const documentErrorCodeSchema = z.enum([
+export const documentBusinessErrorCodeSchema = z.enum([
   'DOCUMENT_VALIDATION_FAILED',
   'DOCUMENT_DUPLICATE',
   'DOCUMENT_NOT_FOUND',
   'DATABASE_UNAVAILABLE',
   'INTERNAL_ERROR',
 ])
+
+export const documentErrorCodeSchema = z.union([appErrorCodeSchema, documentBusinessErrorCodeSchema])
 
 export const documentDraftSchema = z
   .object({
@@ -66,11 +68,37 @@ export const removeDocumentRequestSchema = z
   .strict()
 
 const voidDataSchema = z.object({}).strict()
+const documentErrorSchema = z
+  .object({
+    code: documentErrorCodeSchema,
+    message: z.string().min(1),
+    retryable: z.boolean(),
+    details: appErrorDetailsSchema.optional(),
+  })
+  .strict()
 
-export const listDocumentsResultSchema = createAppResultSchema(z.array(documentSummarySchema))
-export const documentDetailResultSchema = createAppResultSchema(documentDetailSchema)
-export const documentSummaryResultSchema = createAppResultSchema(documentSummarySchema)
-export const removeDocumentResultSchema = createAppResultSchema(voidDataSchema)
+const createDocumentResultSchema = <T extends z.ZodType>(dataSchema: T) =>
+  z.discriminatedUnion('ok', [
+    z
+      .object({
+        ok: z.literal(true),
+        data: dataSchema,
+        requestId: z.string().min(1),
+      })
+      .strict(),
+    z
+      .object({
+        ok: z.literal(false),
+        error: documentErrorSchema,
+        requestId: z.string().min(1),
+      })
+      .strict(),
+  ])
+
+export const listDocumentsResultSchema = createDocumentResultSchema(z.array(documentSummarySchema))
+export const documentDetailResultSchema = createDocumentResultSchema(documentDetailSchema)
+export const documentSummaryResultSchema = createDocumentResultSchema(documentSummarySchema)
+export const removeDocumentResultSchema = createDocumentResultSchema(voidDataSchema)
 
 export type DocumentTypeDto = z.infer<typeof documentTypeSchema>
 export type DocumentSourceKindDto = z.infer<typeof documentSourceKindSchema>
