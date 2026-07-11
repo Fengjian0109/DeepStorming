@@ -1,4 +1,5 @@
 import { access, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, test } from 'vitest'
@@ -20,7 +21,9 @@ test('applies migration one once and creates the provider tables', async () => {
   const db = openDatabase(join(dir, 'app.db'))
   await migrateDatabase(db, { databasePath: join(dir, 'app.db'), userDataPath: dir })
   await migrateDatabase(db, { databasePath: join(dir, 'app.db'), userDataPath: dir })
-  expect(db.prepare('SELECT count(*) count FROM schema_migrations').get()).toEqual({ count: 1 })
+  expect(db.prepare('SELECT count(*) count FROM schema_migrations').get()).toEqual({
+    count: MIGRATIONS.length,
+  })
   const rows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{
     name: string
   }>
@@ -34,6 +37,26 @@ test('applies migration one once and creates the provider tables', async () => {
     ]),
   )
   db.close()
+})
+
+test('applies migration two and creates document tables', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'deepstorming-doc-migration-'))
+  const path = join(dir, 'app.db')
+  const db = openDatabase(path)
+  await migrateDatabase(db, { databasePath: path, userDataPath: dir })
+
+  const tables = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    .all() as Array<{ name: string }>
+  expect(tables.map((row) => row.name)).toContain('learning_documents')
+  expect(tables.map((row) => row.name)).toContain('document_text_versions')
+  expect(db.prepare('SELECT version,name FROM schema_migrations ORDER BY version').all()).toEqual([
+    { version: 1, name: 'provider_foundation' },
+    { version: 2, name: 'document_text_import' },
+  ])
+
+  db.close()
+  rmSync(dir, { recursive: true, force: true })
 })
 
 test('rejects an applied migration checksum mismatch safely', async () => {
@@ -59,7 +82,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 2, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 3, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })

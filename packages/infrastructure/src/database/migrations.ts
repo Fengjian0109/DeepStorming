@@ -28,8 +28,29 @@ CREATE TABLE provider_test_operations (
  provider_snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );`
 
+const DOCUMENT_SQL = `
+CREATE TABLE learning_documents (
+ id TEXT PRIMARY KEY,
+ document_type TEXT NOT NULL CHECK (document_type IN ('generic','textbook','paper')),
+ title TEXT NOT NULL,
+ source_kind TEXT NOT NULL CHECK (source_kind IN ('pasted_text','text_file')),
+ original_file_name TEXT,
+ content_hash TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX unique_learning_document_content_hash ON learning_documents(content_hash);
+CREATE TABLE document_text_versions (
+ id TEXT PRIMARY KEY,
+ document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE CASCADE,
+ plain_text TEXT NOT NULL,
+ character_count INTEGER NOT NULL CHECK (character_count >= 0),
+ created_at TEXT NOT NULL
+);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
+  { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')
