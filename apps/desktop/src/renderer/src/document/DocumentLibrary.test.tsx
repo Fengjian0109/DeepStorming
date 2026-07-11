@@ -53,6 +53,7 @@ beforeEach(() => {
         data: { ...document, plainText: 'body' },
         requestId: crypto.randomUUID(),
       }),
+      search: vi.fn().mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
       remove: vi.fn().mockResolvedValue({ ok: true, data: {}, requestId: crypto.randomUUID() }),
     },
     provider: {
@@ -210,5 +211,38 @@ describe('DocumentLibrary', () => {
 
     expect((await screen.findByRole('alert')).textContent).toContain('读取文件失败，请重试。')
     expect(window.deepstorming.documents.createFromText).not.toHaveBeenCalled()
+  })
+
+  it('searches document snippets and opens the selected result', async () => {
+    window.deepstorming.documents.search = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          documentId: document.id,
+          documentType: 'generic',
+          title: 'Notes',
+          sourceKind: 'pasted_text',
+          characterCount: 4,
+          snippet: 'The gamma concept appears here.',
+          startOffset: 4,
+          endOffset: 9,
+          createdAt: document.createdAt,
+          updatedAt: document.updatedAt,
+        },
+      ],
+      requestId: crypto.randomUUID(),
+    })
+
+    const user = userEvent.setup()
+    render(<DocumentLibrary />)
+
+    await user.type(await screen.findByLabelText('搜索文档内容'), 'gamma')
+    await user.click(screen.getByRole('button', { name: '搜索内容' }))
+
+    expect(window.deepstorming.documents.search).toHaveBeenCalledWith('gamma')
+    expect(await screen.findByText('The gamma concept appears here.')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: '打开 Notes' }))
+    await waitFor(() => expect(window.deepstorming.documents.get).toHaveBeenCalledWith(document.id))
   })
 })

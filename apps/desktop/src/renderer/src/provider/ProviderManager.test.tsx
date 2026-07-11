@@ -105,6 +105,9 @@ const installApi = (overrides: Partial<DeepStormingBootstrapApi['provider']> = {
       get: vi
         .fn<DeepStormingBootstrapApi['documents']['get']>()
         .mockResolvedValue(okDocumentDetail()),
+      search: vi
+        .fn<DeepStormingBootstrapApi['documents']['search']>()
+        .mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
       remove: vi
         .fn<DeepStormingBootstrapApi['documents']['remove']>()
         .mockResolvedValue(okRemoveDocument()),

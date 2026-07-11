@@ -327,6 +327,24 @@ describe('provider error and API contracts', () => {
           },
           requestId,
         }),
+        search: async (_query: string) => ({
+          ok: true as const,
+          data: [
+            {
+              documentId: providerId,
+              documentType: 'generic' as const,
+              title: 'Notes',
+              sourceKind: 'pasted_text' as const,
+              characterCount: 12,
+              snippet: 'detail',
+              startOffset: 0,
+              endOffset: 6,
+              createdAt: '2026-07-10T05:00:00.000Z',
+              updatedAt: '2026-07-10T05:10:00.000Z',
+            },
+          ],
+          requestId,
+        }),
         remove: async (_id: string) => ({ ok: true as const, data: {}, requestId }),
       },
       provider: {

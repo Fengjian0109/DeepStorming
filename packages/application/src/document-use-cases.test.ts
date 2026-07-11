@@ -11,6 +11,7 @@ import {
   DocumentUseCaseError,
   GetDocument,
   ListDocuments,
+  SearchDocuments,
 } from './document-use-cases'
 import { DuplicateDocumentError } from './document-ports'
 
@@ -23,6 +24,7 @@ class FakeRepository implements DocumentRepositoryPort {
   public findByIdError?: Error
   public createError?: Error
   public removeError?: Error
+  public searchError?: Error
 
   private toSummary(document: StoredDocumentDetail): StoredDocument {
     return {
@@ -62,6 +64,14 @@ class FakeRepository implements DocumentRepositoryPort {
   async remove(id: string): Promise<boolean> {
     if (this.removeError) throw this.removeError
     return this.records.delete(id)
+  }
+
+  async search(query: string): Promise<readonly StoredDocumentDetail[]> {
+    if (this.searchError) throw this.searchError
+    const normalizedQuery = query.toLocaleLowerCase()
+    return [...this.records.values()].filter((document) =>
+      document.plainText.toLocaleLowerCase().includes(normalizedQuery),
+    )
   }
 }
 
@@ -217,6 +227,45 @@ describe('document use cases', () => {
     repo.removeError = new Error('delete failed')
 
     await expect(new DeleteDocument(repo).execute(ids[0]!)).rejects.toMatchObject({
+      code: 'DATABASE_UNAVAILABLE',
+      retryable: true,
+    })
+  })
+
+  it('searches document text and returns snippets without full plain text', async () => {
+    await new CreateDocumentFromText(repo, hasher, clock, idGenerator).execute({
+      title: 'Socratic Notes',
+      plainText: 'Alpha beta gamma explains retrieval augmented learning.',
+      sourceKind: 'pasted_text',
+    })
+
+    const results = await new SearchDocuments(repo).execute({ query: 'gamma' })
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        documentId: ids[0],
+        title: 'Socratic Notes',
+        snippet: 'Alpha beta gamma explains retrieval augmented learning.',
+        startOffset: 11,
+        endOffset: 16,
+      }),
+    ])
+    expect(JSON.stringify(results)).not.toContain('plainText')
+    expect(JSON.stringify(results)).not.toContain('contentHash')
+    expect(results[0]).not.toHaveProperty('id')
+  })
+
+  it('rejects blank document searches before calling storage', async () => {
+    await expect(new SearchDocuments(repo).execute({ query: '   ' })).rejects.toMatchObject({
+      code: 'DOCUMENT_VALIDATION_FAILED',
+      retryable: false,
+    })
+  })
+
+  it('maps search infrastructure failures to DATABASE_UNAVAILABLE', async () => {
+    repo.searchError = new Error('search failed')
+
+    await expect(new SearchDocuments(repo).execute({ query: 'body' })).rejects.toMatchObject({
       code: 'DATABASE_UNAVAILABLE',
       retryable: true,
     })

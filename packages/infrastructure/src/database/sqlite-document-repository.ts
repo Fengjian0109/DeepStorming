@@ -123,6 +123,30 @@ export class SqliteDocumentRepository implements DocumentRepositoryPort {
     })
   }
 
+  public async search(query: string): Promise<readonly StoredDocumentDetail[]> {
+    return this.safe(() =>
+      (
+        this.db
+          .prepare(
+            `SELECT d.*, v.id text_version_id, v.plain_text, v.character_count
+           FROM learning_documents d
+           JOIN document_text_versions v
+             ON v.id = (
+               SELECT v2.id
+               FROM document_text_versions v2
+               WHERE v2.document_id = d.id
+               ORDER BY v2.created_at DESC, v2.id DESC
+               LIMIT 1
+             )
+           WHERE lower(v.plain_text) LIKE lower(?)
+           ORDER BY d.created_at,d.id
+           LIMIT 50`,
+          )
+          .all(`%${query}%`) as DocumentRow[]
+      ).map(mapDetail),
+    )
+  }
+
   public async create(document: StoredDocumentDetail): Promise<StoredDocumentDetail> {
     return this.safeCreate(() =>
       this.db.transaction(() => {

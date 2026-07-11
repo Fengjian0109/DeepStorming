@@ -5,9 +5,12 @@ import {
   documentDetailSchema,
   documentErrorCodeSchema,
   documentBusinessErrorCodeSchema,
+  documentSearchResultSchema,
   documentSummaryResultSchema,
   documentSummarySchema,
   listDocumentsRequestSchema,
+  searchDocumentsRequestSchema,
+  searchDocumentsResultSchema,
 } from './document'
 
 const requestId = '00000000-0000-4000-8000-000000000001'
@@ -18,6 +21,7 @@ describe('document contracts', () => {
       list: 'documents:list',
       createFromText: 'documents:create-from-text',
       get: 'documents:get',
+      search: 'documents:search',
       remove: 'documents:remove',
     })
   })
@@ -135,5 +139,70 @@ describe('document contracts', () => {
   it('validates list requests', () => {
     expect(listDocumentsRequestSchema.parse({ requestId })).toEqual({ requestId })
     expect(listDocumentsRequestSchema.safeParse({ requestId, extra: true }).success).toBe(false)
+  })
+
+  it('strictly validates search requests', () => {
+    expect(searchDocumentsRequestSchema.parse({ requestId, query: ' retrieval ' })).toEqual({
+      requestId,
+      query: ' retrieval ',
+    })
+    expect(searchDocumentsRequestSchema.safeParse({ requestId, query: '   ' }).success).toBe(false)
+    expect(
+      searchDocumentsRequestSchema.safeParse({ requestId, query: 'x', extra: true }).success,
+    ).toBe(false)
+  })
+
+  it('returns bounded search snippets and source offsets', () => {
+    expect(
+      documentSearchResultSchema.safeParse({
+        documentId: requestId,
+        title: 'Notes',
+        documentType: 'generic',
+        sourceKind: 'pasted_text',
+        characterCount: 42,
+        snippet: 'Evidence around the matched term.',
+        startOffset: 12,
+        endOffset: 19,
+        createdAt: '2026-07-11T00:00:00.000Z',
+        updatedAt: '2026-07-11T00:00:00.000Z',
+      }).success,
+    ).toBe(true)
+
+    expect(
+      documentSearchResultSchema.safeParse({
+        documentId: requestId,
+        title: 'Notes',
+        documentType: 'generic',
+        sourceKind: 'pasted_text',
+        characterCount: 42,
+        snippet: 'Evidence',
+        plainText: 'full text',
+        startOffset: 0,
+        endOffset: 8,
+        createdAt: '2026-07-11T00:00:00.000Z',
+        updatedAt: '2026-07-11T00:00:00.000Z',
+      }).success,
+    ).toBe(false)
+
+    expect(
+      searchDocumentsResultSchema.safeParse({
+        ok: true,
+        data: [
+          {
+            documentId: requestId,
+            title: 'Notes',
+            documentType: 'generic',
+            sourceKind: 'pasted_text',
+            characterCount: 42,
+            snippet: 'Evidence',
+            startOffset: 0,
+            endOffset: 8,
+            createdAt: '2026-07-11T00:00:00.000Z',
+            updatedAt: '2026-07-11T00:00:00.000Z',
+          },
+        ],
+        requestId,
+      }).success,
+    ).toBe(true)
   })
 })

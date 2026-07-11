@@ -254,6 +254,49 @@ h2 {
   margin-bottom: 16px;
 }
 
+.document-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.document-search label {
+  display: grid;
+  gap: 6px;
+  color: #4d6258;
+  font-size: 0.82rem;
+}
+
+.document-search-results {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.search-hit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid rgb(32 52 43 / 10%);
+  border-radius: 12px;
+  background: rgb(255 253 247 / 72%);
+}
+
+.search-hit h3,
+.search-hit p {
+  margin: 0;
+}
+
+.search-hit p {
+  margin-top: 6px;
+  color: #52675d;
+  overflow-wrap: anywhere;
+}
+
 .file-picker {
   display: grid;
   gap: 6px;
@@ -480,6 +523,8 @@ h2 {
 
   .workspace-grid,
   .document-layout,
+  .document-search,
+  .search-hit,
   .capability-list {
     grid-template-columns: 1fr;
   }

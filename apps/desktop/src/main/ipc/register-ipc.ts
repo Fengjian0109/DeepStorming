@@ -28,6 +28,9 @@ export const registerIpc = (
     documentHandlers.createFromText(input),
   )
   ipcMain.handle(DOCUMENT_CHANNELS.get, (_event, input: unknown) => documentHandlers.get(input))
+  ipcMain.handle(DOCUMENT_CHANNELS.search, (_event, input: unknown) =>
+    documentHandlers.search(input),
+  )
   ipcMain.handle(DOCUMENT_CHANNELS.remove, (_event, input: unknown) =>
     documentHandlers.remove(input),
   )

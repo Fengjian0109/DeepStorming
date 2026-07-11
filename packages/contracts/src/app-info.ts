@@ -4,6 +4,7 @@ import { createAppResultSchema } from './app-result'
 import type {
   DocumentDetailResult,
   DocumentDraftDto,
+  SearchDocumentsResult,
   DocumentSummaryResult,
   ListDocumentsResult,
   RemoveDocumentResult,
@@ -48,6 +49,7 @@ export type DeepStormingApi = {
     list: () => Promise<ListDocumentsResult>
     createFromText: (document: DocumentDraftDto) => Promise<DocumentSummaryResult>
     get: (id: string) => Promise<DocumentDetailResult>
+    search: (query: string) => Promise<SearchDocumentsResult>
     remove: (id: string) => Promise<RemoveDocumentResult>
   }
   provider: {

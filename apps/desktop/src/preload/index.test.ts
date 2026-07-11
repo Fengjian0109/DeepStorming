@@ -4,6 +4,7 @@ import {
   PROVIDER_CHANNELS,
   type DocumentDetailDto,
   type DocumentDraftDto,
+  type DocumentSearchResultDto,
   type DocumentSummaryDto,
   type DeepStormingApi,
   type ProviderDraftDto,
@@ -72,6 +73,19 @@ const documentDetail: DocumentDetailDto = {
   plainText: 'body',
 }
 
+const documentSearchResult: DocumentSearchResultDto = {
+  documentId: documentSummary.id,
+  documentType: documentSummary.documentType,
+  title: documentSummary.title,
+  sourceKind: documentSummary.sourceKind,
+  characterCount: documentSummary.characterCount,
+  snippet: 'body',
+  startOffset: 0,
+  endOffset: 4,
+  createdAt: documentSummary.createdAt,
+  updatedAt: documentSummary.updatedAt,
+}
+
 const loadApi = async (): Promise<DeepStormingApi> => {
   vi.resetModules()
   vi.stubGlobal('crypto', { randomUUID: vi.fn(() => REQUEST_ID) })
@@ -95,6 +109,7 @@ describe('preload API', () => {
       list: expect.any(Function),
       createFromText: expect.any(Function),
       get: expect.any(Function),
+      search: expect.any(Function),
       remove: expect.any(Function),
     })
   })
@@ -180,6 +195,13 @@ describe('preload API', () => {
       channel: DOCUMENT_CHANNELS.get,
       payload: { requestId: REQUEST_ID, id: PROVIDER_ID },
       response: { ok: true, data: documentDetail, requestId: REQUEST_ID },
+    },
+    {
+      name: 'documents.search',
+      call: (api: DeepStormingApi) => api.documents.search('body'),
+      channel: DOCUMENT_CHANNELS.search,
+      payload: { requestId: REQUEST_ID, query: 'body' },
+      response: { ok: true, data: [documentSearchResult], requestId: REQUEST_ID },
     },
     {
       name: 'documents.remove',

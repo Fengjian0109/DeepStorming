@@ -138,6 +138,13 @@ test('creates text documents and persists them across restart', async () => {
       await expect(
         page.locator('.document-detail').getByRole('heading', { name: 'paper.md' }),
       ).toBeVisible()
+      await page.getByLabel('搜索文档内容').fill('Evidence')
+      await page.getByRole('button', { name: '搜索内容' }).click()
+      await expect(page.getByText('Why What How Evidence Limits Next')).toBeVisible()
+      await page.getByRole('button', { name: '打开 paper.md' }).click()
+      await expect(
+        page.locator('.document-detail').getByText('Why What How Evidence Limits Next'),
+      ).toBeVisible()
 
       await page.getByRole('button', { name: '删除 Socratic Notes' }).click()
       await expect(page.getByRole('dialog', { name: '确认删除文档' })).toBeVisible()

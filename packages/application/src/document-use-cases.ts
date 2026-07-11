@@ -34,6 +34,16 @@ export class DocumentUseCaseError extends Error {
 }
 
 export type DocumentDetail = LearningDocument & Readonly<{ plainText: string }>
+export type DocumentSearchInput = Readonly<{ query: string }>
+export type DocumentSearchResult = Omit<LearningDocument, 'id'> &
+  Readonly<{
+    documentId: string
+    snippet: string
+    startOffset: number
+    endOffset: number
+  }>
+
+const SEARCH_SNIPPET_CONTEXT = 48
 
 const toSummary = (document: StoredDocument): LearningDocument => ({
   id: document.id,
@@ -77,6 +87,12 @@ const duplicateError = (): DocumentUseCaseError =>
     false,
   )
 
+const normalizeSearchQuery = (query: string): string => {
+  const normalized = query.trim()
+  if (normalized.length === 0) throw new Error('Search query must not be blank')
+  return normalized
+}
+
 const isDocumentUseCaseError = (error: unknown): error is DocumentUseCaseError =>
   error instanceof DocumentUseCaseError
 
@@ -96,6 +112,45 @@ const asCreateError = (error: unknown): DocumentUseCaseError => {
   if (isDocumentUseCaseError(error)) return error
   if (isDuplicateStorageError(error)) return duplicateError()
   return databaseError()
+}
+
+const findMatchRange = (
+  plainText: string,
+  query: string,
+): Readonly<{ startOffset: number; endOffset: number }> => {
+  const index = plainText.toLocaleLowerCase().indexOf(query.toLocaleLowerCase())
+  const startOffset = index < 0 ? 0 : index
+  return {
+    startOffset,
+    endOffset: startOffset + (index < 0 ? 0 : query.length),
+  }
+}
+
+const createSnippet = (plainText: string, startOffset: number, endOffset: number): string => {
+  const snippetStart = Math.max(0, startOffset - SEARCH_SNIPPET_CONTEXT)
+  const snippetEnd = Math.min(plainText.length, endOffset + SEARCH_SNIPPET_CONTEXT)
+  const prefix = snippetStart > 0 ? '…' : ''
+  const suffix = snippetEnd < plainText.length ? '…' : ''
+  return `${prefix}${plainText.slice(snippetStart, snippetEnd).trim()}${suffix}`
+}
+
+const toSearchResult = (document: StoredDocumentDetail, query: string): DocumentSearchResult => {
+  const { startOffset, endOffset } = findMatchRange(document.plainText, query)
+  return {
+    documentId: document.id,
+    documentType: document.documentType,
+    title: document.title,
+    sourceKind: document.sourceKind,
+    ...(document.originalFileName !== undefined
+      ? { originalFileName: document.originalFileName }
+      : {}),
+    characterCount: document.characterCount,
+    createdAt: document.createdAt,
+    updatedAt: document.updatedAt,
+    snippet: createSnippet(document.plainText, startOffset, endOffset),
+    startOffset,
+    endOffset,
+  }
 }
 
 export class ListDocuments {
@@ -123,6 +178,27 @@ export class GetDocument {
     if (!document)
       throw new DocumentUseCaseError('DOCUMENT_NOT_FOUND', 'The document was not found.', false)
     return toDetail(document)
+  }
+}
+
+export class SearchDocuments {
+  public constructor(private readonly repository: DocumentRepositoryPort) {}
+
+  public async execute(input: DocumentSearchInput): Promise<readonly DocumentSearchResult[]> {
+    let query: string
+    try {
+      query = normalizeSearchQuery(input.query)
+    } catch (error) {
+      throw validationError(error)
+    }
+
+    try {
+      return (await this.repository.search(query)).map((document) =>
+        toSearchResult(document, query),
+      )
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
   }
 }
 

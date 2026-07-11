@@ -2,8 +2,8 @@
 
 - 更新时间：2026-07-11
 - 当前分支：`main`
-- 当前阶段：Phase 3 文本文档库
-- 状态：Phase 3 最小文档库切片已完成
+- 当前阶段：Phase 4 文档消费基础
+- 状态：文档库正文搜索与最小来源锚点已完成
 
 ## 已完成
 
@@ -29,16 +29,22 @@
   - Main / Preload：显式文档 IPC、`window.deepstorming.documents` typed API，以及 IPC reject 时的稳定结果回退。
   - Renderer：默认首页切到文档库，支持粘贴文本、新建、`.txt/.md` 导入、详情查看、删除确认、失败保留草稿和稳定错误提示。
   - E2E：新增文档创建/导入/删除/重启持久化覆盖，并修复 `test:e2e` 中 `better-sqlite3` 原生模块增量构建目录损坏导致的重建噪音。
+- Phase 4 文档消费基础最小切片：
+  - Application：新增 `SearchDocuments` 用例，校验空 query 并映射稳定错误。
+  - Infrastructure：SQLite 在最新 `document_text_versions` 上进行大小写不敏感正文匹配。
+  - Contracts / Main / Preload：新增显式 `documents:search` channel 与 `window.deepstorming.documents.search(query)`。
+  - Renderer：文档库支持正文搜索，展示 snippet、字符 offset，点击结果可打开详情。
+  - E2E：文档导入流程覆盖正文搜索和搜索结果打开。
 
-## Phase 3 当前范围与非目标
+## Phase 4 当前范围与非目标
 
-- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、开发版重启持久化验证。
-- 非目标：PDF/OCR、页面块结构化解析、全文搜索、chunking、embeddings、课堂消费链路、论文消费链路、后台导入任务。
+- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、开发版重启持久化验证、正文搜索、snippet 与字符 offset。
+- 非目标：PDF/OCR、页面块结构化解析、FTS5/BM25、chunking、embeddings、课堂状态机、论文工作区、后台导入任务。
 
 ## 当前门禁
 
-1. `pnpm check`：通过；Prettier、全 workspace typecheck、31 个测试文件 / 372 个测试，以及桌面端构建全部通过。
-2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档重启持久化 2 个 E2E 通过，packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过；脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
+1. `pnpm check`：通过；Prettier、全 workspace typecheck、31 个测试文件 / 382 个测试，以及桌面端构建全部通过。
+2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖正文搜索和搜索结果打开；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
 5. 原生模块证据：`Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node` 为 Mach-O 64-bit arm64 bundle；使用该目录包的 Electron runtime 从 `app.asar` 加载模块并完成临时 SQLite 的 create/insert/select，输出 `{"value":"ok"}`。
@@ -58,4 +64,4 @@ pnpm package:dir
 
 ## 下一步
 
-进入 Phase 4/后续串联：让课堂与论文阅读流程消费文档库，并在发布前补签名、图标、公证和真实云 Provider 手动验收清单。
+进入课堂最小会话：从文档详情或搜索结果启动 `LessonSession`，保存首轮上下文与来源引用；发布前仍需补签名、图标、公证和真实云 Provider 手动验收清单。

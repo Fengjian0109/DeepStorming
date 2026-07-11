@@ -13,6 +13,7 @@ import {
   DeleteProvider,
   ListProviders,
   ProviderTestOperations,
+  SearchDocuments,
   TestProviderConnection,
   UpdateProvider,
 } from '@deepstorming/application'
@@ -90,6 +91,7 @@ export const createCompositionRoot = async (
         ids,
       ),
       getDocument: new GetDocument(documentRepository),
+      searchDocuments: new SearchDocuments(documentRepository),
       deleteDocument: new DeleteDocument(documentRepository),
       listProviders: new ListProviders(repository),
       createProvider: new CreateProvider(repository, vault, clock, ids, cleanupReporter),

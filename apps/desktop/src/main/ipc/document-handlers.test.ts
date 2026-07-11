@@ -15,11 +15,24 @@ const summary = {
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
+const searchResult = {
+  documentId,
+  documentType: 'generic' as const,
+  title: 'Notes',
+  sourceKind: 'pasted_text' as const,
+  characterCount: 4,
+  snippet: 'body',
+  startOffset: 0,
+  endOffset: 4,
+  createdAt: '2026-07-11T00:00:00.000Z',
+  updatedAt: '2026-07-11T00:00:00.000Z',
+}
 
 const dependencies = () => ({
   listDocuments: { execute: vi.fn().mockResolvedValue([summary]) },
   createDocumentFromText: { execute: vi.fn().mockResolvedValue(summary) },
   getDocument: { execute: vi.fn().mockResolvedValue({ ...summary, plainText: 'body' }) },
+  searchDocuments: { execute: vi.fn().mockResolvedValue([searchResult]) },
   deleteDocument: { execute: vi.fn().mockResolvedValue(undefined) },
 })
 
@@ -38,6 +51,19 @@ describe('document IPC handlers', () => {
     expect(deps.listDocuments.execute).toHaveBeenCalledTimes(1)
   })
 
+  it('searches documents through one use case', async () => {
+    const deps = dependencies()
+    const result = await createDocumentIpcHandlers(
+      deps as unknown as DocumentIpcDependencies,
+    ).search({
+      requestId,
+      query: 'body',
+    })
+
+    expect(result).toEqual({ ok: true, data: [searchResult], requestId })
+    expect(deps.searchDocuments.execute).toHaveBeenCalledWith({ query: 'body' })
+  })
+
   it('strictly rejects malformed requests without calling use cases', async () => {
     const deps = dependencies()
     const result = await createDocumentIpcHandlers(
@@ -49,6 +75,19 @@ describe('document IPC handlers', () => {
 
     expect(result.ok).toBe(false)
     expect(deps.createDocumentFromText.execute).not.toHaveBeenCalled()
+  })
+
+  it('strictly rejects malformed search requests without calling use cases', async () => {
+    const deps = dependencies()
+    const result = await createDocumentIpcHandlers(
+      deps as unknown as DocumentIpcDependencies,
+    ).search({
+      requestId,
+      query: ' ',
+    })
+
+    expect(result.ok).toBe(false)
+    expect(deps.searchDocuments.execute).not.toHaveBeenCalled()
   })
 
   it('maps DocumentUseCaseError safely', async () => {

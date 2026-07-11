@@ -6,6 +6,7 @@ import {
   documentSummaryResultSchema,
   listDocumentsResultSchema,
   removeDocumentResultSchema,
+  searchDocumentsResultSchema,
   type DeepStormingBootstrapApi,
   appInfoResultSchema,
   cancelProviderTestResultSchema,
@@ -18,6 +19,7 @@ import {
   type DocumentSummaryResult,
   type ListDocumentsResult,
   type RemoveDocumentResult,
+  type SearchDocumentsResult,
   type ListProvidersResult,
   type ProviderDraftDto,
   type ProviderResult,
@@ -92,6 +94,14 @@ const api: DeepStormingBootstrapApi = {
     get: async (id: string): Promise<DocumentDetailResult> => {
       const requestId = globalThis.crypto.randomUUID()
       return invokeValidated(DOCUMENT_CHANNELS.get, { requestId, id }, documentDetailResultSchema)
+    },
+    search: async (query: string): Promise<SearchDocumentsResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        DOCUMENT_CHANNELS.search,
+        { requestId, query },
+        searchDocumentsResultSchema,
+      )
     },
     remove: async (id: string): Promise<RemoveDocumentResult> => {
       const requestId = globalThis.crypto.randomUUID()

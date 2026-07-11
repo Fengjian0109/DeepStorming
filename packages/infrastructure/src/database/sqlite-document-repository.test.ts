@@ -78,6 +78,42 @@ describe('SqliteDocumentRepository', () => {
     })
   })
 
+  it('searches latest document text case-insensitively', async () => {
+    await repo.create(
+      document({
+        title: 'Learning Notes',
+        plainText: 'Alpha beta gamma',
+        characterCount: 16,
+      }),
+    )
+    await repo.create(
+      document({
+        id: '00000000-0000-4000-8000-000000000003',
+        textVersionId: '00000000-0000-4000-8000-000000000004',
+        title: 'Other Notes',
+        contentHash: 'hash-b',
+        plainText: 'Nothing relevant here',
+        characterCount: 21,
+      }),
+    )
+    db.prepare('INSERT INTO document_text_versions VALUES (?,?,?,?,?)').run(
+      '00000000-0000-4000-8000-000000000099',
+      document().id,
+      'Updated GAMMA explanation',
+      25,
+      document().createdAt,
+    )
+
+    await expect(repo.search('gamma')).resolves.toEqual([
+      expect.objectContaining({
+        id: document().id,
+        title: 'Learning Notes',
+        plainText: 'Updated GAMMA explanation',
+        characterCount: 25,
+      }),
+    ])
+  })
+
   it('deletes text versions through cascade', async () => {
     await repo.create(document())
     await expect(repo.remove(document().id)).resolves.toBe(true)

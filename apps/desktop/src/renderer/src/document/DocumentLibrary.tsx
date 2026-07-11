@@ -1,6 +1,7 @@
 import type {
   DocumentDetailDto,
   DocumentDraftDto,
+  DocumentSearchResultDto,
   DocumentSummaryDto,
 } from '@deepstorming/contracts'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -25,6 +26,12 @@ type DetailState =
   | { status: 'ready'; document: DocumentDetailDto }
   | { status: 'error'; documentId: string }
 
+type SearchState =
+  | { status: 'idle' }
+  | { status: 'loading'; query: string }
+  | { status: 'ready'; query: string; results: DocumentSearchResultDto[] }
+  | { status: 'error'; query: string; message: string }
+
 const getErrorMessage = (fallback: string, result?: { ok: false; error: { message: string } }) =>
   result?.error.message ?? fallback
 
@@ -33,9 +40,12 @@ export const DocumentLibrary = (): React.JSX.Element => {
   const [asyncState, setAsyncState] = useState<AsyncState>({ status: 'idle' })
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>()
   const [detailState, setDetailState] = useState<DetailState>({ status: 'idle' })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummaryDto>()
   const listRequestSequence = useRef(0)
   const detailRequestSequence = useRef(0)
+  const searchRequestSequence = useRef(0)
   const operationSequence = useRef(0)
 
   const loadDocuments = useCallback(async () => {
@@ -76,6 +86,44 @@ export const DocumentLibrary = (): React.JSX.Element => {
       message: getErrorMessage('文档详情加载失败。', result),
     })
   }, [])
+
+  const searchDocuments = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const query = searchQuery.trim()
+    if (query.length === 0) {
+      setSearchState({ status: 'error', query, message: '请输入搜索内容。' })
+      return
+    }
+
+    const requestSequence = searchRequestSequence.current + 1
+    searchRequestSequence.current = requestSequence
+    setSearchState({ status: 'loading', query })
+
+    const result = await window.deepstorming.documents.search(query)
+    if (searchRequestSequence.current !== requestSequence) return
+
+    if (result.ok) {
+      setSearchState({ status: 'ready', query, results: result.data })
+      return
+    }
+
+    setSearchState({ status: 'error', query, message: result.error.message })
+  }
+
+  const openSearchResult = (result: DocumentSearchResultDto) => {
+    void loadDetail({
+      id: result.documentId,
+      documentType: result.documentType,
+      title: result.title,
+      sourceKind: result.sourceKind,
+      ...(result.originalFileName === undefined
+        ? {}
+        : { originalFileName: result.originalFileName }),
+      characterCount: result.characterCount,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt,
+    })
+  }
 
   const createDocument = async (draft: DocumentDraftDto): Promise<boolean> => {
     const token = operationSequence.current + 1
@@ -167,6 +215,62 @@ export const DocumentLibrary = (): React.JSX.Element => {
             >
               {asyncState.message}
             </p>
+          )}
+
+          <form
+            className="document-search"
+            aria-label="文档内容搜索表单"
+            onSubmit={searchDocuments}
+          >
+            <label>
+              <span>搜索文档内容</span>
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                disabled={asyncState.status === 'loading'}
+              />
+            </label>
+            <button type="submit" disabled={asyncState.status === 'loading'}>
+              搜索内容
+            </button>
+          </form>
+
+          {searchState.status === 'loading' && (
+            <p className="muted-state">正在搜索“{searchState.query}”…</p>
+          )}
+
+          {searchState.status === 'error' && (
+            <p role="alert" className="error-state">
+              {searchState.message}
+            </p>
+          )}
+
+          {searchState.status === 'ready' && searchState.results.length === 0 && (
+            <p className="muted-state">没有找到“{searchState.query}”。</p>
+          )}
+
+          {searchState.status === 'ready' && searchState.results.length > 0 && (
+            <div className="document-search-results" aria-label="搜索结果">
+              {searchState.results.map((result) => (
+                <article key={`${result.documentId}:${result.startOffset}`} className="search-hit">
+                  <div>
+                    <h3>{result.title}</h3>
+                    <p>{result.snippet}</p>
+                    <p className="field-help">
+                      字符 {result.startOffset}–{result.endOffset}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => openSearchResult(result)}
+                    disabled={asyncState.status === 'loading'}
+                  >
+                    打开 {result.title}
+                  </button>
+                </article>
+              ))}
+            </div>
           )}
 
           {listState.status === 'loading' && <p className="muted-state">正在加载文档…</p>}

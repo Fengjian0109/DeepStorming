@@ -6,6 +6,7 @@ export const DOCUMENT_CHANNELS = {
   list: 'documents:list',
   createFromText: 'documents:create-from-text',
   get: 'documents:get',
+  search: 'documents:search',
   remove: 'documents:remove',
 } as const
 
@@ -63,6 +64,15 @@ export const documentDetailSchema = documentSummarySchema
     plainText: requiredTextSchema,
   })
   .strict()
+export const documentSearchResultSchema = documentSummarySchema
+  .omit({ id: true })
+  .extend({
+    documentId: documentIdSchema,
+    snippet: requiredTextSchema.max(280),
+    startOffset: z.number().int().nonnegative(),
+    endOffset: z.number().int().nonnegative(),
+  })
+  .strict()
 
 export const listDocumentsRequestSchema = z.object({ requestId: requestIdSchema }).strict()
 export const createDocumentFromTextRequestSchema = z
@@ -70,6 +80,9 @@ export const createDocumentFromTextRequestSchema = z
   .strict()
 export const getDocumentRequestSchema = z
   .object({ requestId: requestIdSchema, id: documentIdSchema })
+  .strict()
+export const searchDocumentsRequestSchema = z
+  .object({ requestId: requestIdSchema, query: requiredTextSchema })
   .strict()
 export const removeDocumentRequestSchema = z
   .object({ requestId: requestIdSchema, id: documentIdSchema })
@@ -106,6 +119,9 @@ const createDocumentResultSchema = <T extends z.ZodType>(dataSchema: T) =>
 export const listDocumentsResultSchema = createDocumentResultSchema(z.array(documentSummarySchema))
 export const documentDetailResultSchema = createDocumentResultSchema(documentDetailSchema)
 export const documentSummaryResultSchema = createDocumentResultSchema(documentSummarySchema)
+export const searchDocumentsResultSchema = createDocumentResultSchema(
+  z.array(documentSearchResultSchema),
+)
 export const removeDocumentResultSchema = createDocumentResultSchema(voidDataSchema)
 
 export type DocumentTypeDto = z.infer<typeof documentTypeSchema>
@@ -113,11 +129,14 @@ export type DocumentSourceKindDto = z.infer<typeof documentSourceKindSchema>
 export type DocumentDraftDto = z.infer<typeof documentDraftSchema>
 export type DocumentSummaryDto = z.infer<typeof documentSummarySchema>
 export type DocumentDetailDto = z.infer<typeof documentDetailSchema>
+export type DocumentSearchResultDto = z.infer<typeof documentSearchResultSchema>
 export type ListDocumentsRequest = z.infer<typeof listDocumentsRequestSchema>
 export type CreateDocumentFromTextRequest = z.infer<typeof createDocumentFromTextRequestSchema>
 export type GetDocumentRequest = z.infer<typeof getDocumentRequestSchema>
+export type SearchDocumentsRequest = z.infer<typeof searchDocumentsRequestSchema>
 export type RemoveDocumentRequest = z.infer<typeof removeDocumentRequestSchema>
 export type ListDocumentsResult = z.infer<typeof listDocumentsResultSchema>
 export type DocumentSummaryResult = z.infer<typeof documentSummaryResultSchema>
 export type DocumentDetailResult = z.infer<typeof documentDetailResultSchema>
+export type SearchDocumentsResult = z.infer<typeof searchDocumentsResultSchema>
 export type RemoveDocumentResult = z.infer<typeof removeDocumentResultSchema>

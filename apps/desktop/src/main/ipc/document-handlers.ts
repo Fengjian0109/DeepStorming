@@ -5,6 +5,7 @@ import type {
   DeleteDocument,
   GetDocument,
   ListDocuments,
+  SearchDocuments,
 } from '@deepstorming/application'
 import { DocumentUseCaseError } from '@deepstorming/application'
 import {
@@ -16,11 +17,14 @@ import {
   listDocumentsResultSchema,
   removeDocumentRequestSchema,
   removeDocumentResultSchema,
+  searchDocumentsRequestSchema,
+  searchDocumentsResultSchema,
   type CreateDocumentFromTextRequest,
   type DocumentDetailResult,
   type DocumentSummaryResult,
   type ListDocumentsResult,
   type RemoveDocumentResult,
+  type SearchDocumentsResult,
 } from '@deepstorming/contracts'
 
 type Awaitable<T> = T | Promise<T>
@@ -32,7 +36,11 @@ type ResultSchema<T> = Readonly<{
   safeParse(input: unknown): Readonly<{ success: true; data: T }> | Readonly<{ success: false }>
 }>
 type DocumentIpcResult =
-  ListDocumentsResult | DocumentSummaryResult | DocumentDetailResult | RemoveDocumentResult
+  | ListDocumentsResult
+  | DocumentSummaryResult
+  | DocumentDetailResult
+  | SearchDocumentsResult
+  | RemoveDocumentResult
 type DocumentIpcError = Extract<DocumentIpcResult, { ok: false }>['error']
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[1-5][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u
@@ -41,6 +49,7 @@ export type DocumentIpcHandlers = Readonly<{
   list(input: unknown): Promise<ListDocumentsResult>
   createFromText(input: unknown): Promise<DocumentSummaryResult>
   get(input: unknown): Promise<DocumentDetailResult>
+  search(input: unknown): Promise<SearchDocumentsResult>
   remove(input: unknown): Promise<RemoveDocumentResult>
 }>
 
@@ -48,6 +57,7 @@ export type DocumentIpcDependencies = Readonly<{
   listDocuments: ListDocuments
   createDocumentFromText: CreateDocumentFromText
   getDocument: GetDocument
+  searchDocuments: SearchDocuments
   deleteDocument: DeleteDocument
 }>
 
@@ -162,6 +172,10 @@ export const createDocumentIpcHandlers = (
   get: (input) =>
     handle(input, getDocumentRequestSchema, documentDetailResultSchema, (request) =>
       dependencies.getDocument.execute(request.id),
+    ),
+  search: (input) =>
+    handle(input, searchDocumentsRequestSchema, searchDocumentsResultSchema, (request) =>
+      dependencies.searchDocuments.execute({ query: request.query }),
     ),
   remove: (input) =>
     handle(input, removeDocumentRequestSchema, removeDocumentResultSchema, async (request) => {
