@@ -161,8 +161,23 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
     }
     let failed = false
     let deleted = false
+    const recoveredTmpNames = new Set<string>()
+    for (const entry of entries) {
+      if (!entry.isFile() || !TMP_REF.test(entry.name)) continue
+      const id = entry.name.slice(0, -'.tmp'.length)
+      const finalName = `${id}.secret`
+      if (!entries.some((candidate) => candidate.isFile() && candidate.name === finalName)) continue
+      try {
+        await this.removeCrashWindowTmpLink(entry.name, finalName)
+        recoveredTmpNames.add(entry.name)
+        deleted = true
+      } catch {
+        // An unverified multiple-link file remains subject to the normal failure path below.
+      }
+    }
     for (const entry of entries) {
       if (!entry.isFile()) continue
+      if (recoveredTmpNames.has(entry.name)) continue
       const ownedSecret = SECRET_REF.test(entry.name) && !referencedRefs.has(entry.name)
       if (!ownedSecret && !TMP_REF.test(entry.name)) continue
       try {
@@ -182,6 +197,45 @@ export class EncryptedFileSecretVault implements SecretVaultPort {
       }
     }
     if (failed) throw new SecretVaultError('SECRET_DELETE_FAILED')
+  }
+
+  private async removeCrashWindowTmpLink(tmpName: string, finalName: string): Promise<void> {
+    const tmpPath = join(this.directory, tmpName)
+    const finalPath = join(this.directory, finalName)
+    const tmpMetadata = await this.fs.lstat(tmpPath)
+    const finalMetadata = await this.fs.lstat(finalPath)
+    if (
+      !tmpMetadata.isFile() ||
+      tmpMetadata.isSymbolicLink() ||
+      !finalMetadata.isFile() ||
+      finalMetadata.isSymbolicLink() ||
+      tmpMetadata.nlink !== 2 ||
+      finalMetadata.nlink !== 2 ||
+      tmpMetadata.dev !== finalMetadata.dev ||
+      tmpMetadata.ino !== finalMetadata.ino
+    ) {
+      throw new Error('not a vault publication pair')
+    }
+    let tmpHandle
+    let finalHandle
+    try {
+      tmpHandle = await this.fs.open(tmpPath, constants.O_RDONLY | NOFOLLOW)
+      finalHandle = await this.fs.open(finalPath, constants.O_RDONLY | NOFOLLOW)
+      const [openedTmp, openedFinal] = await Promise.all([tmpHandle.stat(), finalHandle.stat()])
+      if (
+        openedTmp.nlink !== 2 ||
+        openedFinal.nlink !== 2 ||
+        openedTmp.dev !== tmpMetadata.dev ||
+        openedTmp.ino !== tmpMetadata.ino ||
+        openedFinal.dev !== tmpMetadata.dev ||
+        openedFinal.ino !== tmpMetadata.ino
+      ) {
+        throw new Error('vault publication pair identity changed')
+      }
+    } finally {
+      await Promise.all([tmpHandle?.close(), finalHandle?.close()])
+    }
+    await this.fs.rm(tmpPath)
   }
 
   private isExclusiveRegularFile(metadata: {

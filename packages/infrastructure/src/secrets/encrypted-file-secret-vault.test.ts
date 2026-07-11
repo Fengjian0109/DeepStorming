@@ -80,6 +80,25 @@ test('reconciles owned orphan and tmp files while retaining references, unknown 
   expect((await readdir(dir)).sort()).toEqual([kept, 'linked.secret', 'notes.txt'].sort())
 })
 
+test('reconciles crash-window tmp and secret hard-link pairs without weakening referenced secrets', async () => {
+  const orphanTmp = join(dir, `${ID}.tmp`)
+  const orphanRef = `${ID}.secret`
+  await writeFile(orphanTmp, cipher.encrypt('orphan'), { mode: 0o600 })
+  await link(orphanTmp, join(dir, orphanRef))
+
+  const keptTmp = join(dir, `${OTHER}.tmp`)
+  const keptRef = `${OTHER}.secret`
+  await writeFile(keptTmp, cipher.encrypt('kept'), { mode: 0o600 })
+  await link(keptTmp, join(dir, keptRef))
+
+  const vault = new EncryptedFileSecretVault(dir, cipher, { generate: () => ID })
+  await vault.reconcile(new Set([keptRef]))
+
+  expect((await readdir(dir)).sort()).toEqual([keptRef])
+  expect(await vault.get(keptRef)).toBe('kept')
+  expect((await lstat(join(dir, keptRef))).nlink).toBe(1)
+})
+
 test('never overwrites a UUID collision or destination created immediately before publication', async () => {
   const first = new EncryptedFileSecretVault(dir, cipher, { generate: () => ID })
   await first.put('first')
