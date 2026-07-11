@@ -366,6 +366,18 @@ describe('provider error and API contracts', () => {
                 snippet: 'detail',
               },
             ],
+            messages: [
+              {
+                id: requestId,
+                lessonId: providerId,
+                role: 'tutor' as const,
+                content:
+                  '我们先从《Notes》的这段证据开始：detail\n\n你觉得它想解决的核心问题是什么？',
+                sourceAnchorIds: [operationId],
+                promptVersion: 'mock-tutor-v1',
+                createdAt: '2026-07-10T05:00:00.000Z',
+              },
+            ],
             createdAt: '2026-07-10T05:00:00.000Z',
             updatedAt: '2026-07-10T05:10:00.000Z',
           },
@@ -386,6 +398,18 @@ describe('provider error and API contracts', () => {
                 startOffset: 0,
                 endOffset: 6,
                 snippet: 'detail',
+              },
+            ],
+            messages: [
+              {
+                id: requestId,
+                lessonId: providerId,
+                role: 'tutor' as const,
+                content:
+                  '我们先从《Notes》的这段证据开始：detail\n\n你觉得它想解决的核心问题是什么？',
+                sourceAnchorIds: [operationId],
+                promptVersion: 'mock-tutor-v1',
+                createdAt: '2026-07-10T05:00:00.000Z',
               },
             ],
             createdAt: '2026-07-10T05:00:00.000Z',

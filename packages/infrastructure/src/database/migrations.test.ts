@@ -54,13 +54,14 @@ test('applies migration two and creates document tables', async () => {
     { version: 1, name: 'provider_foundation' },
     { version: 2, name: 'document_text_import' },
     { version: 3, name: 'lesson_session_foundation' },
+    { version: 4, name: 'lesson_message_foundation' },
   ])
 
   db.close()
   rmSync(dir, { recursive: true, force: true })
 })
 
-test('applies migration three and creates lesson tables', async () => {
+test('applies migrations three and four and creates lesson tables', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'deepstorming-lesson-migration-'))
   const path = join(dir, 'app.db')
   const db = openDatabase(path)
@@ -71,10 +72,12 @@ test('applies migration three and creates lesson tables', async () => {
     .all() as Array<{ name: string }>
   expect(tables.map((row) => row.name)).toContain('lesson_sessions')
   expect(tables.map((row) => row.name)).toContain('lesson_source_anchors')
+  expect(tables.map((row) => row.name)).toContain('lesson_messages')
   expect(db.prepare('SELECT version,name FROM schema_migrations ORDER BY version').all()).toEqual([
     { version: 1, name: 'provider_foundation' },
     { version: 2, name: 'document_text_import' },
     { version: 3, name: 'lesson_session_foundation' },
+    { version: 4, name: 'lesson_message_foundation' },
   ])
 
   db.close()
@@ -104,7 +107,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 4, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 5, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })

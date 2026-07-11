@@ -31,9 +31,19 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   documentId: session.documentId,
   documentTitle: session.documentTitle,
   sourceAnchors: session.sourceAnchors,
+  messages: session.messages,
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })
+
+const MOCK_TUTOR_PROMPT_VERSION = 'mock-tutor-v1'
+
+const createMockTutorFirstQuestion = (
+  documentTitle: string,
+  snippet: string,
+): string => `我们先从《${documentTitle}》的这段证据开始：${snippet}
+
+你觉得它想解决的核心问题是什么？`
 
 const validationError = (error: unknown): LessonUseCaseError =>
   new LessonUseCaseError(
@@ -122,10 +132,12 @@ export class StartLessonFromDocument {
     let createdAt: string
     let sessionId: string
     let anchorId: string
+    let messageId: string
     try {
       createdAt = this.clock.now()
       sessionId = this.ids.generate()
       anchorId = this.ids.generate()
+      messageId = this.ids.generate()
     } catch (error) {
       throw asInternalError(error)
     }
@@ -143,6 +155,17 @@ export class StartLessonFromDocument {
           startOffset: draft.source.startOffset,
           endOffset: draft.source.endOffset,
           snippet: draft.source.snippet,
+        },
+      ],
+      messages: [
+        {
+          id: messageId,
+          lessonId: sessionId,
+          role: 'tutor',
+          content: createMockTutorFirstQuestion(draft.documentTitle, draft.source.snippet),
+          sourceAnchorIds: [anchorId],
+          promptVersion: MOCK_TUTOR_PROMPT_VERSION,
+          createdAt,
         },
       ],
       createdAt,

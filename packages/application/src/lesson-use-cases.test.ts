@@ -11,6 +11,7 @@ import {
 const now = '2026-07-11T00:00:00.000Z'
 const lessonId = '00000000-0000-4000-8000-000000000101'
 const anchorId = '00000000-0000-4000-8000-000000000102'
+const messageId = '00000000-0000-4000-8000-000000000103'
 const documentId = '00000000-0000-4000-8000-000000000001'
 
 const documentRecord: StoredDocumentDetail = {
@@ -79,7 +80,7 @@ describe('lesson use cases', () => {
   let documents: FakeDocumentRepository
   let lessons: FakeLessonRepository
   let idIndex: number
-  const ids = [lessonId, anchorId]
+  const ids = [lessonId, anchorId, messageId]
   const clock = { now: () => now }
   const idGenerator = { generate: () => ids[idIndex++]! }
 
@@ -118,6 +119,18 @@ describe('lesson use cases', () => {
           startOffset: 13,
           endOffset: 21,
           snippet: 'Evidence',
+        },
+      ],
+      messages: [
+        {
+          id: messageId,
+          lessonId,
+          role: 'tutor',
+          content:
+            '我们先从《Paper Map》的这段证据开始：Evidence\n\n你觉得它想解决的核心问题是什么？',
+          sourceAnchorIds: [anchorId],
+          promptVersion: 'mock-tutor-v1',
+          createdAt: now,
         },
       ],
       createdAt: now,

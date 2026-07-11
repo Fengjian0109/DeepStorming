@@ -444,6 +444,34 @@ h2 {
   font-size: 0.8rem;
 }
 
+.lesson-message-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.lesson-message-list h3 {
+  margin: 0;
+}
+
+.lesson-message {
+  padding: 14px;
+  border: 1px solid rgb(74 139 104 / 24%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 72%);
+}
+
+.lesson-message p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.lesson-message footer {
+  margin-top: 10px;
+  color: #65766d;
+  font-size: 0.8rem;
+}
+
 .provider-card-header {
   display: flex;
   align-items: start;

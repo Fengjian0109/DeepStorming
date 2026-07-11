@@ -12,6 +12,7 @@ const requestId = '00000000-0000-4000-8000-000000000001'
 const lessonId = '00000000-0000-4000-8000-000000000101'
 const documentId = '00000000-0000-4000-8000-000000000201'
 const anchorId = '00000000-0000-4000-8000-000000000301'
+const messageId = '00000000-0000-4000-8000-000000000401'
 
 const session = {
   id: lessonId,
@@ -26,6 +27,17 @@ const session = {
       startOffset: 4,
       endOffset: 12,
       snippet: 'Evidence',
+    },
+  ],
+  messages: [
+    {
+      id: messageId,
+      lessonId,
+      role: 'tutor',
+      content: '我们先从《Paper Map》的这段证据开始：Evidence\n\n你觉得它想解决的核心问题是什么？',
+      sourceAnchorIds: [anchorId],
+      promptVersion: 'mock-tutor-v1',
+      createdAt: '2026-07-11T00:00:00.000Z',
     },
   ],
   createdAt: '2026-07-11T00:00:00.000Z',
@@ -74,6 +86,12 @@ describe('lesson contracts', () => {
     expect(lessonSessionSchema.safeParse({ ...session, contentHash: 'private' }).success).toBe(
       false,
     )
+    expect(
+      lessonSessionSchema.safeParse({
+        ...session,
+        messages: [{ ...session.messages[0], role: 'assistant' }],
+      }).success,
+    ).toBe(false)
   })
 
   it('accepts list and single session result envelopes', () => {

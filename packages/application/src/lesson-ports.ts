@@ -1,6 +1,12 @@
-import type { LessonSession, LessonSourceAnchor, LessonSessionStatus } from '@deepstorming/domain'
+import type {
+  LessonMessage,
+  LessonSession,
+  LessonSourceAnchor,
+  LessonSessionStatus,
+} from '@deepstorming/domain'
 
 export type StoredLessonSourceAnchor = LessonSourceAnchor
+export type StoredLessonMessage = LessonMessage
 
 export type StoredLessonSession = Readonly<{
   id: string
@@ -9,6 +15,7 @@ export type StoredLessonSession = Readonly<{
   documentId: string
   documentTitle: string
   sourceAnchors: readonly StoredLessonSourceAnchor[]
+  messages: readonly StoredLessonMessage[]
   createdAt: string
   updatedAt: string
 }>

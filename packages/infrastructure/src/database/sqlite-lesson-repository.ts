@@ -1,4 +1,5 @@
 import type {
+  StoredLessonMessage,
   LessonRepositoryPort,
   StoredLessonSession,
   StoredLessonSourceAnchor,
@@ -24,6 +25,17 @@ type AnchorRow = {
   snippet: string
 }
 
+type MessageRow = {
+  id: string
+  lesson_id: string
+  role: StoredLessonMessage['role']
+  content: string
+  source_anchor_ids_json: string
+  prompt_version: string
+  message_index: number
+  created_at: string
+}
+
 const mapAnchor = (row: AnchorRow): StoredLessonSourceAnchor => ({
   id: row.id,
   documentId: row.document_id,
@@ -32,9 +44,28 @@ const mapAnchor = (row: AnchorRow): StoredLessonSourceAnchor => ({
   snippet: row.snippet,
 })
 
+const parseSourceAnchorIds = (value: string): readonly string[] => {
+  const parsed = JSON.parse(value) as unknown
+  if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string')) {
+    throw new Error('invalid source anchor ids')
+  }
+  return parsed
+}
+
+const mapMessage = (row: MessageRow): StoredLessonMessage => ({
+  id: row.id,
+  lessonId: row.lesson_id,
+  role: row.role,
+  content: row.content,
+  sourceAnchorIds: parseSourceAnchorIds(row.source_anchor_ids_json),
+  promptVersion: row.prompt_version,
+  createdAt: row.created_at,
+})
+
 const mapSession = (
   row: LessonRow,
   sourceAnchors: readonly StoredLessonSourceAnchor[],
+  messages: readonly StoredLessonMessage[],
 ): StoredLessonSession => ({
   id: row.id,
   title: row.title,
@@ -42,6 +73,7 @@ const mapSession = (
   documentId: row.document_id,
   documentTitle: row.document_title,
   sourceAnchors,
+  messages,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -76,13 +108,36 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
     return anchors
   }
 
+  private messagesFor(lessonIds: readonly string[]): Map<string, StoredLessonMessage[]> {
+    const messages = new Map<string, StoredLessonMessage[]>()
+    if (lessonIds.length === 0) return messages
+    const placeholders = lessonIds.map(() => '?').join(',')
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM lesson_messages
+         WHERE lesson_id IN (${placeholders})
+         ORDER BY lesson_id,message_index,id`,
+      )
+      .all(...lessonIds) as MessageRow[]
+    for (const row of rows) {
+      const existing = messages.get(row.lesson_id) ?? []
+      existing.push(mapMessage(row))
+      messages.set(row.lesson_id, existing)
+    }
+    return messages
+  }
+
   public async list(): Promise<readonly StoredLessonSession[]> {
     return this.safe(() => {
       const rows = this.db
         .prepare('SELECT * FROM lesson_sessions ORDER BY created_at DESC,id DESC')
         .all() as LessonRow[]
-      const anchors = this.anchorsFor(rows.map((row) => row.id))
-      return rows.map((row) => mapSession(row, anchors.get(row.id) ?? []))
+      const lessonIds = rows.map((row) => row.id)
+      const anchors = this.anchorsFor(lessonIds)
+      const messages = this.messagesFor(lessonIds)
+      return rows.map((row) =>
+        mapSession(row, anchors.get(row.id) ?? [], messages.get(row.id) ?? []),
+      )
     })
   }
 
@@ -92,7 +147,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
         LessonRow | undefined
       if (row === undefined) return undefined
       const anchors = this.anchorsFor([id])
-      return mapSession(row, anchors.get(id) ?? [])
+      const messages = this.messagesFor([id])
+      return mapSession(row, anchors.get(id) ?? [], messages.get(id) ?? [])
     })
   }
 
@@ -123,6 +179,21 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             anchor.snippet,
           )
         }
+        const insertMessage = this.db.prepare(
+          'INSERT INTO lesson_messages VALUES (?,?,?,?,?,?,?,?)',
+        )
+        session.messages.forEach((message, index) => {
+          insertMessage.run(
+            message.id,
+            session.id,
+            message.role,
+            message.content,
+            JSON.stringify(message.sourceAnchorIds),
+            message.promptVersion,
+            index,
+            message.createdAt,
+          )
+        })
         return session
       })(),
     )

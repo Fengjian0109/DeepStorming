@@ -1,6 +1,8 @@
 export const LESSON_SESSION_STATUSES = ['active', 'archived'] as const
+export const LESSON_MESSAGE_ROLES = ['system', 'tutor', 'learner'] as const
 
 export type LessonSessionStatus = (typeof LESSON_SESSION_STATUSES)[number]
+export type LessonMessageRole = (typeof LESSON_MESSAGE_ROLES)[number]
 
 export type LessonSourceAnchor = Readonly<{
   id: string
@@ -17,8 +19,19 @@ export type LessonSession = Readonly<{
   documentId: string
   documentTitle: string
   sourceAnchors: readonly LessonSourceAnchor[]
+  messages: readonly LessonMessage[]
   createdAt: string
   updatedAt: string
+}>
+
+export type LessonMessage = Readonly<{
+  id: string
+  lessonId: string
+  role: LessonMessageRole
+  content: string
+  sourceAnchorIds: readonly string[]
+  promptVersion: string
+  createdAt: string
 }>
 
 export type LessonStartDraft = Readonly<{

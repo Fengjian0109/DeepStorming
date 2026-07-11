@@ -148,6 +148,25 @@ export const LessonWorkspace = ({
                   </blockquote>
                 ))}
               </div>
+              <div className="lesson-message-list">
+                <h3>导师提问</h3>
+                {detailState.session.messages.map((message) => (
+                  <article key={message.id} className="lesson-message">
+                    <p>{message.content}</p>
+                    <footer>
+                      {message.role === 'tutor'
+                        ? '导师'
+                        : message.role === 'learner'
+                          ? '学习者'
+                          : '系统'}{' '}
+                      · Prompt {message.promptVersion}
+                    </footer>
+                  </article>
+                ))}
+                {detailState.session.messages.length === 0 && (
+                  <p className="muted-state">这节课还没有消息。</p>
+                )}
+              </div>
             </article>
           )}
         </section>

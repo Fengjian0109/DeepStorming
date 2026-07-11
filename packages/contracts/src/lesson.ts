@@ -16,6 +16,7 @@ const requiredTextSchema = z.string().refine((value) => value.trim().length > 0,
 const timestampSchema = z.iso.datetime()
 
 export const lessonSessionStatusSchema = z.enum(['active', 'archived'])
+export const lessonMessageRoleSchema = z.enum(['system', 'tutor', 'learner'])
 export const lessonSourceAnchorSchema = z
   .object({
     id: z.string().uuid(),
@@ -28,6 +29,18 @@ export const lessonSourceAnchorSchema = z
     message: 'endOffset must be greater than startOffset',
   })
 
+export const lessonMessageSchema = z
+  .object({
+    id: z.string().uuid(),
+    lessonId: lessonIdSchema,
+    role: lessonMessageRoleSchema,
+    content: requiredTextSchema.max(2_000),
+    sourceAnchorIds: z.array(z.string().uuid()),
+    promptVersion: requiredTextSchema.max(80),
+    createdAt: timestampSchema,
+  })
+  .strict()
+
 export const lessonSessionSchema = z
   .object({
     id: lessonIdSchema,
@@ -36,6 +49,7 @@ export const lessonSessionSchema = z
     documentId: documentIdSchema,
     documentTitle: requiredTextSchema,
     sourceAnchors: z.array(lessonSourceAnchorSchema).min(1),
+    messages: z.array(lessonMessageSchema),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -107,6 +121,8 @@ export const lessonSessionResultSchema = createLessonResultSchema(lessonSessionS
 
 export type LessonSessionStatusDto = z.infer<typeof lessonSessionStatusSchema>
 export type LessonSourceAnchorDto = z.infer<typeof lessonSourceAnchorSchema>
+export type LessonMessageRoleDto = z.infer<typeof lessonMessageRoleSchema>
+export type LessonMessageDto = z.infer<typeof lessonMessageSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
 export type ListLessonsRequest = z.infer<typeof listLessonsRequestSchema>

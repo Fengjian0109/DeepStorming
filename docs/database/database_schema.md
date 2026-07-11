@@ -195,6 +195,27 @@ erDiagram
 
 当前最小切片只保存文本 offset 与 snippet；PDF 页码、block、chunk、bounding box 和引用高亮属于后续扩展。
 
+### 5.0.5 `lesson_messages`（Migration 4）
+
+当前仓库在 Migration 4 (`lesson_message_foundation`) 里落地课堂消息基础。该表先服务于本地 Mock Tutor 首轮提问，后续可扩展为真实 Provider 运行记录与多轮课堂消息。
+
+| 字段                   | 类型    | 约束                                       | 说明                                  |
+| ---------------------- | ------- | ------------------------------------------ | ------------------------------------- |
+| id                     | TEXT    | PK                                         | 消息 ID                               |
+| lesson_id              | TEXT    | FK `lesson_sessions(id)` ON DELETE CASCADE | 所属课堂会话                          |
+| role                   | TEXT    | NOT NULL                                   | `system/tutor/learner`                |
+| content                | TEXT    | NOT NULL                                   | 消息正文；当前首问只引用选中 snippet  |
+| source_anchor_ids_json | TEXT    | NOT NULL                                   | JSON 字符串数组，指向本消息引用的锚点 |
+| prompt_version         | TEXT    | NOT NULL                                   | 生成该消息的 Prompt 版本占位          |
+| message_index          | INTEGER | NOT NULL, `CHECK (message_index >= 0)`     | 会话内消息顺序                        |
+| created_at             | TEXT    | NOT NULL                                   | 消息创建时间                          |
+
+索引与约束：
+
+- `role` 通过 `CHECK` 约束限制为 `system/tutor/learner`。
+- `UNIQUE(lesson_id,message_index)` 保证同一课堂内消息顺序不重复。
+- 当前不保存 Provider 请求、token、原始 prompt 或错误详情；这些属于下一阶段 Model Run 记录。
+
 > 下述 5.1 起的表结构仍保留为更完整文档导入/解析路线的目标蓝图，其中多数尚未实现。
 
 ### 5.1 `documents`

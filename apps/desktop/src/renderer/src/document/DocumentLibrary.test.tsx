@@ -42,6 +42,17 @@ const lessonSession = {
       snippet: 'body',
     },
   ],
+  messages: [
+    {
+      id: '00000000-0000-4000-8000-000000000401',
+      lessonId: '00000000-0000-4000-8000-000000000101',
+      role: 'tutor' as const,
+      content: '我们先从《Notes》的这段证据开始：body\n\n你觉得它想解决的核心问题是什么？',
+      sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      promptVersion: 'mock-tutor-v1',
+      createdAt: '2026-07-11T00:00:00.000Z',
+    },
+  ],
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 }

@@ -67,10 +67,24 @@ CREATE TABLE lesson_source_anchors (
  snippet TEXT NOT NULL
 );`
 
+const LESSON_MESSAGE_SQL = `
+CREATE TABLE lesson_messages (
+ id TEXT PRIMARY KEY,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ role TEXT NOT NULL CHECK (role IN ('system','tutor','learner')),
+ content TEXT NOT NULL,
+ source_anchor_ids_json TEXT NOT NULL,
+ prompt_version TEXT NOT NULL,
+ message_index INTEGER NOT NULL CHECK (message_index >= 0),
+ created_at TEXT NOT NULL,
+ UNIQUE(lesson_id,message_index)
+);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
   { version: 3, name: 'lesson_session_foundation', sql: LESSON_SQL },
+  { version: 4, name: 'lesson_message_foundation', sql: LESSON_MESSAGE_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

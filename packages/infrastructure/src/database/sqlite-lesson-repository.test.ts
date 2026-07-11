@@ -26,6 +26,17 @@ const session = (overrides: Partial<StoredLessonSession> = {}): StoredLessonSess
       snippet: 'Evidence',
     },
   ],
+  messages: [
+    {
+      id: '00000000-0000-4000-8000-000000000401',
+      lessonId: '00000000-0000-4000-8000-000000000101',
+      role: 'tutor',
+      content: '我们先从《Paper Map》的这段证据开始：Evidence\n\n你觉得它想解决的核心问题是什么？',
+      sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      promptVersion: 'mock-tutor-v1',
+      createdAt: '2026-07-11T00:00:00.000Z',
+    },
+  ],
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
   ...overrides,
@@ -54,7 +65,7 @@ afterEach(() => {
 })
 
 describe('SqliteLessonRepository', () => {
-  it('creates, lists, and retrieves sessions with source anchors', async () => {
+  it('creates, lists, and retrieves sessions with source anchors and messages', async () => {
     await repo.create(session())
 
     await expect(repo.list()).resolves.toEqual([session()])
@@ -73,6 +84,14 @@ describe('SqliteLessonRepository', () => {
           {
             ...session().sourceAnchors[0]!,
             id: '00000000-0000-4000-8000-000000000302',
+          },
+        ],
+        messages: [
+          {
+            ...session().messages[0]!,
+            id: '00000000-0000-4000-8000-000000000402',
+            lessonId: '00000000-0000-4000-8000-000000000102',
+            sourceAnchorIds: ['00000000-0000-4000-8000-000000000302'],
           },
         ],
       }),
