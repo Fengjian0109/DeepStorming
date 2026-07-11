@@ -45,6 +45,8 @@ const normalizeNonBlank = (value: string, message: string): string => {
   return normalized
 }
 
+const normalizeLineEndings = (value: string): string => value.replace(/\r\n?/gu, '\n')
+
 const normalizeFileName = (value: string | undefined): string | undefined => {
   if (value === undefined) return undefined
   const trimmed = value.trim()
@@ -58,11 +60,15 @@ export const normalizeDocumentDraft = (draft: DocumentDraft): NormalizedDocument
   if (draft.documentType !== undefined && !DOCUMENT_TYPES.includes(draft.documentType))
     throw new Error('Document type is invalid')
   const originalFileName = normalizeFileName(draft.originalFileName)
+  const normalizedPlainText = normalizeNonBlank(
+    normalizeLineEndings(draft.plainText),
+    'Document text must not be blank',
+  )
 
   return {
     documentType: draft.documentType ?? 'generic',
     title: normalizeNonBlank(draft.title, 'Document title must not be blank'),
-    plainText: normalizeNonBlank(draft.plainText, 'Document text must not be blank'),
+    plainText: normalizedPlainText,
     sourceKind: draft.sourceKind,
     ...(originalFileName !== undefined ? { originalFileName } : {}),
   }
@@ -70,4 +76,5 @@ export const normalizeDocumentDraft = (draft: DocumentDraft): NormalizedDocument
 
 export const documentHashInput = (draft: NormalizedDocumentDraft): string => draft.plainText
 
-export const countDocumentCharacters = (plainText: string): number => [...plainText].length
+export const countDocumentCharacters = (plainText: string): number =>
+  [...normalizeLineEndings(plainText)].length

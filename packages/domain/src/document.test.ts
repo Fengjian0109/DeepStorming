@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DOCUMENT_SOURCE_KINDS,
   DOCUMENT_TYPES,
+  countDocumentCharacters,
   documentHashInput,
   normalizeDocumentDraft,
 } from './document'
@@ -65,5 +66,45 @@ describe('document domain', () => {
 
     expect(documentHashInput(first)).toBe('same text')
     expect(documentHashInput(second)).toBe('same text')
+  })
+
+  it('normalizes line endings so equivalent text hashes the same way', () => {
+    const pasted = normalizeDocumentDraft({
+      title: 'Pasted',
+      plainText: 'Line 1\rLine 2\r\nLine 3\n',
+      sourceKind: 'pasted_text',
+    })
+    const file = normalizeDocumentDraft({
+      title: 'File',
+      plainText: 'Line 1\nLine 2\nLine 3',
+      sourceKind: 'text_file',
+      originalFileName: 'notes.txt',
+    })
+
+    expect(pasted.plainText).toBe('Line 1\nLine 2\nLine 3')
+    expect(file.plainText).toBe('Line 1\nLine 2\nLine 3')
+    expect(documentHashInput(pasted)).toBe(documentHashInput(file))
+    expect(countDocumentCharacters(pasted.plainText)).toBe(countDocumentCharacters(file.plainText))
+  })
+
+  it('rejects an invalid source kind at runtime', () => {
+    expect(() =>
+      normalizeDocumentDraft({
+        title: 'Title',
+        plainText: 'content',
+        sourceKind: 'clipboard' as never,
+      }),
+    ).toThrow('Document source kind is invalid')
+  })
+
+  it('rejects an invalid document type at runtime', () => {
+    expect(() =>
+      normalizeDocumentDraft({
+        title: 'Title',
+        plainText: 'content',
+        sourceKind: 'pasted_text',
+        documentType: 'notes' as never,
+      }),
+    ).toThrow('Document type is invalid')
   })
 })
