@@ -208,20 +208,20 @@ export class TestProviderConnection {
     try {
       const stored = await readProvider(this.repository, input.providerId)
       await persistTesting(this.repository, input.operationId, input.providerId, this.clock.now())
-      const apiKey =
-        stored.providerType === 'mock' ? undefined : await readApiKey(this.vault, stored)
-      if (token.cancelled) {
-        await persistTerminal(
-          this.repository,
-          input.operationId,
-          input.providerId,
-          'cancelled',
-          this.clock.now(),
-        )
-        throw cancelledError(input.operationId)
-      }
-      const gateway = this.gatewayFactory.create(toProviderProfile(stored))
       try {
+        const apiKey =
+          stored.providerType === 'mock' ? undefined : await readApiKey(this.vault, stored)
+        if (token.cancelled) {
+          await persistTerminal(
+            this.repository,
+            input.operationId,
+            input.providerId,
+            'cancelled',
+            this.clock.now(),
+          )
+          throw cancelledError(input.operationId)
+        }
+        const gateway = this.gatewayFactory.create(toProviderProfile(stored))
         await gateway.testConnection(
           apiKey === undefined
             ? { modelName: stored.modelName }

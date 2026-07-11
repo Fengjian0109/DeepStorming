@@ -268,6 +268,25 @@ describe('TestProviderConnection', () => {
     ])
   })
 
+  it('persists error when cloud credential lookup fails after testing starts', async () => {
+    const subject = createSubject()
+    subject.vault.get.mockRejectedValueOnce(new Error('safe-storage unavailable'))
+
+    await expect(
+      subject.test.execute({
+        requestId: 'request-1',
+        providerId: 'provider-1',
+        operationId: 'operation-1',
+      }),
+    ).rejects.toMatchObject({ code: 'SECRET_VAULT_UNAVAILABLE' })
+
+    expect(subject.repository.transitions.map((transition) => transition.nextStatus)).toEqual([
+      'testing',
+      'error',
+    ])
+    expect(subject.factory.gateway.calls).toEqual([])
+  })
+
   it('fails duplicate active operation IDs without starting duplicate external work', async () => {
     const subject = createSubject()
     subject.factory.gateway.block = true
