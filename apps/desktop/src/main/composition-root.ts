@@ -9,11 +9,14 @@ import {
   CancelProviderTest,
   CreateProvider,
   GetApplicationInfo,
+  GetLessonSession,
   ListDocuments,
+  ListLessonSessions,
   DeleteProvider,
   ListProviders,
   ProviderTestOperations,
   SearchDocuments,
+  StartLessonFromDocument,
   TestProviderConnection,
   UpdateProvider,
 } from '@deepstorming/application'
@@ -23,6 +26,7 @@ import {
   SecretCleanupReporter,
   Sha256DocumentTextHasher,
   SqliteDocumentRepository,
+  SqliteLessonRepository,
   SqliteProviderRepository,
   migrateDatabase,
   openDatabase,
@@ -32,6 +36,7 @@ import type { App } from 'electron'
 
 import { ElectronAppInfoAdapter } from './app-info-adapter'
 import type { DocumentIpcDependencies } from './ipc/document-handlers'
+import type { LessonIpcDependencies } from './ipc/lesson-handlers'
 import type { ProviderIpcDependencies } from './ipc/provider-handlers'
 import { ElectronSafeStorageCipher } from './secrets/electron-safe-storage-cipher'
 
@@ -47,6 +52,7 @@ type LoggerLike = Readonly<{
 
 export type DesktopCompositionRoot = ProviderIpcDependencies &
   DocumentIpcDependencies &
+  LessonIpcDependencies &
   Readonly<{
     getApplicationInfo: GetApplicationInfo
     databasePath: string
@@ -69,6 +75,7 @@ export const createCompositionRoot = async (
 
     const repository = new SqliteProviderRepository(db)
     const documentRepository = new SqliteDocumentRepository(db)
+    const lessonRepository = new SqliteLessonRepository(db)
     const ids = { generate: randomUUID }
     const clock = { now: () => new Date().toISOString() }
     const vault = new EncryptedFileSecretVault(secretsDir, new ElectronSafeStorageCipher(), ids)
@@ -93,6 +100,14 @@ export const createCompositionRoot = async (
       getDocument: new GetDocument(documentRepository),
       searchDocuments: new SearchDocuments(documentRepository),
       deleteDocument: new DeleteDocument(documentRepository),
+      listLessonSessions: new ListLessonSessions(lessonRepository),
+      startLessonFromDocument: new StartLessonFromDocument(
+        documentRepository,
+        lessonRepository,
+        clock,
+        ids,
+      ),
+      getLessonSession: new GetLessonSession(lessonRepository),
       listProviders: new ListProviders(repository),
       createProvider: new CreateProvider(repository, vault, clock, ids, cleanupReporter),
       updateProvider: new UpdateProvider(repository, vault, cleanupReporter, clock),

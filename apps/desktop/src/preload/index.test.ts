@@ -1,12 +1,15 @@
 import {
   APP_CHANNELS,
   DOCUMENT_CHANNELS,
+  LESSON_CHANNELS,
   PROVIDER_CHANNELS,
   type DocumentDetailDto,
   type DocumentDraftDto,
   type DocumentSearchResultDto,
   type DocumentSummaryDto,
   type DeepStormingApi,
+  type LessonSessionDto,
+  type LessonStartDraftDto,
   type ProviderDraftDto,
   type ProviderProfileDto,
 } from '@deepstorming/contracts'
@@ -86,6 +89,35 @@ const documentSearchResult: DocumentSearchResultDto = {
   updatedAt: documentSummary.updatedAt,
 }
 
+const lessonDraft: LessonStartDraftDto = {
+  documentId: documentSummary.id,
+  documentTitle: documentSummary.title,
+  source: {
+    startOffset: 0,
+    endOffset: 4,
+    snippet: 'body',
+  },
+}
+
+const lessonSession: LessonSessionDto = {
+  id: OPERATION_ID,
+  title: 'Notes 课堂',
+  status: 'active',
+  documentId: documentSummary.id,
+  documentTitle: documentSummary.title,
+  sourceAnchors: [
+    {
+      id: REQUEST_ID,
+      documentId: documentSummary.id,
+      startOffset: 0,
+      endOffset: 4,
+      snippet: 'body',
+    },
+  ],
+  createdAt: '2026-07-11T00:00:00.000Z',
+  updatedAt: '2026-07-11T00:00:00.000Z',
+}
+
 const loadApi = async (): Promise<DeepStormingApi> => {
   vi.resetModules()
   vi.stubGlobal('crypto', { randomUUID: vi.fn(() => REQUEST_ID) })
@@ -103,7 +135,7 @@ describe('preload API', () => {
     const api = await loadApi()
 
     expect(mocks.exposeInMainWorld).toHaveBeenCalledWith('deepstorming', expect.any(Object))
-    expect(Object.keys(api)).toEqual(['app', 'documents', 'provider'])
+    expect(Object.keys(api)).toEqual(['app', 'documents', 'lessons', 'provider'])
     expect(api).not.toHaveProperty('invoke')
     expect(api.documents).toEqual({
       list: expect.any(Function),
@@ -111,6 +143,11 @@ describe('preload API', () => {
       get: expect.any(Function),
       search: expect.any(Function),
       remove: expect.any(Function),
+    })
+    expect(api.lessons).toEqual({
+      list: expect.any(Function),
+      startFromDocument: expect.any(Function),
+      get: expect.any(Function),
     })
   })
 
@@ -209,6 +246,27 @@ describe('preload API', () => {
       channel: DOCUMENT_CHANNELS.remove,
       payload: { requestId: REQUEST_ID, id: PROVIDER_ID },
       response: { ok: true, data: {}, requestId: REQUEST_ID },
+    },
+    {
+      name: 'lessons.list',
+      call: (api: DeepStormingApi) => api.lessons.list(),
+      channel: LESSON_CHANNELS.list,
+      payload: { requestId: REQUEST_ID },
+      response: { ok: true, data: [lessonSession], requestId: REQUEST_ID },
+    },
+    {
+      name: 'lessons.startFromDocument',
+      call: (api: DeepStormingApi) => api.lessons.startFromDocument(lessonDraft),
+      channel: LESSON_CHANNELS.startFromDocument,
+      payload: { requestId: REQUEST_ID, lesson: lessonDraft },
+      response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
+    },
+    {
+      name: 'lessons.get',
+      call: (api: DeepStormingApi) => api.lessons.get(OPERATION_ID),
+      channel: LESSON_CHANNELS.get,
+      payload: { requestId: REQUEST_ID, id: OPERATION_ID },
+      response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
     },
   ])('invokes one fixed IPC channel and validates $name responses', async (testCase) => {
     const api = await loadApi()

@@ -2,8 +2,8 @@
 
 - 更新时间：2026-07-11
 - 当前分支：`main`
-- 当前阶段：Phase 4 文档消费基础
-- 状态：文档库正文搜索与最小来源锚点已完成
+- 当前阶段：Phase 5 课堂最小会话
+- 状态：本地 LessonSession 骨架已完成
 
 ## 已完成
 
@@ -35,16 +35,23 @@
   - Contracts / Main / Preload：新增显式 `documents:search` channel 与 `window.deepstorming.documents.search(query)`。
   - Renderer：文档库支持正文搜索，展示 snippet、字符 offset，点击结果可打开详情。
   - E2E：文档导入流程覆盖正文搜索和搜索结果打开。
+- Phase 5 课堂最小会话骨架：
+  - Domain：新增 `LessonSession`、`LessonSourceAnchor`、`LessonStartDraft` 与规范化规则。
+  - Application：新增 `StartLessonFromDocument`、`GetLessonSession`、`ListLessonSessions`，启动课堂前验证来源文档仍存在。
+  - Infrastructure：Migration 3 `lesson_session_foundation`，落地 `lesson_sessions` 与 `lesson_source_anchors`。
+  - Contracts / Main / Preload：新增显式 `lessons:list`、`lessons:start-from-document`、`lessons:get` 与 `window.deepstorming.lessons`。
+  - Renderer：启用课堂导航，文档详情和搜索结果可启动本地课堂，课堂页展示会话和来源片段。
+  - E2E：文档导入流程覆盖从搜索结果启动课堂、重启后课堂会话与来源片段仍可读取。
 
-## Phase 4 当前范围与非目标
+## Phase 5 当前范围与非目标
 
-- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、开发版重启持久化验证、正文搜索、snippet 与字符 offset。
-- 非目标：PDF/OCR、页面块结构化解析、FTS5/BM25、chunking、embeddings、课堂状态机、论文工作区、后台导入任务。
+- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、正文搜索、snippet 与字符 offset、本地课堂会话创建/列表/详情/重启持久化。
+- 非目标：PDF/OCR、页面块结构化解析、FTS5/BM25、chunking、embeddings、AI Provider 调用、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
 
 ## 当前门禁
 
-1. `pnpm check`：通过；Prettier、全 workspace typecheck、31 个测试文件 / 382 个测试，以及桌面端构建全部通过。
-2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖正文搜索和搜索结果打开；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
+1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 406 个测试，以及桌面端构建全部通过。
+2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖正文搜索、从搜索结果启动课堂、重启后课堂来源片段仍可读取；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
 5. 原生模块证据：`Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node` 为 Mach-O 64-bit arm64 bundle；使用该目录包的 Electron runtime 从 `app.asar` 加载模块并完成临时 SQLite 的 create/insert/select，输出 `{"value":"ok"}`。
@@ -64,4 +71,4 @@ pnpm package:dir
 
 ## 下一步
 
-进入课堂最小会话：从文档详情或搜索结果启动 `LessonSession`，保存首轮上下文与来源引用；发布前仍需补签名、图标、公证和真实云 Provider 手动验收清单。
+进入课堂消息与 Mock Tutor 首轮提问：在 `LessonSession` 上新增本地消息记录、Prompt 版本占位和确定性 Mock 导师提问；发布前仍需补签名、图标、公证和真实云 Provider 手动验收清单。

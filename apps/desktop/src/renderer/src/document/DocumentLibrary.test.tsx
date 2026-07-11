@@ -27,6 +27,25 @@ const documentTwo = {
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
 
+const lessonSession = {
+  id: '00000000-0000-4000-8000-000000000101',
+  title: 'Notes 课堂',
+  status: 'active' as const,
+  documentId: document.id,
+  documentTitle: document.title,
+  sourceAnchors: [
+    {
+      id: '00000000-0000-4000-8000-000000000301',
+      documentId: document.id,
+      startOffset: 0,
+      endOffset: 4,
+      snippet: 'body',
+    },
+  ],
+  createdAt: '2026-07-11T00:00:00.000Z',
+  updatedAt: '2026-07-11T00:00:00.000Z',
+}
+
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -55,6 +74,13 @@ beforeEach(() => {
       }),
       search: vi.fn().mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
       remove: vi.fn().mockResolvedValue({ ok: true, data: {}, requestId: crypto.randomUUID() }),
+    },
+    lessons: {
+      list: vi.fn().mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
+      startFromDocument: vi
+        .fn()
+        .mockResolvedValue({ ok: true, data: lessonSession, requestId: crypto.randomUUID() }),
+      get: vi.fn(),
     },
     provider: {
       list: vi.fn(),
@@ -244,5 +270,30 @@ describe('DocumentLibrary', () => {
 
     await user.click(screen.getByRole('button', { name: '打开 Notes' }))
     await waitFor(() => expect(window.deepstorming.documents.get).toHaveBeenCalledWith(document.id))
+  })
+
+  it('starts a lesson from the selected document detail', async () => {
+    const onLessonStarted = vi.fn()
+    const user = userEvent.setup()
+    render(<DocumentLibrary onLessonStarted={onLessonStarted} />)
+
+    await user.click(await screen.findByRole('button', { name: '粘贴文本' }))
+    await user.type(screen.getByLabelText('标题'), 'Notes')
+    await user.type(screen.getByLabelText('正文'), 'body')
+    await user.click(screen.getByRole('button', { name: '保存文档' }))
+
+    await user.click(await screen.findByRole('button', { name: '开始课堂' }))
+
+    expect(window.deepstorming.lessons.startFromDocument).toHaveBeenCalledWith({
+      documentId: document.id,
+      documentTitle: 'Notes',
+      source: {
+        startOffset: 0,
+        endOffset: 4,
+        snippet: 'body',
+      },
+    })
+    expect(await screen.findByText('课堂已创建。')).toBeTruthy()
+    expect(onLessonStarted).toHaveBeenCalledWith(lessonSession.id)
   })
 })

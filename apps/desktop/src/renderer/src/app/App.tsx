@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { DocumentLibrary } from '../document/DocumentLibrary'
+import { LessonWorkspace } from '../lesson/LessonWorkspace'
 import { ProviderManager } from '../provider/ProviderManager'
 
 type RuntimeState =
@@ -10,7 +11,8 @@ type RuntimeState =
 
 export const App = (): React.JSX.Element => {
   const [runtime, setRuntime] = useState<RuntimeState>({ status: 'loading' })
-  const [page, setPage] = useState<'documents' | 'providers'>('documents')
+  const [page, setPage] = useState<'documents' | 'lessons' | 'providers'>('documents')
+  const [selectedLessonId, setSelectedLessonId] = useState<string>()
 
   useEffect(() => {
     let active = true
@@ -59,7 +61,14 @@ export const App = (): React.JSX.Element => {
           >
             Provider
           </button>
-          <span className="nav-item nav-item-disabled">课堂 · Phase 5</span>
+          <button
+            type="button"
+            className={`nav-item ${page === 'lessons' ? 'nav-item-active' : ''}`}
+            aria-current={page === 'lessons' ? 'page' : undefined}
+            onClick={() => setPage('lessons')}
+          >
+            课堂
+          </button>
           <span className="nav-item nav-item-disabled">复习 · Phase 6</span>
           <span className="nav-item nav-item-disabled">论文 · Phase 7</span>
         </nav>
@@ -75,7 +84,16 @@ export const App = (): React.JSX.Element => {
       </aside>
 
       <main className="main-content" id={page}>
-        {page === 'documents' ? <DocumentLibrary /> : <ProviderManager />}
+        {page === 'documents' && (
+          <DocumentLibrary
+            onLessonStarted={(lessonId) => {
+              setSelectedLessonId(lessonId)
+              setPage('lessons')
+            }}
+          />
+        )}
+        {page === 'lessons' && <LessonWorkspace selectedLessonId={selectedLessonId} />}
+        {page === 'providers' && <ProviderManager />}
       </main>
     </div>
   )

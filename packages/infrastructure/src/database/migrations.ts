@@ -48,9 +48,29 @@ CREATE TABLE document_text_versions (
  created_at TEXT NOT NULL
 );`
 
+const LESSON_SQL = `
+CREATE TABLE lesson_sessions (
+ id TEXT PRIMARY KEY,
+ title TEXT NOT NULL,
+ status TEXT NOT NULL CHECK (status IN ('active','archived')),
+ document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE CASCADE,
+ document_title TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE TABLE lesson_source_anchors (
+ id TEXT PRIMARY KEY,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE CASCADE,
+ start_offset INTEGER NOT NULL CHECK (start_offset >= 0),
+ end_offset INTEGER NOT NULL CHECK (end_offset > start_offset),
+ snippet TEXT NOT NULL
+);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
+  { version: 3, name: 'lesson_session_foundation', sql: LESSON_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

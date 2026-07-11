@@ -168,6 +168,33 @@ erDiagram
 
 当前 Phase 3 最小切片每个文档只写入首个文本版本，未来若支持编辑历史或多版本导入，可在该表上继续扩展。
 
+### 5.0.3 `lesson_sessions`（Migration 3）
+
+当前仓库在 Migration 3 (`lesson_session_foundation`) 里落地的是 Phase 5 课堂最小会话骨架，用于在接入真实 AI 课堂前先保存本地会话与来源引用。
+
+| 字段           | 类型 | 约束                                          | 说明                 |
+| -------------- | ---- | --------------------------------------------- | -------------------- |
+| id             | TEXT | PK                                            | 课堂会话 ID          |
+| title          | TEXT | NOT NULL                                      | 用户可见课堂标题     |
+| status         | TEXT | NOT NULL                                      | `active/archived`    |
+| document_id    | TEXT | FK `learning_documents(id)` ON DELETE CASCADE | 来源文档             |
+| document_title | TEXT | NOT NULL                                      | 创建会话时的文档标题 |
+| created_at     | TEXT | NOT NULL                                      | 创建时间             |
+| updated_at     | TEXT | NOT NULL                                      | 最近更新时间         |
+
+### 5.0.4 `lesson_source_anchors`（Migration 3）
+
+| 字段         | 类型    | 约束                                          | 说明                         |
+| ------------ | ------- | --------------------------------------------- | ---------------------------- |
+| id           | TEXT    | PK                                            | 来源锚点 ID                  |
+| lesson_id    | TEXT    | FK `lesson_sessions(id)` ON DELETE CASCADE    | 所属课堂会话                 |
+| document_id  | TEXT    | FK `learning_documents(id)` ON DELETE CASCADE | 来源文档                     |
+| start_offset | INTEGER | NOT NULL, `CHECK (start_offset >= 0)`         | 当前文本版本中的起始字符位置 |
+| end_offset   | INTEGER | NOT NULL, `CHECK (end_offset > start_offset)` | 当前文本版本中的结束字符位置 |
+| snippet      | TEXT    | NOT NULL                                      | 创建会话时使用的来源片段     |
+
+当前最小切片只保存文本 offset 与 snippet；PDF 页码、block、chunk、bounding box 和引用高亮属于后续扩展。
+
 > 下述 5.1 起的表结构仍保留为更完整文档导入/解析路线的目标蓝图，其中多数尚未实现。
 
 ### 5.1 `documents`

@@ -193,6 +193,13 @@ h2 {
   align-items: start;
 }
 
+.lesson-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) minmax(320px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .panel {
   padding: 20px;
   border: 1px solid rgb(32 52 43 / 12%);
@@ -409,6 +416,34 @@ h2 {
   white-space: pre-wrap;
 }
 
+.document-detail-actions {
+  margin-top: 14px;
+}
+
+.lesson-anchor-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.lesson-anchor {
+  margin: 0;
+  padding: 14px;
+  border-left: 3px solid #4a8b68;
+  border-radius: 10px;
+  background: rgb(32 52 43 / 5%);
+}
+
+.lesson-anchor p {
+  margin: 0;
+}
+
+.lesson-anchor footer {
+  margin-top: 8px;
+  color: #65766d;
+  font-size: 0.8rem;
+}
+
 .provider-card-header {
   display: flex;
   align-items: start;
@@ -523,6 +558,7 @@ h2 {
 
   .workspace-grid,
   .document-layout,
+  .lesson-layout,
   .document-search,
   .search-hit,
   .capability-list {

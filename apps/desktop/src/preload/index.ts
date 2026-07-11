@@ -1,10 +1,13 @@
 import {
   APP_CHANNELS,
   DOCUMENT_CHANNELS,
+  LESSON_CHANNELS,
   PROVIDER_CHANNELS,
   documentDetailResultSchema,
   documentSummaryResultSchema,
   listDocumentsResultSchema,
+  lessonSessionResultSchema,
+  lessonSessionsResultSchema,
   removeDocumentResultSchema,
   searchDocumentsResultSchema,
   type DeepStormingBootstrapApi,
@@ -18,6 +21,9 @@ import {
   type DocumentDetailResult,
   type DocumentSummaryResult,
   type ListDocumentsResult,
+  type LessonSessionResult,
+  type LessonSessionsResult,
+  type LessonStartDraftDto,
   type RemoveDocumentResult,
   type SearchDocumentsResult,
   type ListProvidersResult,
@@ -110,6 +116,24 @@ const api: DeepStormingBootstrapApi = {
         { requestId, id },
         removeDocumentResultSchema,
       )
+    },
+  },
+  lessons: {
+    list: async (): Promise<LessonSessionsResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(LESSON_CHANNELS.list, { requestId }, lessonSessionsResultSchema)
+    },
+    startFromDocument: async (lesson: LessonStartDraftDto): Promise<LessonSessionResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LESSON_CHANNELS.startFromDocument,
+        { requestId, lesson },
+        lessonSessionResultSchema,
+      )
+    },
+    get: async (id: string): Promise<LessonSessionResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(LESSON_CHANNELS.get, { requestId, id }, lessonSessionResultSchema)
     },
   },
   provider: {

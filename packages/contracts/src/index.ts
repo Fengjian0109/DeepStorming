@@ -1,4 +1,5 @@
 export * from './app-info'
 export * from './app-result'
 export * from './document'
+export * from './lesson'
 export * from './provider'

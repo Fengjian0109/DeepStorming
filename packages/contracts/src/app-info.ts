@@ -16,6 +16,7 @@ import type {
   ProviderResult,
   VoidResult,
 } from './provider'
+import type { LessonSessionResult, LessonSessionsResult, LessonStartDraftDto } from './lesson'
 
 export const APP_CHANNELS = {
   getInfo: 'app:get-info',
@@ -51,6 +52,11 @@ export type DeepStormingApi = {
     get: (id: string) => Promise<DocumentDetailResult>
     search: (query: string) => Promise<SearchDocumentsResult>
     remove: (id: string) => Promise<RemoveDocumentResult>
+  }
+  lessons: {
+    list: () => Promise<LessonSessionsResult>
+    startFromDocument: (lesson: LessonStartDraftDto) => Promise<LessonSessionResult>
+    get: (id: string) => Promise<LessonSessionResult>
   }
   provider: {
     list: () => Promise<ListProvidersResult>

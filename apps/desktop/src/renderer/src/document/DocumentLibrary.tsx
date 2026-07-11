@@ -35,7 +35,13 @@ type SearchState =
 const getErrorMessage = (fallback: string, result?: { ok: false; error: { message: string } }) =>
   result?.error.message ?? fallback
 
-export const DocumentLibrary = (): React.JSX.Element => {
+const snippetFrom = (plainText: string): string => plainText.slice(0, 280).trim()
+
+export const DocumentLibrary = ({
+  onLessonStarted,
+}: {
+  onLessonStarted?: (lessonId: string) => void
+}): React.JSX.Element => {
   const [listState, setListState] = useState<ListState>({ status: 'loading' })
   const [asyncState, setAsyncState] = useState<AsyncState>({ status: 'idle' })
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>()
@@ -123,6 +129,40 @@ export const DocumentLibrary = (): React.JSX.Element => {
       createdAt: result.createdAt,
       updatedAt: result.updatedAt,
     })
+  }
+
+  const startLesson = async (input: {
+    documentId: string
+    documentTitle: string
+    startOffset: number
+    endOffset: number
+    snippet: string
+  }) => {
+    const token = operationSequence.current + 1
+    operationSequence.current = token
+    setAsyncState({ status: 'loading', message: '正在创建课堂…' })
+
+    const result = await window.deepstorming.lessons.startFromDocument({
+      documentId: input.documentId,
+      documentTitle: input.documentTitle,
+      source: {
+        startOffset: input.startOffset,
+        endOffset: input.endOffset,
+        snippet: input.snippet,
+      },
+    })
+    if (operationSequence.current !== token) return
+
+    if (!result.ok) {
+      setAsyncState({
+        status: 'error',
+        message: getErrorMessage('课堂创建失败。', result),
+      })
+      return
+    }
+
+    setAsyncState({ status: 'success', message: '课堂已创建。' })
+    onLessonStarted?.(result.data.id)
   }
 
   const createDocument = async (draft: DocumentDraftDto): Promise<boolean> => {
@@ -268,6 +308,21 @@ export const DocumentLibrary = (): React.JSX.Element => {
                   >
                     打开 {result.title}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void startLesson({
+                        documentId: result.documentId,
+                        documentTitle: result.title,
+                        startOffset: result.startOffset,
+                        endOffset: result.endOffset,
+                        snippet: result.snippet,
+                      })
+                    }
+                    disabled={asyncState.status === 'loading'}
+                  >
+                    用此片段开始课堂
+                  </button>
                 </article>
               ))}
             </div>
@@ -320,6 +375,23 @@ export const DocumentLibrary = (): React.JSX.Element => {
                 {detailState.document.sourceKind === 'pasted_text' ? '粘贴文本' : '文本文件'} ·{' '}
                 {detailState.document.characterCount} 字符
               </p>
+              <div className="form-actions document-detail-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void startLesson({
+                      documentId: detailState.document.id,
+                      documentTitle: detailState.document.title,
+                      startOffset: 0,
+                      endOffset: snippetFrom(detailState.document.plainText).length,
+                      snippet: snippetFrom(detailState.document.plainText),
+                    })
+                  }
+                  disabled={asyncState.status === 'loading'}
+                >
+                  开始课堂
+                </button>
+              </div>
               <pre className="document-body">{detailState.document.plainText}</pre>
             </article>
           )}
