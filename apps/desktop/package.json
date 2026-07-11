@@ -19,6 +19,7 @@
     "@deepstorming/contracts": "workspace:*",
     "@deepstorming/domain": "workspace:*",
     "@deepstorming/infrastructure": "workspace:*",
+    "better-sqlite3": "12.11.1",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },

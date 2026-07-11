@@ -690,26 +690,29 @@ Expected: PASS before commit.
 - Modify: `tests/e2e/app.spec.ts`, `playwright.config.ts`
 - Create: `tests/e2e/packaged-provider.spec.ts`
 
-- [ ] **Step 1: Write failing Mock lifecycle E2E**
+- [x] **Step 1: Write failing Mock lifecycle E2E**
 
 With a temporary user-data directory: assert version, onboarding, create `Offline Tutor`/`mock-success`, activate, test success, edit with empty Key, create `mock-delay`, cancel it, delete Providers, and return to onboarding.
 
-- [ ] **Step 2: Add packaged restart test**
+- [x] **Step 2: Add packaged restart test**
 
 After `pnpm package:dir`, launch `DeepStorming.app` twice with the same temporary user-data directory. Create Mock Provider on run one; verify it remains on run two. Explicitly skip with reason on non-macOS.
 
-- [ ] **Step 3: Run and commit**
+- [x] **Step 3: Run and commit**
 
 ```bash
 pnpm check
 pnpm test:e2e
 pnpm package:dir
 pnpm exec playwright test tests/e2e/packaged-provider.spec.ts
-git add tests/e2e playwright.config.ts
+git add tests/e2e playwright.config.ts scripts/test-e2e.mjs scripts/test-e2e.d.mts \
+  apps/desktop/src/main/index.ts apps/desktop/package.json package.json pnpm-lock.yaml \
+  packages/infrastructure/src/database/package-dir-script.test.ts docs/planning/current-status.md \
+  docs/superpowers/plans/2026-07-10-phase-2-provider-foundation.md
 git commit -m "test: cover provider lifecycle in desktop builds"
 ```
 
-Expected: every command exits 0.
+Result: every command exits 0. `pnpm test:e2e` rebuilds native modules for Electron and restores the Node ABI after the run; the packaged persistence proof runs after `pnpm package:dir`.
 
 ## Task 12: Document decisions and close Phase 2
 

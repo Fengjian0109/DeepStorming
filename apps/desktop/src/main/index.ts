@@ -26,6 +26,8 @@ const stableBootstrapCode = (error: unknown): string => {
 const bootstrap = async (): Promise<void> => {
   const applicationVersion = normalizeApplicationVersion(__APP_VERSION__)
   app.setAppUserModelId('com.deepstorming.desktop')
+  const configuredUserData = process.env['DEEPSTORMING_USER_DATA_DIR']?.trim()
+  if (configuredUserData) app.setPath('userData', configuredUserData)
 
   await app.whenReady()
 
