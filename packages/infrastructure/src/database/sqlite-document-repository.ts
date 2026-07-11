@@ -3,6 +3,7 @@ import type {
   StoredDocument,
   StoredDocumentDetail,
 } from '@deepstorming/application'
+import { DocumentUseCaseError } from '@deepstorming/application'
 import { databaseError, type SqliteDatabase } from './database'
 
 type DocumentRow = {
@@ -42,6 +43,25 @@ const mapDetail = (row: DocumentRow): StoredDocumentDetail => {
   }
 }
 
+type ErrorWithCode = Readonly<{ code?: unknown; message?: unknown }>
+
+const isDuplicateContentHashError = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) return false
+  const candidate = error as ErrorWithCode
+  if (candidate.code === 'DOCUMENT_DUPLICATE') return true
+  if (candidate.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    return typeof candidate.message === 'string' && candidate.message.includes('content_hash')
+  }
+  if (candidate.code === 'SQLITE_CONSTRAINT') {
+    return typeof candidate.message === 'string' && candidate.message.includes('content_hash')
+  }
+  return (
+    typeof candidate.message === 'string' &&
+    candidate.message.includes('UNIQUE constraint failed') &&
+    candidate.message.includes('content_hash')
+  )
+}
+
 export class SqliteDocumentRepository implements DocumentRepositoryPort {
   public constructor(private readonly db: SqliteDatabase) {}
 
@@ -49,6 +69,21 @@ export class SqliteDocumentRepository implements DocumentRepositoryPort {
     try {
       return fn()
     } catch {
+      throw databaseError('DATABASE_UNAVAILABLE')
+    }
+  }
+
+  private safeCreate<T>(fn: () => T): T {
+    try {
+      return fn()
+    } catch (error) {
+      if (isDuplicateContentHashError(error)) {
+        throw new DocumentUseCaseError(
+          'DOCUMENT_DUPLICATE',
+          'This document text has already been imported.',
+          false,
+        )
+      }
       throw databaseError('DATABASE_UNAVAILABLE')
     }
   }
@@ -103,7 +138,7 @@ export class SqliteDocumentRepository implements DocumentRepositoryPort {
   }
 
   public async create(document: StoredDocumentDetail): Promise<StoredDocumentDetail> {
-    return this.safe(() =>
+    return this.safeCreate(() =>
       this.db.transaction(() => {
         this.db
           .prepare('INSERT INTO learning_documents VALUES (?,?,?,?,?,?,?,?)')

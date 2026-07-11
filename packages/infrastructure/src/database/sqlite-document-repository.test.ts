@@ -53,11 +53,11 @@ describe('SqliteDocumentRepository', () => {
     await expect(repo.findByContentHash('hash-a')).resolves.toMatchObject({ id: document().id })
   })
 
-  it('enforces unique content hash', async () => {
+  it('surfaces duplicate content hash with a structured duplicate code', async () => {
     await repo.create(document())
     await expect(
       repo.create(document({ id: '00000000-0000-4000-8000-000000000003' })),
-    ).rejects.toMatchObject({ code: 'DATABASE_UNAVAILABLE' })
+    ).rejects.toMatchObject({ code: 'DOCUMENT_DUPLICATE' })
   })
 
   it('deletes text versions through cascade', async () => {
