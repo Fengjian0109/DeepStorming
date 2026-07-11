@@ -34,6 +34,8 @@ export class DocumentUseCaseError extends Error {
 
 export type DocumentDetail = LearningDocument & Readonly<{ plainText: string }>
 
+type ErrorWithCode = Readonly<{ code?: unknown; message?: unknown; details?: unknown }>
+
 const toSummary = (document: StoredDocument): LearningDocument => ({
   id: document.id,
   documentType: document.documentType,
@@ -59,11 +61,70 @@ const validationError = (error: unknown): DocumentUseCaseError =>
     false,
   )
 
+const databaseError = (): DocumentUseCaseError =>
+  new DocumentUseCaseError(
+    'DATABASE_UNAVAILABLE',
+    'Document storage is temporarily unavailable.',
+    true,
+  )
+
+const internalError = (): DocumentUseCaseError =>
+  new DocumentUseCaseError(
+    'INTERNAL_ERROR',
+    'The document operation could not be completed.',
+    true,
+  )
+
+const duplicateError = (): DocumentUseCaseError =>
+  new DocumentUseCaseError(
+    'DOCUMENT_DUPLICATE',
+    'This document text has already been imported.',
+    false,
+  )
+
+const isDocumentUseCaseError = (error: unknown): error is DocumentUseCaseError =>
+  error instanceof DocumentUseCaseError
+
+const isDuplicateStorageError = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) return false
+  const candidate = error as ErrorWithCode
+  if (candidate.code === 'DOCUMENT_DUPLICATE') return true
+  if (candidate.code === 'SQLITE_CONSTRAINT_UNIQUE') return true
+  if (candidate.code === 'SQLITE_CONSTRAINT') {
+    return typeof candidate.message === 'string' && candidate.message.includes('content_hash')
+  }
+  return (
+    typeof candidate.message === 'string' &&
+    candidate.message.includes('UNIQUE constraint failed') &&
+    candidate.message.includes('content_hash')
+  )
+}
+
+const asDatabaseError = (error: unknown): DocumentUseCaseError => {
+  if (isDocumentUseCaseError(error)) return error
+  return databaseError()
+}
+
+const asInternalError = (error: unknown): DocumentUseCaseError => {
+  if (isDocumentUseCaseError(error)) return error
+  return internalError()
+}
+
+const asCreateError = (error: unknown): DocumentUseCaseError => {
+  if (isDocumentUseCaseError(error)) return error
+  if (isDuplicateStorageError(error)) return duplicateError()
+  return databaseError()
+}
+
 export class ListDocuments {
   public constructor(private readonly repository: DocumentRepositoryPort) {}
 
   public async execute(): Promise<readonly LearningDocument[]> {
-    return (await this.repository.list()).map(toSummary)
+    try {
+      return (await this.repository.list()).map(toSummary)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
   }
 }
 
@@ -71,7 +132,12 @@ export class GetDocument {
   public constructor(private readonly repository: DocumentRepositoryPort) {}
 
   public async execute(id: string): Promise<DocumentDetail> {
-    const document = await this.repository.findById(id)
+    let document: StoredDocumentDetail | undefined
+    try {
+      document = await this.repository.findById(id)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
     if (!document)
       throw new DocumentUseCaseError('DOCUMENT_NOT_FOUND', 'The document was not found.', false)
     return toDetail(document)
@@ -94,19 +160,34 @@ export class CreateDocumentFromText {
       throw validationError(error)
     }
 
-    const contentHash = await this.hasher.hash(documentHashInput(draft))
-    if ((await this.repository.findByContentHash(contentHash)) !== undefined) {
-      throw new DocumentUseCaseError(
-        'DOCUMENT_DUPLICATE',
-        'This document text has already been imported.',
-        false,
-      )
+    let contentHash: string
+    try {
+      contentHash = await this.hasher.hash(documentHashInput(draft))
+    } catch (error) {
+      throw asInternalError(error)
+    }
+    try {
+      if ((await this.repository.findByContentHash(contentHash)) !== undefined) {
+        throw duplicateError()
+      }
+    } catch (error) {
+      if (isDocumentUseCaseError(error)) throw error
+      throw asDatabaseError(error)
     }
 
-    const createdAt = this.clock.now()
+    let createdAt: string
+    let id: string
+    let textVersionId: string
+    try {
+      createdAt = this.clock.now()
+      id = this.ids.generate()
+      textVersionId = this.ids.generate()
+    } catch (error) {
+      throw asInternalError(error)
+    }
     const document: StoredDocumentDetail = {
-      id: this.ids.generate(),
-      textVersionId: this.ids.generate(),
+      id,
+      textVersionId,
       documentType: draft.documentType,
       title: draft.title,
       plainText: draft.plainText,
@@ -118,7 +199,11 @@ export class CreateDocumentFromText {
       updatedAt: createdAt,
     }
 
-    return toSummary(await this.repository.create(document))
+    try {
+      return toSummary(await this.repository.create(document))
+    } catch (error) {
+      throw asCreateError(error)
+    }
   }
 }
 
@@ -126,7 +211,13 @@ export class DeleteDocument {
   public constructor(private readonly repository: DocumentRepositoryPort) {}
 
   public async execute(id: string): Promise<void> {
-    if (!(await this.repository.remove(id))) {
+    let removed: boolean
+    try {
+      removed = await this.repository.remove(id)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (!removed) {
       throw new DocumentUseCaseError('DOCUMENT_NOT_FOUND', 'The document was not found.', false)
     }
   }

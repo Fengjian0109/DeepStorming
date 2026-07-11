@@ -18,6 +18,11 @@ const ids = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00
 
 class FakeRepository implements DocumentRepositoryPort {
   public records = new Map<string, StoredDocumentDetail>()
+  public listError?: Error
+  public findByIdError?: Error
+  public findByContentHashError?: Error
+  public createError?: Error
+  public removeError?: Error
 
   private toSummary(document: StoredDocumentDetail): StoredDocument {
     return {
@@ -36,25 +41,30 @@ class FakeRepository implements DocumentRepositoryPort {
   }
 
   async list(): Promise<readonly StoredDocument[]> {
+    if (this.listError) throw this.listError
     return [...this.records.values()].map((document) => this.toSummary(document))
   }
 
   async findById(id: string): Promise<StoredDocumentDetail | undefined> {
+    if (this.findByIdError) throw this.findByIdError
     return this.records.get(id)
   }
 
   async findByContentHash(hash: string): Promise<StoredDocument | undefined> {
+    if (this.findByContentHashError) throw this.findByContentHashError
     const found = [...this.records.values()].find((item) => item.contentHash === hash)
     if (!found) return undefined
     return this.toSummary(found)
   }
 
   async create(document: StoredDocumentDetail): Promise<StoredDocumentDetail> {
+    if (this.createError) throw this.createError
     this.records.set(document.id, document)
     return document
   }
 
   async remove(id: string): Promise<boolean> {
+    if (this.removeError) throw this.removeError
     return this.records.delete(id)
   }
 }
@@ -100,6 +110,24 @@ describe('document use cases', () => {
     })
   })
 
+  it('maps list infrastructure failures to DATABASE_UNAVAILABLE', async () => {
+    repo.listError = new Error('db offline')
+
+    await expect(new ListDocuments(repo).execute()).rejects.toMatchObject({
+      code: 'DATABASE_UNAVAILABLE',
+      retryable: true,
+    })
+  })
+
+  it('maps get infrastructure failures to DATABASE_UNAVAILABLE', async () => {
+    repo.findByIdError = new Error('db offline')
+
+    await expect(new GetDocument(repo).execute(ids[0]!)).rejects.toMatchObject({
+      code: 'DATABASE_UNAVAILABLE',
+      retryable: true,
+    })
+  })
+
   it('rejects duplicate normalized text', async () => {
     const create = new CreateDocumentFromText(repo, hasher, clock, idGenerator)
     await create.execute({ title: 'A', plainText: ' same ', sourceKind: 'pasted_text' })
@@ -107,6 +135,60 @@ describe('document use cases', () => {
     await expect(
       create.execute({ title: 'B', plainText: 'same', sourceKind: 'text_file' }),
     ).rejects.toMatchObject({ code: 'DOCUMENT_DUPLICATE', retryable: false })
+  })
+
+  it('maps hasher failures to INTERNAL_ERROR', async () => {
+    const failingHasher: DocumentTextHasherPort = {
+      hash: async () => {
+        throw new Error('hash failed')
+      },
+    }
+
+    await expect(
+      new CreateDocumentFromText(repo, failingHasher, clock, idGenerator).execute({
+        title: 'Notes',
+        plainText: 'body',
+        sourceKind: 'pasted_text',
+      }),
+    ).rejects.toMatchObject({ code: 'INTERNAL_ERROR', retryable: true })
+  })
+
+  it('maps repository create failures to DATABASE_UNAVAILABLE', async () => {
+    repo.createError = new Error('insert failed')
+
+    await expect(
+      new CreateDocumentFromText(repo, hasher, clock, idGenerator).execute({
+        title: 'Notes',
+        plainText: 'body',
+        sourceKind: 'pasted_text',
+      }),
+    ).rejects.toMatchObject({ code: 'DATABASE_UNAVAILABLE', retryable: true })
+  })
+
+  it('maps repository duplicate races during create to DOCUMENT_DUPLICATE', async () => {
+    repo.createError = Object.assign(new Error('UNIQUE constraint failed: documents.content_hash'), {
+      code: 'DOCUMENT_DUPLICATE',
+    })
+
+    await expect(
+      new CreateDocumentFromText(repo, hasher, clock, idGenerator).execute({
+        title: 'Notes',
+        plainText: 'body',
+        sourceKind: 'pasted_text',
+      }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_DUPLICATE', retryable: false })
+  })
+
+  it('maps repository lookup failures during create to DATABASE_UNAVAILABLE', async () => {
+    repo.findByContentHashError = new Error('lookup failed')
+
+    await expect(
+      new CreateDocumentFromText(repo, hasher, clock, idGenerator).execute({
+        title: 'Notes',
+        plainText: 'body',
+        sourceKind: 'pasted_text',
+      }),
+    ).rejects.toMatchObject({ code: 'DATABASE_UNAVAILABLE', retryable: true })
   })
 
   it('maps invalid input to DOCUMENT_VALIDATION_FAILED', async () => {
@@ -129,6 +211,15 @@ describe('document use cases', () => {
     await expect(new DeleteDocument(repo).execute(created.id)).resolves.toBeUndefined()
     await expect(new GetDocument(repo).execute(created.id)).rejects.toMatchObject({
       code: 'DOCUMENT_NOT_FOUND',
+    })
+  })
+
+  it('maps delete infrastructure failures to DATABASE_UNAVAILABLE', async () => {
+    repo.removeError = new Error('delete failed')
+
+    await expect(new DeleteDocument(repo).execute(ids[0]!)).rejects.toMatchObject({
+      code: 'DATABASE_UNAVAILABLE',
+      retryable: true,
     })
   })
 
