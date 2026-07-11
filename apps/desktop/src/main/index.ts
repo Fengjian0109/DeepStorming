@@ -1,4 +1,5 @@
 import { ProviderUseCaseError } from '@deepstorming/application'
+import { appErrorCodeSchema } from '@deepstorming/contracts'
 import { StructuredLogger } from '@deepstorming/infrastructure'
 import { app, BrowserWindow, session } from 'electron'
 
@@ -17,7 +18,7 @@ const stableBootstrapCode = (error: unknown): string => {
     'code' in error &&
     typeof error.code === 'string'
   ) {
-    return error.code
+    return appErrorCodeSchema.safeParse(error.code).success ? error.code : 'INTERNAL_ERROR'
   }
   return 'INTERNAL_ERROR'
 }

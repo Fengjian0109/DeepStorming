@@ -52,6 +52,7 @@ const createDependencies = () => ({
 const expectNoSensitiveSerialization = (value: unknown): void => {
   const serialized = JSON.stringify(value)
   expect(serialized).not.toContain(API_KEY)
+  expect(serialized).not.toContain('apiKey')
   expect(serialized).not.toContain('secretRef')
   expect(serialized).not.toContain('Authorization')
   expect(serialized).not.toContain('Bearer ')
@@ -225,6 +226,7 @@ describe('provider IPC handlers', () => {
       const dependencies = createDependencies()
       dependencies[testCase.useCase].execute.mockResolvedValueOnce({
         ...providerProfile,
+        apiKey: API_KEY,
         secretRef: 'secret-ref-to-hide',
         Authorization: `Bearer ${API_KEY}`,
       })
