@@ -48,4 +48,4 @@ export type DeepStormingApi = {
   }
 }
 
-export type DeepStormingBootstrapApi = Pick<DeepStormingApi, 'app'>
+export type DeepStormingBootstrapApi = DeepStormingApi

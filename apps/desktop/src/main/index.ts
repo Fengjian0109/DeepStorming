@@ -1,13 +1,26 @@
-import { GetApplicationInfo } from '@deepstorming/application'
+import { ProviderUseCaseError } from '@deepstorming/application'
 import { StructuredLogger } from '@deepstorming/infrastructure'
 import { app, BrowserWindow, session } from 'electron'
 
-import { ElectronAppInfoAdapter } from './app-info-adapter'
 import { normalizeApplicationVersion } from './app-version'
+import { createCompositionRoot } from './composition-root'
 import { createMainWindow } from './create-window'
 import { registerIpc } from './ipc/register-ipc'
 
 const logger = new StructuredLogger('desktop-main')
+
+const stableBootstrapCode = (error: unknown): string => {
+  if (error instanceof ProviderUseCaseError) return error.code
+  if (
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    typeof error.code === 'string'
+  ) {
+    return error.code
+  }
+  return 'INTERNAL_ERROR'
+}
 
 const bootstrap = async (): Promise<void> => {
   const applicationVersion = normalizeApplicationVersion(__APP_VERSION__)
@@ -19,8 +32,11 @@ const bootstrap = async (): Promise<void> => {
     callback(false)
   })
 
-  const appInfo = new ElectronAppInfoAdapter(app, applicationVersion)
-  registerIpc({ getApplicationInfo: new GetApplicationInfo(appInfo) })
+  const compositionRoot = await createCompositionRoot(app, applicationVersion, logger)
+  registerIpc(compositionRoot)
+  app.once('before-quit', () => {
+    compositionRoot.dispose()
+  })
   createMainWindow()
 
   logger.log('info', 'app.started', {
@@ -42,6 +58,6 @@ app.on('window-all-closed', () => {
 })
 
 void bootstrap().catch((error: unknown) => {
-  logger.log('error', 'app.bootstrap_failed', { error })
+  logger.log('error', 'app.bootstrap_failed', { code: stableBootstrapCode(error) })
   app.quit()
 })

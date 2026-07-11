@@ -1,0 +1,156 @@
+import {
+  APP_CHANNELS,
+  PROVIDER_CHANNELS,
+  type DeepStormingApi,
+  type ProviderDraftDto,
+  type ProviderProfileDto,
+} from '@deepstorming/contracts'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  exposeInMainWorld: vi.fn(),
+  invoke: vi.fn(),
+}))
+
+vi.mock('electron', () => ({
+  contextBridge: { exposeInMainWorld: mocks.exposeInMainWorld },
+  ipcRenderer: { invoke: mocks.invoke },
+}))
+
+const REQUEST_ID = 'f4b7fd8f-4f47-4a61-9224-151f51f347de'
+const PROVIDER_ID = 'a1f6b565-7bdf-4d68-b5b6-88667b5a7f24'
+const OPERATION_ID = 'f5c5a440-5b18-420e-a227-78ad35f4c19d'
+
+const providerDraft: ProviderDraftDto = {
+  providerType: 'openai_compatible',
+  displayName: 'OpenAI Compatible',
+  baseUrl: 'https://api.example.test/v1',
+  modelName: 'test-model',
+  apiKey: 'sk-test-secret-value',
+}
+
+const providerProfile: ProviderProfileDto = {
+  id: PROVIDER_ID,
+  providerType: 'openai_compatible',
+  displayName: 'OpenAI Compatible',
+  baseUrl: 'https://api.example.test/v1',
+  modelName: 'test-model',
+  hasApiKey: true,
+  capabilities: {
+    streaming: true,
+    structuredOutput: true,
+    embedding: false,
+    vision: false,
+  },
+  isActive: false,
+  createdAt: '2026-07-11T00:00:00.000Z',
+  updatedAt: '2026-07-11T00:00:00.000Z',
+}
+
+const loadApi = async (): Promise<DeepStormingApi> => {
+  vi.resetModules()
+  vi.stubGlobal('crypto', { randomUUID: vi.fn(() => REQUEST_ID) })
+  await import('./index')
+  return mocks.exposeInMainWorld.mock.calls.at(-1)?.[1] as DeepStormingApi
+}
+
+describe('preload API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('exposes explicit app and provider APIs without a private invoke helper', async () => {
+    const api = await loadApi()
+
+    expect(mocks.exposeInMainWorld).toHaveBeenCalledWith('deepstorming', expect.any(Object))
+    expect(Object.keys(api)).toEqual(['app', 'provider'])
+    expect(api).not.toHaveProperty('invoke')
+  })
+
+  it.each([
+    {
+      name: 'app.getInfo',
+      call: (api: DeepStormingApi) => api.app.getInfo(),
+      channel: APP_CHANNELS.getInfo,
+      payload: { requestId: REQUEST_ID },
+      response: {
+        ok: true,
+        data: { name: 'DeepStorming', version: '0.0.0-test', platform: 'linux' },
+        requestId: REQUEST_ID,
+      },
+    },
+    {
+      name: 'provider.list',
+      call: (api: DeepStormingApi) => api.provider.list(),
+      channel: PROVIDER_CHANNELS.list,
+      payload: { requestId: REQUEST_ID },
+      response: { ok: true, data: [providerProfile], requestId: REQUEST_ID },
+    },
+    {
+      name: 'provider.create',
+      call: (api: DeepStormingApi) => api.provider.create(providerDraft),
+      channel: PROVIDER_CHANNELS.create,
+      payload: { requestId: REQUEST_ID, provider: providerDraft },
+      response: { ok: true, data: providerProfile, requestId: REQUEST_ID },
+    },
+    {
+      name: 'provider.update',
+      call: (api: DeepStormingApi) => api.provider.update(PROVIDER_ID, providerDraft),
+      channel: PROVIDER_CHANNELS.update,
+      payload: { requestId: REQUEST_ID, id: PROVIDER_ID, provider: providerDraft },
+      response: { ok: true, data: providerProfile, requestId: REQUEST_ID },
+    },
+    {
+      name: 'provider.remove',
+      call: (api: DeepStormingApi) => api.provider.remove(PROVIDER_ID),
+      channel: PROVIDER_CHANNELS.remove,
+      payload: { requestId: REQUEST_ID, id: PROVIDER_ID },
+      response: { ok: true, data: {}, requestId: REQUEST_ID },
+    },
+    {
+      name: 'provider.activate',
+      call: (api: DeepStormingApi) => api.provider.activate(PROVIDER_ID),
+      channel: PROVIDER_CHANNELS.activate,
+      payload: { requestId: REQUEST_ID, id: PROVIDER_ID },
+      response: { ok: true, data: providerProfile, requestId: REQUEST_ID },
+    },
+    {
+      name: 'provider.testConnection',
+      call: (api: DeepStormingApi) => api.provider.testConnection(PROVIDER_ID, OPERATION_ID),
+      channel: PROVIDER_CHANNELS.testConnection,
+      payload: { requestId: REQUEST_ID, id: PROVIDER_ID, operationId: OPERATION_ID },
+      response: { ok: true, data: providerProfile, requestId: REQUEST_ID },
+    },
+    {
+      name: 'provider.cancelTest',
+      call: (api: DeepStormingApi) => api.provider.cancelTest(OPERATION_ID),
+      channel: PROVIDER_CHANNELS.cancelTest,
+      payload: { requestId: REQUEST_ID, operationId: OPERATION_ID },
+      response: { ok: true, data: { cancelled: true }, requestId: REQUEST_ID },
+    },
+  ])('invokes one fixed IPC channel and validates $name responses', async (testCase) => {
+    const api = await loadApi()
+    mocks.invoke.mockResolvedValueOnce(testCase.response)
+
+    await expect(testCase.call(api)).resolves.toEqual(testCase.response)
+
+    expect(mocks.invoke).toHaveBeenCalledTimes(1)
+    expect(mocks.invoke).toHaveBeenCalledWith(testCase.channel, testCase.payload)
+  })
+
+  it('maps invalid provider IPC output to IPC_RESPONSE_INVALID with the generated request ID', async () => {
+    const api = await loadApi()
+    mocks.invoke.mockResolvedValueOnce({ ok: true, data: { secretRef: 'hidden' }, requestId: '' })
+
+    await expect(api.provider.list()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'IPC_RESPONSE_INVALID',
+        message: 'DeepStorming received an invalid response from the desktop process.',
+        retryable: true,
+      },
+      requestId: REQUEST_ID,
+    })
+  })
+})

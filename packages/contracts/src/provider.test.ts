@@ -332,6 +332,6 @@ describe('provider error and API contracts', () => {
     expectTypeOf(api.provider.create).parameters.toEqualTypeOf<[ProviderDraftDto]>()
     expectTypeOf(api.provider.update).parameters.toEqualTypeOf<[string, ProviderDraftDto]>()
     expectTypeOf(api.provider.testConnection).parameters.toEqualTypeOf<[string, string]>()
-    expectTypeOf<DeepStormingBootstrapApi>().toEqualTypeOf<Pick<DeepStormingApi, 'app'>>()
+    expectTypeOf<DeepStormingBootstrapApi>().toEqualTypeOf<DeepStormingApi>()
   })
 })
