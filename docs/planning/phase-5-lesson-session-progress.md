@@ -104,6 +104,6 @@
 
 ## 下一步建议
 
-1. 增加真实云 Provider 手动验收清单。
-2. 把来源 anchor 从文本 offset 扩展到 PDF page/block/chunk。
+1. 按 `docs/planning/provider-cloud-release-acceptance.md` 执行真实云 Provider 手动验收。
+2. 按 `docs/superpowers/specs/2026-07-12-pdf-document-foundation-design.md` 和 `docs/superpowers/plans/2026-07-12-pdf-document-foundation.md` 进入 PDF page/block 底座实现。
 3. 发布前补签名、图标与公证。

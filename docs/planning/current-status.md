@@ -91,6 +91,11 @@
   - 持久化语义：取消时保留已保存的 learner message（reply 场景）和 started run，并把同一 run 更新为 `cancelled`、`outputMessageId=null`、`errorSummary.code=OPERATION_CANCELLED`。
   - Renderer：提交回答和重试生成 pending 时显示“取消生成/取消重试”，取消成功后显示“生成已取消。”；failed/cancelled run 仍保留重试入口。
   - 当前限制：取消 registry 是进程内状态；应用重启后只能重试已持久化的 failed/cancelled run，不恢复 in-flight 外部请求。
+- 剩余软件设计收敛：
+  - `docs/planning/software-design-completion-roadmap.md` 已整理 D1-D8 设计队列：真实云 Provider 验收、PDF 文档底座、阅读器与证据定位、chunk/检索/上下文预算、TutorAction 状态机、费曼评价与复习、论文工作流、发布候选。
+  - `docs/planning/provider-cloud-release-acceptance.md` 已补 DeepSeek / OpenAI-compatible 真实云 Provider 手动验收矩阵、发布前清单、隐私说明和敏感信息扫描建议。
+  - `docs/superpowers/specs/2026-07-12-pdf-document-foundation-design.md` 已补 PDF 文档底座设计。
+  - `docs/superpowers/plans/2026-07-12-pdf-document-foundation.md` 已补 PDF 文档底座实施计划。
 
 ## Phase 5 当前范围与非目标
 
@@ -120,4 +125,4 @@ pnpm package:dir
 
 ## 下一步
 
-进入真实云 Provider 手动验收与发布前收尾：补 DeepSeek/OpenAI-compatible 手动验收清单，随后处理签名、图标与公证。产品能力侧下一步可扩展来源 anchor 到 PDF page/block/chunk。
+执行真实云 Provider 手动验收，随后按 `docs/superpowers/plans/2026-07-12-pdf-document-foundation.md` 进入 PDF 文档底座实现。发布侧继续处理签名、图标与公证。

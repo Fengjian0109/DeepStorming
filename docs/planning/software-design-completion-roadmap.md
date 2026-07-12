@@ -1,0 +1,174 @@
+# DeepStorming 软件设计收敛路线图
+
+- 日期：2026-07-12
+- 目标：把当前已完成的 Provider / 文本文档 / LessonSession 基线，收敛到可发布 MVP 所需的剩余软件设计与实施顺序。
+- 状态：Phase 5 Provider-backed lesson loop 已完成；下一阶段进入真实云 Provider 手动验收、PDF 文档底座、发布准备。
+
+## 1. 当前设计基线
+
+DeepStorming 已经具备以下可继续扩展的架构边界：
+
+- Domain 保持 framework/platform independent。
+- Application 只依赖 Domain，并通过 Port 调用 Repository、Vault、Gateway、Clock、ID 生成器。
+- Infrastructure 实现 SQLite、Secret Vault、Provider Gateway、Hasher 等 Port。
+- Main Process 是组合根，IPC handler 只做输入校验、调用一个 use case、映射稳定错误。
+- Preload 暴露显式细粒度 API，不暴露泛用 `invoke`。
+- Renderer 只依赖 Contracts 与 UI，不直接导入 Electron、Node、Application、Infrastructure 或 Provider SDK。
+
+当前已完成产品闭环：
+
+1. Provider 管理、加密 Key 保存、连接测试、取消和持久化。
+2. 纯文本 Learning Document 导入、去重、搜索、删除和重启持久化。
+3. LessonSession 从文档证据启动、首问、学习者回答、Provider-backed follow-up、生成记录、失败/取消保存、重试和安全错误摘要。
+
+## 2. 剩余软件设计队列
+
+### D1. 真实云 Provider 手动验收与发布前收尾
+
+目的：在不把真实 API Key 写入自动化环境的前提下，验证 DeepSeek 和 OpenAI-compatible Provider 的真实网络行为。
+
+产物：
+
+- `docs/planning/provider-cloud-release-acceptance.md`
+- 手动验收矩阵：创建、启用、连接测试、课堂生成、取消、错误映射、重启持久化、敏感信息扫描。
+- 发布前清单：图标、签名、公证、隐私说明、数据备份/恢复、升级 migration 演练。
+
+进入条件：
+
+- `pnpm check` 通过。
+- `pnpm test:e2e` 通过。
+- 用户本地可提供至少一个真实云 Provider API Key。
+
+退出条件：
+
+- 至少一个 DeepSeek 模型和一个 OpenAI-compatible endpoint 通过手动验收，或明确记录阻塞原因。
+- 手动验收不把 API Key、Authorization header、原始响应正文写入仓库、日志、SQLite、fixtures、screenshots 或报告。
+
+### D2. PDF 文档底座
+
+目的：把当前文本库扩展为可承接 PDF 的文档结构，不在第一刀实现 OCR、embedding 或复杂阅读器。
+
+产物：
+
+- `docs/superpowers/specs/2026-07-12-pdf-document-foundation-design.md`
+- `docs/superpowers/plans/2026-07-12-pdf-document-foundation.md`
+- 新增 PDF import job、managed file、page、text block 的 Domain / Contract / SQLite / Application / Main / Preload / Renderer / E2E 设计。
+
+进入条件：
+
+- D1 完成，或明确决定先做离线 PDF 能力。
+- 确认可用 PDF 解析库和 Electron 打包策略。
+
+退出条件：
+
+- 文本型 PDF 可导入为持久化 document。
+- 页面和 block 可恢复，来源 anchor 能从 text offset 扩展到 page/block 坐标。
+- 扫描 PDF、密码 PDF、损坏 PDF、超大 PDF 都能落入稳定失败状态。
+
+### D3. 文档阅读器与证据定位
+
+目的：让用户在 UI 中打开 PDF、查看页码、搜索文本、从命中的 block 启动课堂，并能从 AI 引用跳回证据。
+
+设计范围：
+
+- PDF viewer shell。
+- page navigation、zoom、search hit、block highlight。
+- Lesson source anchor 扩展：`pageNumber`、`blockId`、可选 bounding box。
+- 删除文档时级联删除 page/block/chunk/index，不破坏 lesson 审计历史中已保存的 snippet。
+
+非目标：
+
+- OCR。
+- 图表理解。
+- Embedding。
+- 多窗口 PDF 阅读器。
+
+### D4. Chunk / 检索 / 上下文预算
+
+目的：把 page/block 转为可重建 chunk，建立词法检索和 lesson context budget。
+
+设计范围：
+
+- `document_chunks` 派生表。
+- 可重建索引任务。
+- FTS5/BM25 或等价词法检索。
+- lesson generator 输入预算：最大 snippet 数、字符数、来源排序、摘要策略。
+- 不把完整文档正文发送给 Provider。
+
+### D5. TutorAction / LessonState 状态机
+
+目的：把当前“导师追问字符串”升级为可解释、可恢复、可测试的课堂状态机。
+
+设计范围：
+
+- TutorAction：ask、hint、explain、quiz、reflect、summarize。
+- LessonStep：目标、来源、允许动作、完成条件。
+- 用户卡住时的提示阶梯。
+- 课堂失败、取消、重试、恢复统一进入状态机。
+
+### D6. 费曼评价、误区与复习
+
+目的：让课堂结果回写为掌握证据，并生成后续复习任务。
+
+设计范围：
+
+- MasteryEvidence。
+- Misconception。
+- ReviewItem / ReviewEvent。
+- 评分 rubric 和安全错误边界。
+
+### D7. 论文工作流
+
+目的：支持论文结构、贡献、方法、证据、局限、研究启发的专用阅读路径。
+
+设计范围：
+
+- PaperProfile。
+- Section / Claim / Evidence / Limitation。
+- Why → What → How → Evidence → Limits → Next 地图。
+
+### D8. 发布候选
+
+目的：从开发版走向可分发的 macOS 发布候选。
+
+设计范围：
+
+- 品牌图标。
+- Developer ID 签名。
+- Notarization。
+- DMG 或 zip 分发。
+- 隐私说明、诊断导出、备份恢复、升级演练。
+
+## 3. 推荐实施顺序
+
+```text
+D1 真实云 Provider 手动验收
+  ↓
+D2 PDF 文档底座
+  ↓
+D3 阅读器与证据定位
+  ↓
+D4 Chunk / 检索 / 上下文预算
+  ↓
+D5 TutorAction / LessonState
+  ↓
+D6 费曼评价与复习
+  ↓
+D7 论文工作流
+  ↓
+D8 发布候选
+```
+
+这个顺序的核心理由是：先验证真实 Provider，再让 PDF 进入系统；先保存 page/block 事实，再做阅读器、检索和课堂引用；先有可恢复课堂状态机，再让评分和复习写入长期学习记录。
+
+## 4. 设计完成定义
+
+每个设计切片完成前必须满足：
+
+- 有明确 Domain / Application / Infrastructure / Main / Preload / Renderer 边界。
+- 有稳定错误码和用户安全消息。
+- 有持久化与恢复语义。
+- 有取消、失败、重试语义；不适用时明确说明。
+- 有自动化测试或手动验收清单。
+- 文档更新到 `docs/planning/current-status.md` 和对应 phase 文档。
+- `pnpm check` 通过；涉及桌面主流程时 `pnpm test:e2e` 通过。
