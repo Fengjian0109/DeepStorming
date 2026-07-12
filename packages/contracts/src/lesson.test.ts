@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   LESSON_CHANNELS,
   getLessonRequestSchema,
+  lessonModelRunInputSummarySchema,
+  lessonModelRunSchema,
   lessonSessionResultSchema,
   lessonSessionSchema,
   lessonSessionsResultSchema,
@@ -66,6 +68,15 @@ const session = {
         sourceAnchorIds: [anchorId],
         sourceCharacterRange: { startOffset: 4, endOffset: 12 },
         snippetCharacterCount: 8,
+        contextCharacterCount: 144,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            pageNumberStart: 1,
+            pageNumberEnd: 2,
+            charCount: 144,
+          },
+        ],
       },
       sourceAnchorIds: [anchorId],
       outputMessageId: messageId,
@@ -223,5 +234,36 @@ describe('lesson contracts', () => {
         requestId,
       }).success,
     ).toBe(true)
+  })
+
+  it('requires lesson model run context chunk summaries', () => {
+    expect(
+      lessonModelRunInputSummarySchema.safeParse({
+        documentId,
+        documentTitle: 'Paper Map',
+        sourceAnchorIds: [anchorId],
+        sourceCharacterRange: { startOffset: 4, endOffset: 12 },
+        snippetCharacterCount: 8,
+        contextCharacterCount: 144,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            pageNumberStart: 1,
+            pageNumberEnd: 2,
+            charCount: 144,
+          },
+        ],
+      }).success,
+    ).toBe(true)
+
+    expect(() =>
+      lessonModelRunSchema.parse({
+        ...session.modelRuns[0],
+        inputSummary: {
+          ...session.modelRuns[0].inputSummary,
+          contextChunks: [],
+        },
+      }),
+    ).toThrow()
   })
 })

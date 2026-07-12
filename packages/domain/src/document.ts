@@ -48,6 +48,23 @@ export type DocumentTextVersion = Readonly<{
   createdAt: string
 }>
 
+export type DocumentChunk = Readonly<{
+  id: string
+  documentId: string
+  pageNumberStart: number
+  pageNumberEnd: number
+  blockIds: readonly string[]
+  text: string
+  charCount: number
+  sourceVersion: string
+  rebuildToken: string
+}>
+
+export type DocumentContextBudget = Readonly<{
+  maxChunks: number
+  maxCharacters: number
+}>
+
 export type DocumentImportError = Readonly<{
   code: string
   message: string
@@ -134,4 +151,41 @@ export const normalizeDocumentImportJob = (job: DocumentImportJob): DocumentImpo
   if (originalName === undefined) throw new Error('Document import original name is invalid')
 
   return { ...job, originalName }
+}
+
+export const normalizeDocumentChunk = (chunk: DocumentChunk): DocumentChunk => {
+  if (!UUID.test(chunk.id)) throw new Error('Document chunk id is invalid')
+  if (!UUID.test(chunk.documentId)) throw new Error('Document chunk document id is invalid')
+  if (!Number.isInteger(chunk.pageNumberStart) || chunk.pageNumberStart < 1) {
+    throw new Error('Document chunk page range is invalid')
+  }
+  if (!Number.isInteger(chunk.pageNumberEnd) || chunk.pageNumberEnd < chunk.pageNumberStart) {
+    throw new Error('Document chunk page range is invalid')
+  }
+  if (chunk.blockIds.length === 0 || chunk.blockIds.some((blockId) => blockId.trim().length === 0)) {
+    throw new Error('Document chunk block ids are invalid')
+  }
+  if (!Number.isInteger(chunk.charCount) || chunk.charCount < 0) {
+    throw new Error('Document chunk character count is invalid')
+  }
+
+  return {
+    ...chunk,
+    text: normalizeNonBlank(chunk.text, 'Document chunk text must not be blank'),
+    sourceVersion: normalizeNonBlank(chunk.sourceVersion, 'Document chunk source version is invalid'),
+    rebuildToken: normalizeNonBlank(chunk.rebuildToken, 'Document chunk rebuild token is invalid'),
+  }
+}
+
+export const normalizeDocumentContextBudget = (
+  budget: DocumentContextBudget,
+): DocumentContextBudget => {
+  if (!Number.isInteger(budget.maxChunks) || budget.maxChunks < 1) {
+    throw new Error('Document context chunk budget is invalid')
+  }
+  if (!Number.isInteger(budget.maxCharacters) || budget.maxCharacters < 1) {
+    throw new Error('Document context character budget is invalid')
+  }
+
+  return budget
 }

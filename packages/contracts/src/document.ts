@@ -144,6 +144,30 @@ export const documentTextBlockSchema = z
   })
   .strict()
 
+export const documentChunkSchema = z
+  .object({
+    id: z.string().uuid(),
+    documentId: documentIdSchema,
+    pageNumberStart: z.number().int().positive(),
+    pageNumberEnd: z.number().int().positive(),
+    blockIds: z.array(requiredTextSchema).min(1),
+    text: requiredTextSchema,
+    charCount: z.number().int().nonnegative(),
+    sourceVersion: requiredTextSchema.max(120),
+    rebuildToken: requiredTextSchema.max(120),
+  })
+  .strict()
+  .refine((value) => value.pageNumberEnd >= value.pageNumberStart, {
+    message: 'pageNumberEnd must be greater than or equal to pageNumberStart',
+  })
+
+export const documentContextBudgetSchema = z
+  .object({
+    maxChunks: z.number().int().positive(),
+    maxCharacters: z.number().int().positive(),
+  })
+  .strict()
+
 export const listDocumentsRequestSchema = z.object({ requestId: requestIdSchema }).strict()
 export const createDocumentFromTextRequestSchema = z
   .object({ requestId: requestIdSchema, document: documentDraftSchema })
@@ -227,6 +251,8 @@ export type DocumentImportErrorDto = z.infer<typeof documentImportErrorSchema>
 export type DocumentImportJobDto = z.infer<typeof documentImportJobSchema>
 export type DocumentPageDto = z.infer<typeof documentPageSchema>
 export type DocumentTextBlockDto = z.infer<typeof documentTextBlockSchema>
+export type DocumentChunkDto = z.infer<typeof documentChunkSchema>
+export type DocumentContextBudgetDto = z.infer<typeof documentContextBudgetSchema>
 export type ListDocumentsRequest = z.infer<typeof listDocumentsRequestSchema>
 export type CreateDocumentFromTextRequest = z.infer<typeof createDocumentFromTextRequestSchema>
 export type GetDocumentRequest = z.infer<typeof getDocumentRequestSchema>

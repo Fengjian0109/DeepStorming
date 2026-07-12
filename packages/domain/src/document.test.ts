@@ -4,6 +4,8 @@ import {
   DOCUMENT_TYPES,
   countDocumentCharacters,
   documentHashInput,
+  normalizeDocumentChunk,
+  normalizeDocumentContextBudget,
   normalizeDocumentDraft,
   normalizeDocumentImportJob,
 } from './document'
@@ -141,5 +143,56 @@ describe('document domain', () => {
         finishedAt: null,
       }),
     ).toThrow()
+  })
+
+  it('normalizes document chunks and rejects invalid ranges', () => {
+    expect(
+      normalizeDocumentChunk({
+        id: '00000000-0000-4000-8000-000000000901',
+        documentId: '00000000-0000-4000-8000-000000000902',
+        pageNumberStart: 1,
+        pageNumberEnd: 2,
+        blockIds: ['p1-b1', 'p2-b1'],
+        text: '  chunk text  ',
+        charCount: 10,
+        sourceVersion: 'page-text:v1',
+        rebuildToken: 'chunk-rule:v1',
+      }),
+    ).toEqual({
+      id: '00000000-0000-4000-8000-000000000901',
+      documentId: '00000000-0000-4000-8000-000000000902',
+      pageNumberStart: 1,
+      pageNumberEnd: 2,
+      blockIds: ['p1-b1', 'p2-b1'],
+      text: 'chunk text',
+      charCount: 10,
+      sourceVersion: 'page-text:v1',
+      rebuildToken: 'chunk-rule:v1',
+    })
+
+    expect(() =>
+      normalizeDocumentChunk({
+        id: '00000000-0000-4000-8000-000000000901',
+        documentId: '00000000-0000-4000-8000-000000000902',
+        pageNumberStart: 2,
+        pageNumberEnd: 1,
+        blockIds: ['p2-b1'],
+        text: 'chunk text',
+        charCount: 10,
+        sourceVersion: 'page-text:v1',
+        rebuildToken: 'chunk-rule:v1',
+      }),
+    ).toThrow('Document chunk page range is invalid')
+  })
+
+  it('normalizes document context budgets and rejects invalid chunk limits', () => {
+    expect(normalizeDocumentContextBudget({ maxChunks: 4, maxCharacters: 2400 })).toEqual({
+      maxChunks: 4,
+      maxCharacters: 2400,
+    })
+
+    expect(() =>
+      normalizeDocumentContextBudget({ maxChunks: 0, maxCharacters: 2400 }),
+    ).toThrow('Document context chunk budget is invalid')
   })
 })

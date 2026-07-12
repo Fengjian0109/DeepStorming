@@ -186,6 +186,15 @@ const lessonSession: LessonSessionDto = {
         sourceAnchorIds: [REQUEST_ID],
         sourceCharacterRange: { startOffset: 0, endOffset: 4 },
         snippetCharacterCount: 4,
+        contextCharacterCount: 4,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            pageNumberStart: 1,
+            pageNumberEnd: 1,
+            charCount: 4,
+          },
+        ],
       },
       sourceAnchorIds: [REQUEST_ID],
       outputMessageId: '00000000-0000-4000-8000-000000000401',

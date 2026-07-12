@@ -63,7 +63,16 @@ export type LessonModelRunInputSummary = Readonly<{
     endOffset: number
   }>
   snippetCharacterCount: number
+  contextCharacterCount: number
+  contextChunks: readonly LessonContextChunkSummary[]
   learnerReplyCharacterCount?: number
+}>
+
+export type LessonContextChunkSummary = Readonly<{
+  chunkId: string
+  pageNumberStart: number
+  pageNumberEnd: number
+  charCount: number
 }>
 
 export type LessonModelRunErrorSummary = Readonly<{

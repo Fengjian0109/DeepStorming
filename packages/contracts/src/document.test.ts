@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   DOCUMENT_CHANNELS,
   createDocumentFromTextRequestSchema,
+  documentChunkSchema,
+  documentContextBudgetSchema,
+  documentBusinessErrorCodeSchema,
   documentDetailSchema,
+  documentErrorCodeSchema,
   documentImportJobResultSchema,
   documentImportJobSchema,
   documentPageSchema,
-  documentErrorCodeSchema,
-  documentBusinessErrorCodeSchema,
   documentSearchResultSchema,
   documentSummaryResultSchema,
   documentSummarySchema,
@@ -314,5 +316,42 @@ describe('document contracts', () => {
         createdAt: '2026-07-12T00:00:00.000Z',
       }).success,
     ).toBe(false)
+  })
+
+  it('validates document chunk and context budget DTOs', () => {
+    expect(
+      documentChunkSchema.safeParse({
+        id: requestId,
+        documentId: '00000000-0000-4000-8000-000000000201',
+        pageNumberStart: 1,
+        pageNumberEnd: 2,
+        blockIds: ['p1-b1', 'p2-b1'],
+        text: 'chunk text',
+        charCount: 10,
+        sourceVersion: 'page-text:v1',
+        rebuildToken: 'chunk-rule:v1',
+      }).success,
+    ).toBe(true)
+
+    expect(
+      documentChunkSchema.safeParse({
+        id: requestId,
+        documentId: '00000000-0000-4000-8000-000000000201',
+        pageNumberStart: 2,
+        pageNumberEnd: 1,
+        blockIds: ['p2-b1'],
+        text: 'chunk text',
+        charCount: 10,
+        sourceVersion: 'page-text:v1',
+        rebuildToken: 'chunk-rule:v1',
+      }).success,
+    ).toBe(false)
+
+    expect(documentContextBudgetSchema.safeParse({ maxChunks: 4, maxCharacters: 2400 }).success).toBe(
+      true,
+    )
+    expect(documentContextBudgetSchema.safeParse({ maxChunks: 0, maxCharacters: 2400 }).success).toBe(
+      false,
+    )
   })
 })

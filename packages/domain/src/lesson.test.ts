@@ -3,6 +3,7 @@ import {
   LESSON_MESSAGE_ROLES,
   LESSON_MODEL_RUN_STATUSES,
   LESSON_SESSION_STATUSES,
+  type LessonModelRunInputSummary,
   normalizeLessonStartDraft,
 } from './lesson'
 
@@ -92,5 +93,27 @@ describe('lesson domain', () => {
 
   it('defines the accepted lesson model run statuses', () => {
     expect(LESSON_MODEL_RUN_STATUSES).toEqual(['started', 'succeeded', 'failed', 'cancelled'])
+  })
+
+  it('supports lesson model run summaries with required context chunks', () => {
+    const summary: LessonModelRunInputSummary = {
+      documentId: '00000000-0000-4000-8000-000000000001',
+      documentTitle: 'Paper',
+      sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      sourceCharacterRange: { startOffset: 0, endOffset: 8 },
+      snippetCharacterCount: 8,
+      contextCharacterCount: 144,
+      contextChunks: [
+        {
+          chunkId: '00000000-0000-4000-8000-000000000901',
+          pageNumberStart: 1,
+          pageNumberEnd: 2,
+          charCount: 144,
+        },
+      ],
+    }
+
+    expect(summary.contextChunks).toHaveLength(1)
+    expect(summary.contextCharacterCount).toBe(144)
   })
 })

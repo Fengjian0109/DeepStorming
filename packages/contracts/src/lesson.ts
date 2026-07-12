@@ -66,6 +66,18 @@ export const lessonPromptManifestSchema = z
   })
   .strict()
 
+export const lessonContextChunkSummarySchema = z
+  .object({
+    chunkId: z.string().uuid(),
+    pageNumberStart: z.number().int().positive(),
+    pageNumberEnd: z.number().int().positive(),
+    charCount: z.number().int().nonnegative(),
+  })
+  .strict()
+  .refine((value) => value.pageNumberEnd >= value.pageNumberStart, {
+    message: 'pageNumberEnd must be greater than or equal to pageNumberStart',
+  })
+
 export const lessonModelRunInputSummarySchema = z
   .object({
     documentId: documentIdSchema,
@@ -81,6 +93,8 @@ export const lessonModelRunInputSummarySchema = z
         message: 'endOffset must be greater than startOffset',
       }),
     snippetCharacterCount: z.number().int().nonnegative(),
+    contextCharacterCount: z.number().int().nonnegative(),
+    contextChunks: z.array(lessonContextChunkSummarySchema).min(1),
     learnerReplyCharacterCount: z.number().int().nonnegative().optional(),
   })
   .strict()
@@ -240,6 +254,7 @@ export type LessonMessageRoleDto = z.infer<typeof lessonMessageRoleSchema>
 export type LessonMessageDto = z.infer<typeof lessonMessageSchema>
 export type LessonModelRunStatusDto = z.infer<typeof lessonModelRunStatusSchema>
 export type LessonPromptManifestDto = z.infer<typeof lessonPromptManifestSchema>
+export type LessonContextChunkSummaryDto = z.infer<typeof lessonContextChunkSummarySchema>
 export type LessonModelRunInputSummaryDto = z.infer<typeof lessonModelRunInputSummarySchema>
 export type LessonModelRunErrorSummaryDto = z.infer<typeof lessonModelRunErrorSummarySchema>
 export type LessonModelRunDto = z.infer<typeof lessonModelRunSchema>

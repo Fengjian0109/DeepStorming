@@ -447,6 +447,15 @@ describe('provider error and API contracts', () => {
                   sourceAnchorIds: [operationId],
                   sourceCharacterRange: { startOffset: 0, endOffset: 6 },
                   snippetCharacterCount: 6,
+                  contextCharacterCount: 6,
+                  contextChunks: [
+                    {
+                      chunkId: '00000000-0000-4000-8000-000000000901',
+                      pageNumberStart: 1,
+                      pageNumberEnd: 1,
+                      charCount: 6,
+                    },
+                  ],
                 },
                 sourceAnchorIds: [operationId],
                 outputMessageId: requestId,
@@ -509,6 +518,15 @@ describe('provider error and API contracts', () => {
                   sourceAnchorIds: [operationId],
                   sourceCharacterRange: { startOffset: 0, endOffset: 6 },
                   snippetCharacterCount: 6,
+                  contextCharacterCount: 6,
+                  contextChunks: [
+                    {
+                      chunkId: '00000000-0000-4000-8000-000000000901',
+                      pageNumberStart: 1,
+                      pageNumberEnd: 1,
+                      charCount: 6,
+                    },
+                  ],
                 },
                 sourceAnchorIds: [operationId],
                 outputMessageId: requestId,

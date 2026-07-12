@@ -57,6 +57,15 @@ const session = (overrides: Partial<StoredLessonSession> = {}): StoredLessonSess
         sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
         sourceCharacterRange: { startOffset: 4, endOffset: 12 },
         snippetCharacterCount: 8,
+        contextCharacterCount: 8,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            pageNumberStart: 1,
+            pageNumberEnd: 1,
+            charCount: 8,
+          },
+        ],
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
       outputMessageId: '00000000-0000-4000-8000-000000000401',
@@ -207,6 +216,15 @@ describe('SqliteLessonRepository', () => {
             sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
             sourceCharacterRange: { startOffset: 4, endOffset: 12 },
             snippetCharacterCount: 8,
+            contextCharacterCount: 8,
+            contextChunks: [
+              {
+                chunkId: '00000000-0000-4000-8000-000000000901',
+                pageNumberStart: 1,
+                pageNumberEnd: 1,
+                charCount: 8,
+              },
+            ],
             learnerReplyCharacterCount: 13,
           },
           sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
