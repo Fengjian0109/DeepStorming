@@ -63,6 +63,7 @@ test('applies migration two and creates document tables', async () => {
     { version: 6, name: 'lesson_follow_up_operation' },
     { version: 7, name: 'lesson_model_run_error_summary' },
     { version: 8, name: 'pdf_document_foundation' },
+    { version: 9, name: 'lesson_source_target' },
   ])
 
   db.close()
@@ -91,6 +92,7 @@ test('applies migrations three and four and creates lesson tables', async () => 
     { version: 6, name: 'lesson_follow_up_operation' },
     { version: 7, name: 'lesson_model_run_error_summary' },
     { version: 8, name: 'pdf_document_foundation' },
+    { version: 9, name: 'lesson_source_target' },
   ])
   const columns = db.prepare('PRAGMA table_info(lesson_model_runs)').all() as Array<{
     name: string
@@ -124,7 +126,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 9, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 10, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })

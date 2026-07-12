@@ -339,4 +339,21 @@ export class SqliteDocumentImportRepository implements DocumentImportRepositoryP
       ).map(mapBlock),
     )
   }
+
+  public async findTextBlock(
+    documentId: string,
+    pageNumber: number,
+    blockId: string,
+  ): Promise<StoredDocumentTextBlock | undefined> {
+    return this.safe(() => {
+      const row = this.db
+        .prepare(
+          `SELECT id,document_id,page_id,page_number,block_index,text,x,y,width,height,created_at
+           FROM document_text_blocks
+           WHERE document_id=? AND page_number=? AND id=?`,
+        )
+        .get(documentId, pageNumber, blockId) as BlockRow | undefined
+      return row === undefined ? undefined : mapBlock(row)
+    })
+  }
 }

@@ -100,6 +100,25 @@ describe('SqliteLessonRepository', () => {
     await expect(repo.findById(session().id)).resolves.toEqual(session())
   })
 
+  it('round-trips a pdf block target while keeping legacy anchors readable', async () => {
+    const withTarget = session({
+      sourceAnchors: [
+        {
+          ...session().sourceAnchors[0]!,
+          target: { kind: 'pdf_block', pageNumber: 2, blockId: 'block-2', blockIndex: 0 },
+        },
+      ],
+    })
+    await repo.create(withTarget)
+    await expect(repo.findById(withTarget.id)).resolves.toEqual(withTarget)
+
+    db.prepare('UPDATE lesson_source_anchors SET target_json=NULL WHERE id=?').run(
+      withTarget.sourceAnchors[0]!.id,
+    )
+    const legacy = await repo.findById(withTarget.id)
+    expect(legacy?.sourceAnchors[0]?.target).toBeUndefined()
+  })
+
   it('sorts newest sessions first', async () => {
     await repo.create(session({ createdAt: '2026-07-11T00:00:00.000Z' }))
     await repo.create(

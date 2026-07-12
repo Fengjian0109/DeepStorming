@@ -164,6 +164,7 @@ export const lessonRunRetryDraftSchema = z
 export const lessonBusinessErrorCodeSchema = z.enum([
   'LESSON_VALIDATION_FAILED',
   'LESSON_DOCUMENT_NOT_FOUND',
+  'LESSON_SOURCE_NOT_FOUND',
   'LESSON_NOT_FOUND',
 ])
 

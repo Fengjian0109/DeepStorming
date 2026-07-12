@@ -15,6 +15,7 @@ import type {
   LessonTutorReplyGeneratorPort,
   LessonTutorReplyResult,
   StoredLessonSession,
+  DocumentSourceLocatorPort,
 } from './lesson-ports'
 import type {
   CancellationToken,
@@ -27,6 +28,7 @@ import { toProviderProfile } from './provider-use-cases'
 export type LessonUseCaseErrorCode =
   | 'LESSON_VALIDATION_FAILED'
   | 'LESSON_DOCUMENT_NOT_FOUND'
+  | 'LESSON_SOURCE_NOT_FOUND'
   | 'LESSON_NOT_FOUND'
   | 'OPERATION_CANCELLED'
   | 'DATABASE_UNAVAILABLE'
@@ -373,6 +375,7 @@ export class StartLessonFromDocument {
     private readonly lessons: LessonRepositoryPort,
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
+    private readonly sourceLocator?: DocumentSourceLocatorPort,
   ) {}
 
   public async execute(input: LessonStartDraft): Promise<LessonSession> {
@@ -391,6 +394,20 @@ export class StartLessonFromDocument {
           'The source document was not found.',
           false,
         )
+      }
+      if (draft.source.target.kind === 'pdf_block') {
+        const block = await this.sourceLocator?.findTextBlock(
+          draft.documentId,
+          draft.source.target.pageNumber,
+          draft.source.target.blockId,
+        )
+        if (block === undefined || block.documentId !== draft.documentId) {
+          throw new LessonUseCaseError(
+            'LESSON_SOURCE_NOT_FOUND',
+            'The selected PDF evidence was not found in the source document.',
+            false,
+          )
+        }
       }
     } catch (error) {
       if (isLessonError(error)) throw error
@@ -425,6 +442,7 @@ export class StartLessonFromDocument {
           startOffset: draft.source.startOffset,
           endOffset: draft.source.endOffset,
           snippet: draft.source.snippet,
+          ...(draft.source.target.kind === 'pdf_block' ? { target: draft.source.target } : {}),
         },
       ],
       messages: [

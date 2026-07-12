@@ -173,6 +173,9 @@ CREATE TABLE document_text_blocks (
 );
 CREATE INDEX document_text_blocks_document_page ON document_text_blocks(document_id,page_number,block_index);`
 
+const LESSON_SOURCE_TARGET_SQL = `
+ALTER TABLE lesson_source_anchors ADD COLUMN target_json TEXT;`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -182,6 +185,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 6, name: 'lesson_follow_up_operation', sql: LESSON_FOLLOW_UP_SQL },
   { version: 7, name: 'lesson_model_run_error_summary', sql: LESSON_MODEL_RUN_ERROR_SUMMARY_SQL },
   { version: 8, name: 'pdf_document_foundation', sql: PDF_DOCUMENT_SQL },
+  { version: 9, name: 'lesson_source_target', sql: LESSON_SOURCE_TARGET_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

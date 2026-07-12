@@ -146,6 +146,12 @@ class FakeDocumentImportRepository implements DocumentImportRepositoryPort {
     return (this.blocks.get(documentId) ?? []).filter((block) => block.pageNumber === pageNumber)
   }
 
+  async findTextBlock(documentId: string, pageNumber: number, blockId: string) {
+    return (this.blocks.get(documentId) ?? []).find(
+      (block) => block.pageNumber === pageNumber && block.id === blockId,
+    )
+  }
+
   pagesFor(documentId: string): readonly StoredDocumentPage[] {
     return this.pages.get(documentId) ?? []
   }

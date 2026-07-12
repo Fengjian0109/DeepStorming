@@ -5,6 +5,7 @@ import type {
   StoredLessonSession,
   StoredLessonSourceAnchor,
 } from '@deepstorming/application'
+import type { LessonSourceTarget } from '@deepstorming/domain'
 import { databaseError, type SqliteDatabase } from './database'
 
 type LessonRow = {
@@ -24,6 +25,7 @@ type AnchorRow = {
   start_offset: number
   end_offset: number
   snippet: string
+  target_json: string | null
 }
 
 type MessageRow = {
@@ -60,6 +62,7 @@ const mapAnchor = (row: AnchorRow): StoredLessonSourceAnchor => ({
   startOffset: row.start_offset,
   endOffset: row.end_offset,
   snippet: row.snippet,
+  ...(row.target_json === null ? {} : { target: parseJsonObject<LessonSourceTarget>(row.target_json) }),
 })
 
 const parseSourceAnchorIds = (value: string): readonly string[] => {
@@ -238,7 +241,9 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             session.updatedAt,
           )
         const insertAnchor = this.db.prepare(
-          'INSERT INTO lesson_source_anchors VALUES (?,?,?,?,?,?)',
+          `INSERT INTO lesson_source_anchors
+           (id,lesson_id,document_id,start_offset,end_offset,snippet,target_json)
+           VALUES (?,?,?,?,?,?,?)`,
         )
         for (const anchor of session.sourceAnchors) {
           insertAnchor.run(
@@ -248,6 +253,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             anchor.startOffset,
             anchor.endOffset,
             anchor.snippet,
+            anchor.target === undefined ? null : JSON.stringify(anchor.target),
           )
         }
         const insertMessage = this.db.prepare(

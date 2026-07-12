@@ -80,6 +80,11 @@ export interface DocumentImportRepositoryPort {
     documentId: string,
     pageNumber: number,
   ): Promise<readonly StoredDocumentTextBlock[]>
+  findTextBlock(
+    documentId: string,
+    pageNumber: number,
+    blockId: string,
+  ): Promise<StoredDocumentTextBlock | undefined>
 }
 
 export type PdfFileDescription = Readonly<{

@@ -5,11 +5,20 @@ import type {
   LessonSourceAnchor,
   LessonSessionStatus,
 } from '@deepstorming/domain'
+import type { StoredDocumentTextBlock } from './document-ports'
 import type { CancellationToken } from './provider-ports'
 
 export type StoredLessonSourceAnchor = LessonSourceAnchor
 export type StoredLessonMessage = LessonMessage
 export type StoredLessonModelRun = LessonModelRun
+
+export interface DocumentSourceLocatorPort {
+  findTextBlock(
+    documentId: string,
+    pageNumber: number,
+    blockId: string,
+  ): Promise<StoredDocumentTextBlock | undefined>
+}
 
 export type StoredLessonSession = Readonly<{
   id: string

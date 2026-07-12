@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { ProviderProfile } from '@deepstorming/domain'
 import type { DocumentRepositoryPort, StoredDocumentDetail } from './document-ports'
 import type {
+  DocumentSourceLocatorPort,
   LessonRepositoryPort,
   LessonTutorReplyGeneratorPort,
   StoredLessonSession,
 } from './lesson-ports'
+import type { StoredDocumentTextBlock } from './document-ports'
 import {
   CancelLessonRun,
   GetLessonSession,
@@ -95,6 +97,14 @@ class FakeDocumentRepository implements DocumentRepositoryPort {
 
   async remove() {
     return false
+  }
+}
+
+class FakeSourceLocator implements DocumentSourceLocatorPort {
+  public block: StoredDocumentTextBlock | undefined
+
+  async findTextBlock() {
+    return this.block
   }
 }
 
@@ -364,6 +374,23 @@ describe('lesson use cases', () => {
       updatedAt: now,
     })
     expect(JSON.stringify(created)).not.toContain('plainText')
+  })
+
+  it('requires a PDF block to belong to the source document', async () => {
+    const locator = new FakeSourceLocator()
+    await expect(
+      new StartLessonFromDocument(documents, lessons, clock, idGenerator, locator).execute({
+        documentId,
+        documentTitle: 'Paper Map',
+        source: {
+          startOffset: 13,
+          endOffset: 21,
+          snippet: 'Evidence',
+          target: { kind: 'pdf_block', pageNumber: 1, blockId: 'missing', blockIndex: 0 },
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'LESSON_SOURCE_NOT_FOUND' })
+    expect(lessons.records.size).toBe(0)
   })
 
   it('lists and gets stored lesson sessions', async () => {
