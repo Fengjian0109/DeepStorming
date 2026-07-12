@@ -21,6 +21,17 @@ const timestampSchema = z.iso.datetime()
 export const lessonSessionStatusSchema = z.enum(['active', 'archived'])
 export const lessonMessageRoleSchema = z.enum(['system', 'tutor', 'learner'])
 export const lessonModelRunStatusSchema = z.enum(['started', 'succeeded', 'failed', 'cancelled'])
+export const lessonSourceTargetSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('text_range') }).strict(),
+  z
+    .object({
+      kind: z.literal('pdf_block'),
+      pageNumber: z.number().int().positive(),
+      blockId: requiredTextSchema,
+      blockIndex: z.number().int().nonnegative(),
+    })
+    .strict(),
+])
 export const lessonSourceAnchorSchema = z
   .object({
     id: z.string().uuid(),
@@ -28,6 +39,7 @@ export const lessonSourceAnchorSchema = z
     startOffset: z.number().int().nonnegative(),
     endOffset: z.number().int().positive(),
     snippet: requiredTextSchema.max(280),
+    target: lessonSourceTargetSchema.optional(),
   })
   .refine((value) => value.endOffset > value.startOffset, {
     message: 'endOffset must be greater than startOffset',
@@ -124,6 +136,7 @@ export const lessonStartDraftSchema = z
         startOffset: z.number().int().nonnegative(),
         endOffset: z.number().int().positive(),
         snippet: requiredTextSchema.max(280),
+        target: lessonSourceTargetSchema.optional(),
       })
       .strict()
       .refine((value) => value.endOffset > value.startOffset, {

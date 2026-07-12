@@ -26,8 +26,43 @@ describe('lesson domain', () => {
         startOffset: 4,
         endOffset: 12,
         snippet: 'Evidence snippet',
+        target: { kind: 'text_range' },
       },
     })
+  })
+
+  it('normalizes a pdf block target', () => {
+    expect(
+      normalizeLessonStartDraft({
+        documentId: '00000000-0000-4000-8000-000000000001',
+        documentTitle: 'Paper',
+        source: {
+          startOffset: 0,
+          endOffset: 8,
+          snippet: 'Evidence',
+          target: { kind: 'pdf_block', pageNumber: 2, blockId: 'p2-b1', blockIndex: 1 },
+        },
+      }),
+    ).toMatchObject({
+      source: {
+        target: { kind: 'pdf_block', pageNumber: 2, blockId: 'p2-b1', blockIndex: 1 },
+      },
+    })
+  })
+
+  it('rejects invalid pdf block targets', () => {
+    expect(() =>
+      normalizeLessonStartDraft({
+        documentId: '00000000-0000-4000-8000-000000000001',
+        documentTitle: 'Paper',
+        source: {
+          startOffset: 0,
+          endOffset: 8,
+          snippet: 'Evidence',
+          target: { kind: 'pdf_block', pageNumber: 0, blockId: 'p0-b1', blockIndex: 0 },
+        },
+      }),
+    ).toThrow('Lesson source PDF page number is invalid')
   })
 
   it('rejects invalid lesson anchors', () => {

@@ -6,12 +6,22 @@ export type LessonSessionStatus = (typeof LESSON_SESSION_STATUSES)[number]
 export type LessonMessageRole = (typeof LESSON_MESSAGE_ROLES)[number]
 export type LessonModelRunStatus = (typeof LESSON_MODEL_RUN_STATUSES)[number]
 
+export type LessonSourceTarget =
+  | Readonly<{ kind: 'text_range' }>
+  | Readonly<{
+      kind: 'pdf_block'
+      pageNumber: number
+      blockId: string
+      blockIndex: number
+    }>
+
 export type LessonSourceAnchor = Readonly<{
   id: string
   documentId: string
   startOffset: number
   endOffset: number
   snippet: string
+  target?: LessonSourceTarget | undefined
 }>
 
 export type LessonSession = Readonly<{
@@ -98,6 +108,7 @@ export type LessonStartDraft = Readonly<{
     startOffset: number
     endOffset: number
     snippet: string
+    target?: LessonSourceTarget | undefined
   }>
 }>
 
@@ -109,6 +120,7 @@ export type NormalizedLessonStartDraft = Readonly<{
     startOffset: number
     endOffset: number
     snippet: string
+    target: LessonSourceTarget
   }>
 }>
 
@@ -139,7 +151,20 @@ export const normalizeLessonStartDraft = (draft: LessonStartDraft): NormalizedLe
   const title =
     draft.title === undefined
       ? `${documentTitle} 课堂`
-      : normalizeNonBlank(draft.title, 'Lesson title must not be blank')
+    : normalizeNonBlank(draft.title, 'Lesson title must not be blank')
+
+  const target = draft.source.target ?? { kind: 'text_range' as const }
+  if (target.kind === 'pdf_block') {
+    if (!Number.isInteger(target.pageNumber) || target.pageNumber < 1) {
+      throw new Error('Lesson source PDF page number is invalid')
+    }
+    if (!Number.isInteger(target.blockIndex) || target.blockIndex < 0) {
+      throw new Error('Lesson source PDF block index is invalid')
+    }
+    if (target.blockId.trim().length === 0) {
+      throw new Error('Lesson source PDF block id must not be blank')
+    }
+  }
 
   return {
     documentId: draft.documentId,
@@ -149,6 +174,7 @@ export const normalizeLessonStartDraft = (draft: LessonStartDraft): NormalizedLe
       startOffset: draft.source.startOffset,
       endOffset: draft.source.endOffset,
       snippet: normalizeNonBlank(draft.source.snippet, 'Lesson source snippet must not be blank'),
+      target,
     },
   }
 }

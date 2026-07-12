@@ -25,13 +25,14 @@ const session = {
   status: 'active',
   documentId,
   documentTitle: 'Paper Map',
-  sourceAnchors: [
+      sourceAnchors: [
     {
       id: anchorId,
       documentId,
       startOffset: 4,
       endOffset: 12,
       snippet: 'Evidence',
+      target: { kind: 'text_range' },
     },
   ],
   messages: [
@@ -97,6 +98,21 @@ describe('lesson contracts', () => {
           documentId,
           documentTitle: 'Paper Map',
           source: { startOffset: 4, endOffset: 12, snippet: 'Evidence' },
+        },
+      }).success,
+    ).toBe(true)
+    expect(
+      startLessonFromDocumentRequestSchema.safeParse({
+        requestId,
+        lesson: {
+          documentId,
+          documentTitle: 'Paper Map',
+          source: {
+            startOffset: 4,
+            endOffset: 12,
+            snippet: 'Evidence',
+            target: { kind: 'pdf_block', pageNumber: 2, blockId: 'p2-b1', blockIndex: 1 },
+          },
         },
       }).success,
     ).toBe(true)
