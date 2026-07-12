@@ -1,8 +1,10 @@
 import type {
   DocumentDetailDto,
   DocumentDraftDto,
+  DocumentPageDto,
   DocumentSearchResultDto,
   DocumentSummaryDto,
+  DocumentTextBlockDto,
 } from '@deepstorming/contracts'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -32,16 +34,20 @@ type SearchState =
   | { status: 'ready'; query: string; results: DocumentSearchResultDto[] }
   | { status: 'error'; query: string; message: string }
 
+type PagePreviewState =
+  | { status: 'idle' }
+  | { status: 'loading'; documentId: string }
+  | {
+      status: 'ready'
+      documentId: string
+      pages: Array<Readonly<{ page: DocumentPageDto; blocks: DocumentTextBlockDto[] }>>
+    }
+  | { status: 'error'; documentId: string; message: string }
+
 const getErrorMessage = (fallback: string, result?: { ok: false; error: { message: string } }) =>
   result?.error.message ?? fallback
 
 const snippetFrom = (plainText: string): string => plainText.slice(0, 280).trim()
-const filePathFrom = (file: File): string | undefined => {
-  const candidate = file as File & { path?: unknown }
-  return typeof candidate.path === 'string' && candidate.path.trim().length > 0
-    ? candidate.path
-    : undefined
-}
 
 const titleFromPdfName = (name: string): string => name.replace(/\.pdf$/iu, '').trim() || name
 
@@ -54,6 +60,7 @@ export const DocumentLibrary = ({
   const [asyncState, setAsyncState] = useState<AsyncState>({ status: 'idle' })
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>()
   const [detailState, setDetailState] = useState<DetailState>({ status: 'idle' })
+  const [pagePreviewState, setPagePreviewState] = useState<PagePreviewState>({ status: 'idle' })
   const [searchQuery, setSearchQuery] = useState('')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummaryDto>()
@@ -86,15 +93,40 @@ export const DocumentLibrary = ({
     detailRequestSequence.current = requestSequence
     setSelectedDocumentId(document.id)
     setDetailState({ status: 'loading', documentId: document.id })
+    setPagePreviewState({ status: 'loading', documentId: document.id })
     const result = await window.deepstorming.documents.get(document.id)
     if (detailRequestSequence.current !== requestSequence) return
 
     if (result.ok) {
       setDetailState({ status: 'ready', document: result.data })
+      const pagesResult = await window.deepstorming.documents.getPages(document.id)
+      if (detailRequestSequence.current !== requestSequence) return
+      if (!pagesResult.ok) {
+        setPagePreviewState({
+          status: 'error',
+          documentId: document.id,
+          message: pagesResult.error.message,
+        })
+        return
+      }
+      const pagesWithBlocks = []
+      for (const page of pagesResult.data) {
+        const blocksResult = await window.deepstorming.documents.getPageBlocks(
+          document.id,
+          page.pageNumber,
+        )
+        if (detailRequestSequence.current !== requestSequence) return
+        pagesWithBlocks.push({
+          page,
+          blocks: blocksResult.ok ? [...blocksResult.data] : [],
+        })
+      }
+      setPagePreviewState({ status: 'ready', documentId: document.id, pages: pagesWithBlocks })
       return
     }
 
     setDetailState({ status: 'error', documentId: document.id })
+    setPagePreviewState({ status: 'idle' })
     setAsyncState({
       status: 'error',
       message: getErrorMessage('文档详情加载失败。', result),
@@ -200,7 +232,7 @@ export const DocumentLibrary = ({
     event.currentTarget.value = ''
     if (!file) return
 
-    const filePath = filePathFrom(file)
+    const filePath = window.deepstorming.documents.getPathForFile(file)
     if (filePath === undefined) {
       setAsyncState({
         status: 'error',
@@ -276,6 +308,7 @@ export const DocumentLibrary = ({
     if (selectedDocumentId === deleteTarget.id) {
       setSelectedDocumentId(undefined)
       setDetailState({ status: 'idle' })
+      setPagePreviewState({ status: 'idle' })
     }
     setDeleteTarget(undefined)
     setAsyncState({ status: 'success', message: '文档已删除。' })
@@ -474,6 +507,38 @@ export const DocumentLibrary = ({
                 </button>
               </div>
               <pre className="document-body">{detailState.document.plainText}</pre>
+              {pagePreviewState.status === 'loading' &&
+                pagePreviewState.documentId === detailState.document.id && (
+                  <p className="muted-state">正在加载 PDF 页面…</p>
+                )}
+              {pagePreviewState.status === 'error' &&
+                pagePreviewState.documentId === detailState.document.id && (
+                  <p role="alert" className="error-state">
+                    {pagePreviewState.message}
+                  </p>
+                )}
+              {pagePreviewState.status === 'ready' &&
+                pagePreviewState.documentId === detailState.document.id &&
+                pagePreviewState.pages.length > 0 && (
+                  <section className="pdf-page-preview" aria-label="PDF 页面预览">
+                    <h3>PDF 页面与文本块</h3>
+                    {pagePreviewState.pages.map(({ page, blocks }) => (
+                      <article key={page.id} className="pdf-page-card">
+                        <h4>PDF 页面 {page.pageNumber}</h4>
+                        <p className="field-help">
+                          {Math.round(page.width)} × {Math.round(page.height)}
+                        </p>
+                        <ul>
+                          {blocks.map((block) => (
+                            <li key={block.id}>
+                              Block {block.blockIndex + 1} · {block.text}
+                            </li>
+                          ))}
+                        </ul>
+                      </article>
+                    ))}
+                  </section>
+                )}
             </article>
           )}
         </section>

@@ -1,6 +1,6 @@
 # Phase 3 文本文档库进度
 
-- 更新时间：2026-07-11
+- 更新时间：2026-07-12
 - 范围：Phase 3 最小垂直切片——本地文本文档库与 `.txt/.md` 导入
 - 状态：已完成并通过开发版门禁
 
@@ -48,6 +48,6 @@
 
 ## 下一步建议
 
-1. 让课堂与论文阅读流程消费 `learning_documents`。
-2. 如进入发布候选阶段，补跑 `pnpm package:dir` 与 packaged E2E。
-3. 当需要 PDF 路线时，再从本地文本库扩展到导入作业、页面、块与派生索引。
+1. 已在 Phase 6 从本地文本库扩展到 PDF 导入作业、应用私有 PDF 文件、页面与文本块持久化，并接入真实 `pdf-parse@2.4.5` 文本层解析。
+2. 下一步让阅读器和论文阅读流程消费 `document_pages` / `document_text_blocks`，补 page/block 级 source anchor 与高亮。
+3. 如进入发布候选阶段，补跑 `pnpm package:dir` 与 packaged E2E。

@@ -130,6 +130,7 @@ beforeEach(() => {
         },
         requestId: crypto.randomUUID(),
       }),
+      getPathForFile: vi.fn().mockReturnValue('/tmp/paper.pdf'),
       getPages: vi.fn().mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
       getPageBlocks: vi
         .fn()
@@ -228,6 +229,37 @@ describe('DocumentLibrary', () => {
       },
       requestId: crypto.randomUUID(),
     })
+    window.deepstorming.documents.getPages = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          id: '00000000-0000-4000-8000-000000000201',
+          documentId: pdfDocument.id,
+          pageNumber: 1,
+          width: 612,
+          height: 792,
+          text: 'PDF body',
+          textHash: 'b'.repeat(64),
+          createdAt: '2026-07-12T00:01:00.000Z',
+        },
+      ],
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.documents.getPageBlocks = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          id: '00000000-0000-4000-8000-000000000301',
+          documentId: pdfDocument.id,
+          pageId: '00000000-0000-4000-8000-000000000201',
+          pageNumber: 1,
+          blockIndex: 0,
+          text: 'PDF body',
+          createdAt: '2026-07-12T00:01:00.000Z',
+        },
+      ],
+      requestId: crypto.randomUUID(),
+    })
 
     render(<DocumentLibrary />)
     const file = new File(['%PDF'], 'paper.pdf', { type: 'application/pdf' })
@@ -241,6 +273,8 @@ describe('DocumentLibrary', () => {
     })
     expect(await screen.findByRole('heading', { name: 'paper' })).toBeTruthy()
     expect(await screen.findByText('PDF body')).toBeTruthy()
+    expect(await screen.findByText('PDF 页面 1')).toBeTruthy()
+    expect(await screen.findByText('Block 1 · PDF body')).toBeTruthy()
   })
 
   it('shows a safe PDF import error', async () => {

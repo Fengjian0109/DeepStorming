@@ -112,6 +112,7 @@ const installApi = (overrides: Partial<DeepStormingBootstrapApi['provider']> = {
         .fn<DeepStormingBootstrapApi['documents']['remove']>()
         .mockResolvedValue(okRemoveDocument()),
       importPdf: vi.fn<DeepStormingBootstrapApi['documents']['importPdf']>(),
+      getPathForFile: vi.fn<DeepStormingBootstrapApi['documents']['getPathForFile']>(),
       getPages: vi.fn<DeepStormingBootstrapApi['documents']['getPages']>(),
       getPageBlocks: vi.fn<DeepStormingBootstrapApi['documents']['getPageBlocks']>(),
     },

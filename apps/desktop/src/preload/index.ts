@@ -41,7 +41,7 @@ import {
   type ProviderResult,
   type VoidResult,
 } from '@deepstorming/contracts'
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 type ResultSchema<T> = Readonly<{
   safeParse(input: unknown): Readonly<{ success: true; data: T }> | Readonly<{ success: false }>
@@ -134,6 +134,10 @@ const api: DeepStormingBootstrapApi = {
         { requestId, filePath: input.filePath, originalName: input.originalName },
         documentImportJobResultSchema,
       )
+    },
+    getPathForFile: (file: File): string | undefined => {
+      const filePath = webUtils.getPathForFile(file).trim()
+      return filePath.length > 0 ? filePath : undefined
     },
     getPages: async (documentId: string): Promise<DocumentPagesResult> => {
       const requestId = globalThis.crypto.randomUUID()

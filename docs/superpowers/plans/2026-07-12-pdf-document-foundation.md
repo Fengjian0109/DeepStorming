@@ -382,7 +382,7 @@ Expected: all tests pass.
 
 ## Task 6: E2E and docs
 
-- [ ] **Step 1: Add E2E fixture strategy**
+- [x] **Step 1: Add E2E fixture strategy**
 
 Create a tiny text PDF fixture using a deterministic script or checked-in minimal fixture with copyright-safe text:
 
@@ -390,7 +390,7 @@ Create a tiny text PDF fixture using a deterministic script or checked-in minima
 Evidence connects a claim to observable behavior.
 ```
 
-- [ ] **Step 2: Extend E2E**
+- [x] **Step 2: Extend E2E**
 
 Update `tests/e2e/app.spec.ts`:
 
@@ -400,7 +400,7 @@ Update `tests/e2e/app.spec.ts`:
 - start lesson from PDF-derived snippet
 - restart app and confirm page/block and lesson still load
 
-- [ ] **Step 3: Update docs**
+- [x] **Step 3: Update docs**
 
 Update:
 
@@ -409,7 +409,7 @@ Update:
 - `docs/planning/phase-3-document-library-progress.md`
 - `docs/planning/software-design-completion-roadmap.md`
 
-- [ ] **Step 4: Final verification**
+- [x] **Step 4: Final verification**
 
 Run:
 

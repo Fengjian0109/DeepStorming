@@ -363,6 +363,7 @@ describe('provider error and API contracts', () => {
           },
           requestId,
         }),
+        getPathForFile: (_file: File) => '/tmp/paper.pdf',
         getPages: async (_documentId: string) => ({
           ok: true as const,
           data: [

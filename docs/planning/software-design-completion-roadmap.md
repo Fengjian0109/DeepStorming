@@ -2,7 +2,7 @@
 
 - 日期：2026-07-12
 - 目标：把当前已完成的 Provider / 文本文档 / LessonSession 基线，收敛到可发布 MVP 所需的剩余软件设计与实施顺序。
-- 状态：Phase 5 Provider-backed lesson loop 已完成；下一阶段进入真实云 Provider 手动验收、PDF 文档底座、发布准备。
+- 状态：Phase 5 Provider-backed lesson loop 与 Phase 6 PDF 文档底座已完成；下一阶段进入文档阅读器与证据定位、真实云 Provider 手动验收和发布准备。
 
 ## 1. 当前设计基线
 
@@ -18,8 +18,9 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 当前已完成产品闭环：
 
 1. Provider 管理、加密 Key 保存、连接测试、取消和持久化。
-2. 纯文本 Learning Document 导入、去重、搜索、删除和重启持久化。
-3. LessonSession 从文档证据启动、首问、学习者回答、Provider-backed follow-up、生成记录、失败/取消保存、重试和安全错误摘要。
+2. 纯文本与文本层 PDF Learning Document 导入、去重、搜索、删除和重启持久化。
+3. PDF import job、应用私有文件副本、页面与文本块事实持久化。
+4. LessonSession 从文档证据启动、首问、学习者回答、Provider-backed follow-up、生成记录、失败/取消保存、重试和安全错误摘要。
 
 ## 2. 剩余软件设计队列
 
@@ -61,8 +62,9 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 
 退出条件：
 
-- 文本型 PDF 可导入为持久化 document。
-- 页面和 block 可恢复，来源 anchor 能从 text offset 扩展到 page/block 坐标。
+- 文本型 PDF 可导入为持久化 document。**已完成。**
+- 页面和 block 可恢复。**已完成。**
+- 来源 anchor 能从 text offset 扩展到 page/block 坐标。**转入 D3。**
 - 扫描 PDF、密码 PDF、损坏 PDF、超大 PDF 都能落入稳定失败状态。
 
 ### D3. 文档阅读器与证据定位
@@ -142,9 +144,9 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 ## 3. 推荐实施顺序
 
 ```text
-D1 真实云 Provider 手动验收
+D1 真实云 Provider 手动验收（可与 D3 并行手动验收）
   ↓
-D2 PDF 文档底座
+D2 PDF 文档底座（已完成）
   ↓
 D3 阅读器与证据定位
   ↓

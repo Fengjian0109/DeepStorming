@@ -66,6 +66,7 @@ export type DeepStormingApi = {
     importPdf: (
       input: Omit<ImportPdfDocumentRequest, 'requestId'>,
     ) => Promise<DocumentImportJobResult>
+    getPathForFile: (file: File) => string | undefined
     getPages: (documentId: string) => Promise<DocumentPagesResult>
     getPageBlocks: (documentId: string, pageNumber: number) => Promise<DocumentTextBlocksResult>
   }

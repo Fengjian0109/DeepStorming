@@ -266,6 +266,8 @@ Migration 7 (`lesson_model_run_error_summary`) 为 `lesson_model_runs` 追加 `e
 
 Migration 8 (`pdf_document_foundation`) 在现有 `learning_documents` 上追加 PDF 导入状态、文件、页面和文本块持久化。该切片仍复用 Phase 3 的 `learning_documents` 聚合根，不启用下述 5.1 的完整 `documents` 蓝图表。
 
+当前实现使用 `pdf-parse@2.4.5` 提取文本层 PDF：导入成功后会把全文写入 `learning_documents` / `document_text_versions`，并把每页文本与页面内文本块写入下列表。扫描 PDF/OCR、页面渲染资产、精确 bbox 高亮和 chunk/FTS 索引仍属于后续 D3/D4。
+
 #### `document_import_jobs`
 
 | 字段            | 类型    | 约束                                                 | 说明                                            |

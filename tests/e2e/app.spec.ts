@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -29,6 +29,30 @@ const launchDevApp = async (userDataDir: string): Promise<ElectronApplication> =
     args: [...sandboxArgs(), path.join(process.cwd(), 'apps/desktop/out/main/index.js')],
     env: launchEnvironment(path.join(userDataDir, 'runtime')),
   })
+
+const pdfStringWith = (text: string): string => {
+  const escaped = text.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)')
+  const stream = `BT /F1 12 Tf 72 720 Td (${escaped}) Tj ET`
+  const objects = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n',
+    '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+    `5 0 obj\n<< /Length ${Buffer.byteLength(stream, 'utf8')} >>\nstream\n${stream}\nendstream\nendobj\n`,
+  ]
+  let pdf = '%PDF-1.4\n'
+  const offsets = [0]
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(pdf, 'utf8'))
+    pdf += object
+  }
+  const xrefOffset = Buffer.byteLength(pdf, 'utf8')
+  pdf += `xref\n0 ${objects.length + 1}\n`
+  pdf += '0000000000 65535 f \n'
+  for (const offset of offsets.slice(1)) pdf += `${offset.toString().padStart(10, '0')} 00000 n \n`
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
+  return pdf
+}
 
 const createMockProvider = async (
   page: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
@@ -112,6 +136,9 @@ test('boots securely and covers the mock provider lifecycle', async () => {
 
 test('creates text documents and persists them across restart', async () => {
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-doc-e2e-user-'))
+  const pdfFixturePath = path.join(userDataDir, 'evidence.pdf')
+  const pdfFixtureText = 'Evidence connects a claim to observable behavior.'
+  writeFileSync(pdfFixturePath, pdfStringWith(pdfFixtureText), 'utf8')
 
   try {
     const first = await launchDevApp(userDataDir)
@@ -138,10 +165,28 @@ test('creates text documents and persists them across restart', async () => {
       await expect(
         page.locator('.document-detail').getByRole('heading', { name: 'paper.md' }),
       ).toBeVisible()
+
+      await page.getByLabel('导入 PDF').setInputFiles(pdfFixturePath)
+      await expect(page.getByText('PDF 已导入。')).toBeVisible()
+      await expect(
+        page.locator('.document-detail').getByRole('heading', { name: 'evidence' }),
+      ).toBeVisible()
+      await expect(page.locator('.document-detail .document-body')).toContainText(pdfFixtureText)
+      await expect(page.getByText('PDF 页面 1')).toBeVisible()
+      await expect(page.getByText(`Block 1 · ${pdfFixtureText}`)).toBeVisible()
+      await page.locator('.document-detail').getByRole('button', { name: '开始课堂' }).click()
+      await expect(page.locator('#lesson-title')).toHaveText('课堂')
+      await expect(page.locator('.lesson-anchor').getByText(pdfFixtureText)).toBeVisible()
+      await page.getByRole('button', { name: '文档库' }).click()
+
       await page.getByLabel('搜索文档内容').fill('Evidence')
       await page.getByRole('button', { name: '搜索内容' }).click()
       await expect(page.getByText('Why What How Evidence Limits Next')).toBeVisible()
-      await page.getByRole('button', { name: '用此片段开始课堂' }).click()
+      await page
+        .locator('.search-hit')
+        .filter({ hasText: 'Why What How Evidence Limits Next' })
+        .getByRole('button', { name: '用此片段开始课堂' })
+        .click()
       await expect(page.locator('#lesson-title')).toHaveText('课堂')
       await expect(
         page.locator('.lesson-anchor').getByText('Why What How Evidence Limits Next'),
@@ -174,7 +219,20 @@ test('creates text documents and persists them across restart', async () => {
       const page = await second.firstWindow()
       await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
       await expect(page.getByRole('heading', { name: 'paper.md' })).toBeVisible()
-      await page.getByRole('button', { name: '查看详情' }).click()
+      await expect(page.getByRole('heading', { name: 'evidence' })).toBeVisible()
+      await page
+        .locator('.document-card')
+        .filter({ hasText: 'evidence' })
+        .getByRole('button', { name: '查看详情' })
+        .click()
+      await expect(page.locator('.document-detail .document-body')).toContainText(pdfFixtureText)
+      await expect(page.getByText('PDF 页面 1')).toBeVisible()
+      await expect(page.getByText(`Block 1 · ${pdfFixtureText}`)).toBeVisible()
+      await page
+        .locator('.document-card')
+        .filter({ hasText: 'paper.md' })
+        .getByRole('button', { name: '查看详情' })
+        .click()
       await expect(
         page.locator('.document-detail').getByText('Why What How Evidence Limits Next'),
       ).toBeVisible()
@@ -182,6 +240,7 @@ test('creates text documents and persists them across restart', async () => {
       await expect(
         page.locator('.document-detail').getByRole('heading', { name: 'paper.md 课堂' }),
       ).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'evidence 课堂' })).toBeVisible()
       await expect(
         page.locator('.lesson-anchor').getByText('Why What How Evidence Limits Next'),
       ).toBeVisible()

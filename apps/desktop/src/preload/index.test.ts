@@ -20,12 +20,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   exposeInMainWorld: vi.fn(),
+  getPathForFile: vi.fn(),
   invoke: vi.fn(),
 }))
 
 vi.mock('electron', () => ({
   contextBridge: { exposeInMainWorld: mocks.exposeInMainWorld },
   ipcRenderer: { invoke: mocks.invoke },
+  webUtils: { getPathForFile: mocks.getPathForFile },
 }))
 
 const REQUEST_ID = 'f4b7fd8f-4f47-4a61-9224-151f51f347de'
@@ -222,6 +224,7 @@ describe('preload API', () => {
       search: expect.any(Function),
       remove: expect.any(Function),
       importPdf: expect.any(Function),
+      getPathForFile: expect.any(Function),
       getPages: expect.any(Function),
       getPageBlocks: expect.any(Function),
     })
@@ -449,5 +452,21 @@ describe('preload API', () => {
       },
       requestId: REQUEST_ID,
     })
+  })
+
+  it('exposes a narrow file path helper through Electron webUtils', async () => {
+    const api = await loadApi()
+    const file = new File(['body'], 'paper.pdf', { type: 'application/pdf' })
+    mocks.getPathForFile.mockReturnValueOnce(' /tmp/paper.pdf ')
+
+    expect(api.documents.getPathForFile(file)).toBe('/tmp/paper.pdf')
+    expect(mocks.getPathForFile).toHaveBeenCalledWith(file)
+  })
+
+  it('normalizes empty Electron file paths to undefined', async () => {
+    const api = await loadApi()
+    mocks.getPathForFile.mockReturnValueOnce('   ')
+
+    expect(api.documents.getPathForFile(new File([], 'paper.pdf'))).toBeUndefined()
   })
 })

@@ -31,6 +31,7 @@ import {
 import {
   EncryptedFileSecretVault,
   LocalPdfFileStore,
+  PdfParseTextExtractor,
   ProviderGatewayFactory,
   SecretCleanupReporter,
   Sha256DocumentTextHasher,
@@ -38,7 +39,6 @@ import {
   SqliteDocumentRepository,
   SqliteLessonRepository,
   SqliteProviderRepository,
-  UnavailablePdfTextExtractor,
   migrateDatabase,
   openDatabase,
   type SqliteDatabase,
@@ -93,7 +93,7 @@ export const createCompositionRoot = async (
     const vault = new EncryptedFileSecretVault(secretsDir, new ElectronSafeStorageCipher(), ids)
     const documentHasher = new Sha256DocumentTextHasher()
     const pdfFileStore = new LocalPdfFileStore(join(userData, 'document-files'))
-    const pdfTextExtractor = new UnavailablePdfTextExtractor()
+    const pdfTextExtractor = new PdfParseTextExtractor()
 
     await vault.reconcile(await repository.referencedSecretRefs())
 
