@@ -60,6 +60,7 @@ const session = (overrides: Partial<StoredLessonSession> = {}): StoredLessonSess
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
       outputMessageId: '00000000-0000-4000-8000-000000000401',
+      errorSummary: null,
       startedAt: '2026-07-11T00:00:00.000Z',
       finishedAt: '2026-07-11T00:00:00.000Z',
     },
@@ -191,6 +192,7 @@ describe('SqliteLessonRepository', () => {
           },
           sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
           outputMessageId: '00000000-0000-4000-8000-000000000404',
+          errorSummary: null,
           startedAt: '2026-07-11T00:01:00.000Z',
           finishedAt: '2026-07-11T00:01:00.000Z',
         },
@@ -201,5 +203,28 @@ describe('SqliteLessonRepository', () => {
     await repo.save(updated)
 
     await expect(repo.findById(session().id)).resolves.toEqual(updated)
+  })
+
+  it('persists safe error summaries on failed model runs', async () => {
+    const failed = session({
+      modelRuns: [
+        {
+          ...session().modelRuns[0]!,
+          status: 'failed',
+          outputMessageId: null,
+          errorSummary: {
+            code: 'INTERNAL_ERROR',
+            message: 'The lesson operation could not be completed.',
+            retryable: true,
+          },
+          finishedAt: '2026-07-11T00:01:00.000Z',
+        },
+      ],
+      updatedAt: '2026-07-11T00:01:00.000Z',
+    })
+
+    await repo.create(failed)
+
+    await expect(repo.findById(session().id)).resolves.toEqual(failed)
   })
 })

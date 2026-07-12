@@ -57,6 +57,7 @@ test('applies migration two and creates document tables', async () => {
     { version: 4, name: 'lesson_message_foundation' },
     { version: 5, name: 'lesson_model_run_foundation' },
     { version: 6, name: 'lesson_follow_up_operation' },
+    { version: 7, name: 'lesson_model_run_error_summary' },
   ])
 
   db.close()
@@ -83,7 +84,12 @@ test('applies migrations three and four and creates lesson tables', async () => 
     { version: 4, name: 'lesson_message_foundation' },
     { version: 5, name: 'lesson_model_run_foundation' },
     { version: 6, name: 'lesson_follow_up_operation' },
+    { version: 7, name: 'lesson_model_run_error_summary' },
   ])
+  const columns = db.prepare('PRAGMA table_info(lesson_model_runs)').all() as Array<{
+    name: string
+  }>
+  expect(columns.map((column) => column.name)).toContain('error_summary_json')
 
   db.close()
   rmSync(dir, { recursive: true, force: true })
@@ -112,7 +118,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 7, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 8, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })

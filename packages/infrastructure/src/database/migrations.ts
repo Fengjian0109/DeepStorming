@@ -116,6 +116,9 @@ INSERT INTO lesson_model_runs_new SELECT * FROM lesson_model_runs;
 DROP TABLE lesson_model_runs;
 ALTER TABLE lesson_model_runs_new RENAME TO lesson_model_runs;`
 
+const LESSON_MODEL_RUN_ERROR_SUMMARY_SQL = `
+ALTER TABLE lesson_model_runs ADD COLUMN error_summary_json TEXT;`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -123,6 +126,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 4, name: 'lesson_message_foundation', sql: LESSON_MESSAGE_SQL },
   { version: 5, name: 'lesson_model_run_foundation', sql: LESSON_MODEL_RUN_SQL },
   { version: 6, name: 'lesson_follow_up_operation', sql: LESSON_FOLLOW_UP_SQL },
+  { version: 7, name: 'lesson_model_run_error_summary', sql: LESSON_MODEL_RUN_ERROR_SUMMARY_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

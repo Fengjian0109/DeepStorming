@@ -56,6 +56,12 @@ export type LessonModelRunInputSummary = Readonly<{
   learnerReplyCharacterCount?: number
 }>
 
+export type LessonModelRunErrorSummary = Readonly<{
+  code: string
+  message: string
+  retryable: boolean
+}>
+
 export type LessonModelRun = Readonly<{
   id: string
   lessonId: string
@@ -67,6 +73,7 @@ export type LessonModelRun = Readonly<{
   inputSummary: LessonModelRunInputSummary
   sourceAnchorIds: readonly string[]
   outputMessageId: string | null
+  errorSummary: LessonModelRunErrorSummary | null
   startedAt: string
   finishedAt: string | null
 }>

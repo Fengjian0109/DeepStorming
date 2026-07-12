@@ -55,6 +55,7 @@ const session = {
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
       outputMessageId: '00000000-0000-4000-8000-000000000401',
+      errorSummary: null,
       startedAt: '2026-07-11T00:00:00.000Z',
       finishedAt: '2026-07-11T00:00:00.000Z',
     },

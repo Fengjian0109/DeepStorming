@@ -72,6 +72,14 @@ export const lessonModelRunInputSummarySchema = z
   })
   .strict()
 
+export const lessonModelRunErrorSummarySchema = z
+  .object({
+    code: requiredTextSchema.max(80),
+    message: requiredTextSchema.max(240),
+    retryable: z.boolean(),
+  })
+  .strict()
+
 export const lessonModelRunSchema = z
   .object({
     id: z.string().uuid(),
@@ -84,6 +92,7 @@ export const lessonModelRunSchema = z
     inputSummary: lessonModelRunInputSummarySchema,
     sourceAnchorIds: z.array(z.string().uuid()).min(1),
     outputMessageId: z.string().uuid().nullable(),
+    errorSummary: lessonModelRunErrorSummarySchema.nullable(),
     startedAt: timestampSchema,
     finishedAt: timestampSchema.nullable(),
   })
@@ -203,6 +212,7 @@ export type LessonMessageDto = z.infer<typeof lessonMessageSchema>
 export type LessonModelRunStatusDto = z.infer<typeof lessonModelRunStatusSchema>
 export type LessonPromptManifestDto = z.infer<typeof lessonPromptManifestSchema>
 export type LessonModelRunInputSummaryDto = z.infer<typeof lessonModelRunInputSummarySchema>
+export type LessonModelRunErrorSummaryDto = z.infer<typeof lessonModelRunErrorSummarySchema>
 export type LessonModelRunDto = z.infer<typeof lessonModelRunSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>

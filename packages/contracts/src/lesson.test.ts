@@ -66,6 +66,7 @@ const session = {
       },
       sourceAnchorIds: [anchorId],
       outputMessageId: messageId,
+      errorSummary: null,
       startedAt: '2026-07-11T00:00:00.000Z',
       finishedAt: '2026-07-11T00:00:00.000Z',
     },
@@ -133,6 +134,23 @@ describe('lesson contracts', () => {
 
   it('rejects full document text and SQLite internals on session DTOs', () => {
     expect(lessonSessionSchema.safeParse(session).success).toBe(true)
+    expect(
+      lessonSessionSchema.safeParse({
+        ...session,
+        modelRuns: [
+          {
+            ...session.modelRuns[0],
+            status: 'failed',
+            outputMessageId: null,
+            errorSummary: {
+              code: 'INTERNAL_ERROR',
+              message: 'The lesson operation could not be completed.',
+              retryable: true,
+            },
+          },
+        ],
+      }).success,
+    ).toBe(true)
     expect(lessonSessionSchema.safeParse({ ...session, plainText: 'full text' }).success).toBe(
       false,
     )

@@ -4,6 +4,7 @@ import {
   type LessonReplyDraft,
   type LessonRunRetryDraft,
   type LessonModelRun,
+  type LessonModelRunErrorSummary,
   type LessonSession,
   type LessonStartDraft,
 } from '@deepstorming/domain'
@@ -191,6 +192,7 @@ const followUpModelRun = (
   },
   sourceAnchorIds: [input.anchor.id],
   outputMessageId: null,
+  errorSummary: null,
   startedAt: input.startedAt,
   finishedAt: null,
 })
@@ -206,13 +208,25 @@ const finishModelRun = (
   modelName: tutorReply.modelName,
   status: 'succeeded',
   outputMessageId,
+  errorSummary: null,
   finishedAt,
 })
 
-const failModelRun = (modelRun: LessonModelRun, finishedAt: string): LessonModelRun => ({
+const errorSummaryFrom = (error: LessonUseCaseError): LessonModelRunErrorSummary => ({
+  code: error.code,
+  message: error.message,
+  retryable: error.retryable,
+})
+
+const failModelRun = (
+  modelRun: LessonModelRun,
+  error: LessonUseCaseError,
+  finishedAt: string,
+): LessonModelRun => ({
   ...modelRun,
   status: 'failed',
   outputMessageId: null,
+  errorSummary: errorSummaryFrom(error),
   finishedAt,
 })
 
@@ -337,6 +351,7 @@ export class StartLessonFromDocument {
           },
           sourceAnchorIds: [anchorId],
           outputMessageId: messageId,
+          errorSummary: null,
           startedAt: createdAt,
           finishedAt: createdAt,
         },
@@ -431,13 +446,14 @@ export class SubmitLessonReply {
         learnerReply: draft.content,
       })
     } catch (error) {
+      const lessonError = asInternalError(error)
       await saveLesson(this.lessons, {
         ...pending,
         modelRuns: pending.modelRuns.map((run) =>
-          run.id === modelRunId ? failModelRun(run, createdAt) : run,
+          run.id === modelRunId ? failModelRun(run, lessonError, createdAt) : run,
         ),
       })
-      throw error
+      throw lessonError
     }
 
     const updated: StoredLessonSession = {
@@ -546,13 +562,14 @@ export class RetryLessonRun {
         learnerReply: learnerMessage.content,
       })
     } catch (error) {
+      const lessonError = asInternalError(error)
       await saveLesson(this.lessons, {
         ...pending,
         modelRuns: pending.modelRuns.map((run) =>
-          run.id === modelRunId ? failModelRun(run, createdAt) : run,
+          run.id === modelRunId ? failModelRun(run, lessonError, createdAt) : run,
         ),
       })
-      throw error
+      throw lessonError
     }
 
     const updated: StoredLessonSession = {

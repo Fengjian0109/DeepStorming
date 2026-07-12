@@ -49,6 +49,7 @@ type ModelRunRow = {
   input_summary_json: string
   source_anchor_ids_json: string
   output_message_id: string | null
+  error_summary_json: string | null
   started_at: string
   finished_at: string | null
 }
@@ -99,6 +100,7 @@ const mapModelRun = (row: ModelRunRow): StoredLessonModelRun => ({
   inputSummary: parseJsonObject(row.input_summary_json),
   sourceAnchorIds: parseSourceAnchorIds(row.source_anchor_ids_json),
   outputMessageId: row.output_message_id,
+  errorSummary: row.error_summary_json === null ? null : parseJsonObject(row.error_summary_json),
   startedAt: row.started_at,
   finishedAt: row.finished_at,
 })
@@ -265,7 +267,9 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
           )
         })
         const insertModelRun = this.db.prepare(
-          'INSERT INTO lesson_model_runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+          `INSERT INTO lesson_model_runs
+           (id,lesson_id,provider_id,model_name,operation,status,prompt_manifest_json,input_summary_json,source_anchor_ids_json,output_message_id,started_at,finished_at,error_summary_json)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         )
         for (const modelRun of session.modelRuns) {
           insertModelRun.run(
@@ -281,6 +285,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             modelRun.outputMessageId,
             modelRun.startedAt,
             modelRun.finishedAt,
+            modelRun.errorSummary === null ? null : JSON.stringify(modelRun.errorSummary),
           )
         }
         return session
@@ -315,7 +320,9 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
         })
 
         const insertModelRun = this.db.prepare(
-          'INSERT INTO lesson_model_runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+          `INSERT INTO lesson_model_runs
+           (id,lesson_id,provider_id,model_name,operation,status,prompt_manifest_json,input_summary_json,source_anchor_ids_json,output_message_id,started_at,finished_at,error_summary_json)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         )
         for (const modelRun of session.modelRuns) {
           insertModelRun.run(
@@ -331,6 +338,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             modelRun.outputMessageId,
             modelRun.startedAt,
             modelRun.finishedAt,
+            modelRun.errorSummary === null ? null : JSON.stringify(modelRun.errorSummary),
           )
         }
 

@@ -236,14 +236,31 @@ Migration 5 (`lesson_model_run_foundation`) 为本地 Mock Tutor 首轮提问增
 | output_message_id      | TEXT | NULL                                           | 生成的消息 ID                                        |
 | started_at             | TEXT | NOT NULL                                       | 运行开始时间                                         |
 | finished_at            | TEXT | NULL                                           | 运行结束时间                                         |
+| error_summary_json     | TEXT | NULL                                           | 失败/取消时的安全错误摘要；Migration 7               |
 
-当前 `input_summary_json` 只保存 `documentId`、`documentTitle`、`sourceAnchorIds`、字符范围、snippet 字符数，以及 follow-up 场景下的 learner reply 字符数；不保存完整文档正文、完整学习者回答以外的派生 prompt、API Key、Authorization header、原始 prompt 或原始响应。
+当前 `input_summary_json` 只保存 `documentId`、`documentTitle`、`sourceAnchorIds`、字符范围、snippet 字符数，以及 follow-up 场景下的 learner reply 字符数；不保存完整文档正文、完整学习者回答以外的派生 prompt、API Key、Authorization header、原始 prompt 或原始响应。`error_summary_json` 只保存稳定 `{ code, message, retryable }`，用于课堂页展示可恢复原因；不得写入 Provider 原始响应、请求体、密钥、Authorization header 或堆栈。
 
 运行恢复语义：应用层允许对 `failed/cancelled` 的课堂生成记录发起重试。重试不会覆盖原 run 的 `status`、`output_message_id` 或时间戳，而是追加新的 `lesson_tutor_follow_up` run 和对应 tutor message，从而保留失败历史与新结果的审计链路。`started/succeeded` run 不可重试。
 
 ### 5.0.7 `lesson_model_runs` operation 扩展（Migration 6）
 
 Migration 6 (`lesson_follow_up_operation`) 重建 `lesson_model_runs` 表的 `operation` 检查约束，使本地多轮课堂可以记录 `lesson_tutor_follow_up`。该迁移保留已有 run 行，只扩大允许的 operation 枚举，不改变已保存数据。
+
+### 5.0.8 `lesson_model_runs` 安全错误摘要（Migration 7）
+
+Migration 7 (`lesson_model_run_error_summary`) 为 `lesson_model_runs` 追加 `error_summary_json` 可空字段。新增字段服务于 Provider/generator 失败后的课堂恢复：失败 run 可以在重启后继续显示稳定错误原因并保留重试入口；历史 run 和成功 run 保持 `NULL`。
+
+字段内容由应用层从稳定 `LessonUseCaseError` 派生，当前形态为：
+
+```json
+{
+  "code": "INTERNAL_ERROR",
+  "message": "The lesson operation could not be completed.",
+  "retryable": true
+}
+```
+
+该字段是用户安全摘要，不是诊断日志；排查真实 Provider 问题时应通过后续专门的脱敏日志/遥测设计扩展，而不是把原始错误写入本表。
 
 > 下述 5.1 起的表结构仍保留为更完整文档导入/解析路线的目标蓝图，其中多数尚未实现。
 

@@ -263,6 +263,9 @@ export const LessonWorkspace = ({
                     <footer>
                       {modelRun.promptManifest.key} v{modelRun.promptManifest.version}
                     </footer>
+                    {modelRun.errorSummary !== null && (
+                      <p className="error-state">{modelRun.errorSummary.message}</p>
+                    )}
                     {(modelRun.status === 'failed' || modelRun.status === 'cancelled') && (
                       <div className="card-actions">
                         <button

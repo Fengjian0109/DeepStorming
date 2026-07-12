@@ -337,6 +337,7 @@ describe('lesson use cases', () => {
           },
           sourceAnchorIds: [anchorId],
           outputMessageId: messageId,
+          errorSummary: null,
           startedAt: now,
           finishedAt: now,
         },
@@ -428,6 +429,7 @@ describe('lesson use cases', () => {
       },
       sourceAnchorIds: [anchorId],
       outputMessageId: followUpMessageId,
+      errorSummary: null,
       startedAt: now,
       finishedAt: now,
     })
@@ -505,6 +507,7 @@ describe('lesson use cases', () => {
         modelName: 'mock-local',
         status: 'started',
         outputMessageId: null,
+        errorSummary: null,
         finishedAt: null,
       })
     })
@@ -529,6 +532,7 @@ describe('lesson use cases', () => {
       modelName: 'deepseek-chat',
       status: 'succeeded',
       outputMessageId: followUpMessageId,
+      errorSummary: null,
       finishedAt: now,
     })
   })
@@ -570,6 +574,11 @@ describe('lesson use cases', () => {
       id: followUpRunId,
       status: 'failed',
       outputMessageId: null,
+      errorSummary: {
+        code: 'INTERNAL_ERROR',
+        message: 'The lesson operation could not be completed.',
+        retryable: true,
+      },
       finishedAt: now,
     })
   })

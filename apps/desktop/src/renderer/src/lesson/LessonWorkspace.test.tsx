@@ -56,6 +56,7 @@ const session = {
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
       outputMessageId: '00000000-0000-4000-8000-000000000401',
+      errorSummary: null,
       startedAt: '2026-07-11T00:00:00.000Z',
       finishedAt: '2026-07-11T00:00:00.000Z',
     },
@@ -114,6 +115,7 @@ const repliedSession = {
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
       outputMessageId: '00000000-0000-4000-8000-000000000403',
+      errorSummary: null,
       startedAt: '2026-07-11T00:01:00.000Z',
       finishedAt: '2026-07-11T00:01:00.000Z',
     },
@@ -128,7 +130,16 @@ const failedSession = {
   ),
   modelRuns: repliedSession.modelRuns.map((run) =>
     run.id === '00000000-0000-4000-8000-000000000502'
-      ? { ...run, status: 'failed' as const, outputMessageId: null }
+      ? {
+          ...run,
+          status: 'failed' as const,
+          outputMessageId: null,
+          errorSummary: {
+            code: 'INTERNAL_ERROR',
+            message: 'The lesson operation could not be completed.',
+            retryable: true,
+          },
+        }
       : run,
   ),
 }
@@ -173,6 +184,7 @@ const retriedSession = {
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
       outputMessageId: '00000000-0000-4000-8000-000000000404',
+      errorSummary: null,
       startedAt: '2026-07-11T00:02:00.000Z',
       finishedAt: '2026-07-11T00:02:00.000Z',
     },
@@ -251,6 +263,7 @@ describe('LessonWorkspace', () => {
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
     expect(await screen.findByText('mock-local · failed')).toBeTruthy()
+    expect(screen.getByText('The lesson operation could not be completed.')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '重试生成 lesson.mockTutor.followUp v1' }))
 
     await waitFor(() =>
