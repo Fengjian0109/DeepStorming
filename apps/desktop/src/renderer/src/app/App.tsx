@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { DocumentLibrary } from '../document/DocumentLibrary'
+import { DocumentLibrary, type DocumentEvidenceFocus } from '../document/DocumentLibrary'
 import { LessonWorkspace } from '../lesson/LessonWorkspace'
 import { ProviderManager } from '../provider/ProviderManager'
 
@@ -13,6 +13,7 @@ export const App = (): React.JSX.Element => {
   const [runtime, setRuntime] = useState<RuntimeState>({ status: 'loading' })
   const [page, setPage] = useState<'documents' | 'lessons' | 'providers'>('documents')
   const [selectedLessonId, setSelectedLessonId] = useState<string>()
+  const [focusTarget, setFocusTarget] = useState<DocumentEvidenceFocus>()
 
   useEffect(() => {
     let active = true
@@ -86,13 +87,22 @@ export const App = (): React.JSX.Element => {
       <main className="main-content" id={page}>
         {page === 'documents' && (
           <DocumentLibrary
+            focusTarget={focusTarget}
             onLessonStarted={(lessonId) => {
               setSelectedLessonId(lessonId)
               setPage('lessons')
             }}
           />
         )}
-        {page === 'lessons' && <LessonWorkspace selectedLessonId={selectedLessonId} />}
+        {page === 'lessons' && (
+          <LessonWorkspace
+            selectedLessonId={selectedLessonId}
+            onReturnToEvidence={(target) => {
+              setFocusTarget(target)
+              setPage('documents')
+            }}
+          />
+        )}
         {page === 'providers' && <ProviderManager />}
       </main>
     </div>

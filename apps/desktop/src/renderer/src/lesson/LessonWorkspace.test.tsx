@@ -236,6 +236,40 @@ describe('LessonWorkspace', () => {
     await waitFor(() => expect(window.deepstorming.lessons.get).toHaveBeenCalledWith(session.id))
   })
 
+  it('shows PDF provenance and returns to the selected evidence block', async () => {
+    const user = userEvent.setup()
+    const pdfSession = {
+      ...session,
+      sourceAnchors: [
+        {
+          ...session.sourceAnchors[0],
+          target: {
+            kind: 'pdf_block' as const,
+            pageNumber: 2,
+            blockId: '00000000-0000-4000-8000-000000000302',
+            blockIndex: 1,
+          },
+        },
+      ],
+    }
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [pdfSession], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: pdfSession, requestId: crypto.randomUUID() })
+    const onReturnToEvidence = vi.fn()
+    render(<LessonWorkspace selectedLessonId={session.id} onReturnToEvidence={onReturnToEvidence} />)
+
+    expect(await screen.findByText('第 2 页 · Block 2')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '回到证据' }))
+    expect(onReturnToEvidence).toHaveBeenCalledWith({
+      documentId: session.documentId,
+      pageNumber: 2,
+      blockId: '00000000-0000-4000-8000-000000000302',
+    })
+  })
+
   it('submits a learner reply and renders the deterministic tutor follow-up', async () => {
     const user = userEvent.setup()
     render(<LessonWorkspace selectedLessonId={session.id} />)

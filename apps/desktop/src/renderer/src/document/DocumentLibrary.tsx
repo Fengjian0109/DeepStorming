@@ -52,10 +52,18 @@ const snippetFrom = (plainText: string): string => plainText.slice(0, 280).trim(
 
 const titleFromPdfName = (name: string): string => name.replace(/\.pdf$/iu, '').trim() || name
 
+export type DocumentEvidenceFocus = Readonly<{
+  documentId: string
+  pageNumber: number
+  blockId: string
+}>
+
 export const DocumentLibrary = ({
   onLessonStarted,
+  focusTarget,
 }: {
   onLessonStarted?: (lessonId: string) => void
+  focusTarget?: DocumentEvidenceFocus | undefined
 }): React.JSX.Element => {
   const [listState, setListState] = useState<ListState>({ status: 'loading' })
   const [asyncState, setAsyncState] = useState<AsyncState>({ status: 'idle' })
@@ -72,6 +80,7 @@ export const DocumentLibrary = ({
   const detailRequestSequence = useRef(0)
   const searchRequestSequence = useRef(0)
   const operationSequence = useRef(0)
+  const focusSequence = useRef<string | undefined>(undefined)
 
   const loadDocuments = useCallback(async () => {
     const requestSequence = listRequestSequence.current + 1
@@ -137,6 +146,18 @@ export const DocumentLibrary = ({
       message: getErrorMessage('文档详情加载失败。', result),
     })
   }, [])
+
+  useEffect(() => {
+    if (focusTarget === undefined || listState.status !== 'ready') return
+    const summary = listState.documents.find((document) => document.id === focusTarget.documentId)
+    if (summary === undefined) return
+    const key = `${focusTarget.documentId}:${focusTarget.pageNumber}:${focusTarget.blockId}`
+    if (focusSequence.current === key) return
+    focusSequence.current = key
+    void loadDetail(summary).then(() => {
+      setSelectedPdfTarget({ pageNumber: focusTarget.pageNumber, blockId: focusTarget.blockId })
+    })
+  }, [focusTarget, listState, loadDetail])
 
   const searchDocuments = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
