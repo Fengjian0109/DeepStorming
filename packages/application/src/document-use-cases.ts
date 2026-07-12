@@ -63,6 +63,7 @@ export class PdfTextExtractionError extends DocumentUseCaseError {
 export type DocumentDetail = LearningDocument & Readonly<{ plainText: string }>
 export type DocumentSearchInput = Readonly<{ query: string }>
 export type ImportPdfDocumentInput = Readonly<{ filePath: string; originalName: string }>
+export type GetDocumentPageBlocksInput = Readonly<{ documentId: string; pageNumber: number }>
 export type DocumentSearchResult = Omit<LearningDocument, 'id'> &
   Readonly<{
     documentId: string
@@ -500,6 +501,32 @@ export class ImportPdfDocument {
         createdAt,
       }))
     })
+  }
+}
+
+export class GetDocumentPages {
+  public constructor(private readonly importRepository: DocumentImportRepositoryPort) {}
+
+  public async execute(documentId: string): Promise<readonly StoredDocumentPage[]> {
+    try {
+      return await this.importRepository.listPages(documentId)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+  }
+}
+
+export class GetDocumentPageBlocks {
+  public constructor(private readonly importRepository: DocumentImportRepositoryPort) {}
+
+  public async execute(
+    input: GetDocumentPageBlocksInput,
+  ): Promise<readonly StoredDocumentTextBlock[]> {
+    try {
+      return await this.importRepository.listPageBlocks(input.documentId, input.pageNumber)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
   }
 }
 

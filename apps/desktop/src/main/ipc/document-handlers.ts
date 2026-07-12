@@ -3,7 +3,10 @@ import { randomUUID } from 'node:crypto'
 import type {
   CreateDocumentFromText,
   DeleteDocument,
+  GetDocumentPageBlocks,
+  GetDocumentPages,
   GetDocument,
+  ImportPdfDocument,
   ListDocuments,
   SearchDocuments,
 } from '@deepstorming/application'
@@ -11,8 +14,14 @@ import { DocumentUseCaseError } from '@deepstorming/application'
 import {
   createDocumentFromTextRequestSchema,
   documentDetailResultSchema,
+  documentImportJobResultSchema,
+  documentPagesResultSchema,
   documentSummaryResultSchema,
+  documentTextBlocksResultSchema,
+  getDocumentPageBlocksRequestSchema,
+  getDocumentPagesRequestSchema,
   getDocumentRequestSchema,
+  importPdfDocumentRequestSchema,
   listDocumentsRequestSchema,
   listDocumentsResultSchema,
   removeDocumentRequestSchema,
@@ -21,7 +30,12 @@ import {
   searchDocumentsResultSchema,
   type CreateDocumentFromTextRequest,
   type DocumentDetailResult,
+  type DocumentImportJobResult,
+  type DocumentPagesResult,
   type DocumentSummaryResult,
+  type DocumentTextBlocksResult,
+  type GetDocumentPageBlocksRequest,
+  type ImportPdfDocumentRequest,
   type ListDocumentsResult,
   type RemoveDocumentResult,
   type SearchDocumentsResult,
@@ -41,6 +55,9 @@ type DocumentIpcResult =
   | DocumentDetailResult
   | SearchDocumentsResult
   | RemoveDocumentResult
+  | DocumentImportJobResult
+  | DocumentPagesResult
+  | DocumentTextBlocksResult
 type DocumentIpcError = Extract<DocumentIpcResult, { ok: false }>['error']
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[1-5][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u
@@ -51,6 +68,9 @@ export type DocumentIpcHandlers = Readonly<{
   get(input: unknown): Promise<DocumentDetailResult>
   search(input: unknown): Promise<SearchDocumentsResult>
   remove(input: unknown): Promise<RemoveDocumentResult>
+  importPdf(input: unknown): Promise<DocumentImportJobResult>
+  getPages(input: unknown): Promise<DocumentPagesResult>
+  getPageBlocks(input: unknown): Promise<DocumentTextBlocksResult>
 }>
 
 export type DocumentIpcDependencies = Readonly<{
@@ -59,6 +79,9 @@ export type DocumentIpcDependencies = Readonly<{
   getDocument: GetDocument
   searchDocuments: SearchDocuments
   deleteDocument: DeleteDocument
+  importPdfDocument: ImportPdfDocument
+  getDocumentPages: GetDocumentPages
+  getDocumentPageBlocks: GetDocumentPageBlocks
 }>
 
 const requestIdFrom = (input: unknown): string => {
@@ -182,4 +205,30 @@ export const createDocumentIpcHandlers = (
       await dependencies.deleteDocument.execute(request.id)
       return {}
     }),
+  importPdf: (input) =>
+    handle(
+      input,
+      importPdfDocumentRequestSchema,
+      documentImportJobResultSchema,
+      (request: ImportPdfDocumentRequest) =>
+        dependencies.importPdfDocument.execute({
+          filePath: request.filePath,
+          originalName: request.originalName,
+        }),
+    ),
+  getPages: (input) =>
+    handle(input, getDocumentPagesRequestSchema, documentPagesResultSchema, (request) =>
+      dependencies.getDocumentPages.execute(request.documentId),
+    ),
+  getPageBlocks: (input) =>
+    handle(
+      input,
+      getDocumentPageBlocksRequestSchema,
+      documentTextBlocksResultSchema,
+      (request: GetDocumentPageBlocksRequest) =>
+        dependencies.getDocumentPageBlocks.execute({
+          documentId: request.documentId,
+          pageNumber: request.pageNumber,
+        }),
+    ),
 })

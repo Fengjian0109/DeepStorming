@@ -27,6 +27,42 @@ const searchResult = {
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
+const importJob = {
+  id: '00000000-0000-4000-8000-000000000101',
+  documentId: documentId,
+  sourceKind: 'pdf_file' as const,
+  status: 'ready' as const,
+  originalName: 'paper.pdf',
+  fileSizeBytes: 1024,
+  contentHash: 'a'.repeat(64),
+  error: null,
+  createdAt: '2026-07-12T00:00:00.000Z',
+  updatedAt: '2026-07-12T00:01:00.000Z',
+  finishedAt: '2026-07-12T00:01:00.000Z',
+}
+const page = {
+  id: '00000000-0000-4000-8000-000000000201',
+  documentId,
+  pageNumber: 1,
+  width: 612,
+  height: 792,
+  text: 'body',
+  textHash: 'b'.repeat(64),
+  createdAt: '2026-07-12T00:01:00.000Z',
+}
+const block = {
+  id: '00000000-0000-4000-8000-000000000301',
+  documentId,
+  pageId: page.id,
+  pageNumber: 1,
+  blockIndex: 0,
+  text: 'body',
+  x: 10,
+  y: 20,
+  width: 100,
+  height: 16,
+  createdAt: '2026-07-12T00:01:00.000Z',
+}
 
 const dependencies = () => ({
   listDocuments: { execute: vi.fn().mockResolvedValue([summary]) },
@@ -34,6 +70,9 @@ const dependencies = () => ({
   getDocument: { execute: vi.fn().mockResolvedValue({ ...summary, plainText: 'body' }) },
   searchDocuments: { execute: vi.fn().mockResolvedValue([searchResult]) },
   deleteDocument: { execute: vi.fn().mockResolvedValue(undefined) },
+  importPdfDocument: { execute: vi.fn().mockResolvedValue(importJob) },
+  getDocumentPages: { execute: vi.fn().mockResolvedValue([page]) },
+  getDocumentPageBlocks: { execute: vi.fn().mockResolvedValue([block]) },
 })
 
 describe('document IPC handlers', () => {
@@ -62,6 +101,46 @@ describe('document IPC handlers', () => {
 
     expect(result).toEqual({ ok: true, data: [searchResult], requestId })
     expect(deps.searchDocuments.execute).toHaveBeenCalledWith({ query: 'body' })
+  })
+
+  it('imports PDFs through one use case', async () => {
+    const deps = dependencies()
+    const result = await createDocumentIpcHandlers(
+      deps as unknown as DocumentIpcDependencies,
+    ).importPdf({
+      requestId,
+      filePath: '/tmp/paper.pdf',
+      originalName: 'paper.pdf',
+    })
+
+    expect(result).toEqual({ ok: true, data: importJob, requestId })
+    expect(deps.importPdfDocument.execute).toHaveBeenCalledWith({
+      filePath: '/tmp/paper.pdf',
+      originalName: 'paper.pdf',
+    })
+  })
+
+  it('returns PDF pages and page blocks through explicit use cases', async () => {
+    const deps = dependencies()
+    const handlers = createDocumentIpcHandlers(deps as unknown as DocumentIpcDependencies)
+
+    await expect(handlers.getPages({ requestId, documentId })).resolves.toEqual({
+      ok: true,
+      data: [page],
+      requestId,
+    })
+    await expect(handlers.getPageBlocks({ requestId, documentId, pageNumber: 1 })).resolves.toEqual(
+      {
+        ok: true,
+        data: [block],
+        requestId,
+      },
+    )
+    expect(deps.getDocumentPages.execute).toHaveBeenCalledWith(documentId)
+    expect(deps.getDocumentPageBlocks.execute).toHaveBeenCalledWith({
+      documentId,
+      pageNumber: 1,
+    })
   })
 
   it('strictly rejects malformed requests without calling use cases', async () => {

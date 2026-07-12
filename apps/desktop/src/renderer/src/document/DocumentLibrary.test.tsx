@@ -113,6 +113,27 @@ beforeEach(() => {
       }),
       search: vi.fn().mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
       remove: vi.fn().mockResolvedValue({ ok: true, data: {}, requestId: crypto.randomUUID() }),
+      importPdf: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          id: '00000000-0000-4000-8000-000000000901',
+          documentId: document.id,
+          sourceKind: 'pdf_file',
+          status: 'ready',
+          originalName: 'paper.pdf',
+          fileSizeBytes: 1024,
+          contentHash: 'a'.repeat(64),
+          error: null,
+          createdAt: '2026-07-12T00:00:00.000Z',
+          updatedAt: '2026-07-12T00:01:00.000Z',
+          finishedAt: '2026-07-12T00:01:00.000Z',
+        },
+        requestId: crypto.randomUUID(),
+      }),
+      getPages: vi.fn().mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
+      getPageBlocks: vi
+        .fn()
+        .mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
     },
     lessons: {
       list: vi.fn().mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
@@ -175,6 +196,85 @@ describe('DocumentLibrary', () => {
       sourceKind: 'text_file',
       originalFileName: 'paper.md',
     })
+  })
+
+  it('imports a PDF and opens the ready document detail', async () => {
+    const user = userEvent.setup()
+    const pdfDocument = { ...document, id: '00000000-0000-4000-8000-000000000991', title: 'paper' }
+    window.deepstorming.documents.importPdf = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        id: '00000000-0000-4000-8000-000000000901',
+        documentId: pdfDocument.id,
+        sourceKind: 'pdf_file',
+        status: 'ready',
+        originalName: 'paper.pdf',
+        fileSizeBytes: 1024,
+        contentHash: 'a'.repeat(64),
+        error: null,
+        createdAt: '2026-07-12T00:00:00.000Z',
+        updatedAt: '2026-07-12T00:01:00.000Z',
+        finishedAt: '2026-07-12T00:01:00.000Z',
+      },
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.documents.get = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        ...pdfDocument,
+        sourceKind: 'text_file',
+        originalFileName: 'paper.pdf',
+        plainText: 'PDF body',
+      },
+      requestId: crypto.randomUUID(),
+    })
+
+    render(<DocumentLibrary />)
+    const file = new File(['%PDF'], 'paper.pdf', { type: 'application/pdf' })
+    Object.defineProperty(file, 'path', { value: '/tmp/paper.pdf' })
+    await user.upload(await screen.findByLabelText('导入 PDF'), file)
+
+    expect(await screen.findByText('PDF 已导入。')).toBeTruthy()
+    expect(window.deepstorming.documents.importPdf).toHaveBeenCalledWith({
+      filePath: '/tmp/paper.pdf',
+      originalName: 'paper.pdf',
+    })
+    expect(await screen.findByRole('heading', { name: 'paper' })).toBeTruthy()
+    expect(await screen.findByText('PDF body')).toBeTruthy()
+  })
+
+  it('shows a safe PDF import error', async () => {
+    const user = userEvent.setup()
+    window.deepstorming.documents.importPdf = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        id: '00000000-0000-4000-8000-000000000901',
+        documentId: null,
+        sourceKind: 'pdf_file',
+        status: 'failed',
+        originalName: 'locked.pdf',
+        fileSizeBytes: 1024,
+        contentHash: 'a'.repeat(64),
+        error: {
+          code: 'DOCUMENT_PDF_PASSWORD_PROTECTED',
+          message: 'The PDF is password protected.',
+          retryable: false,
+        },
+        createdAt: '2026-07-12T00:00:00.000Z',
+        updatedAt: '2026-07-12T00:01:00.000Z',
+        finishedAt: '2026-07-12T00:01:00.000Z',
+      },
+      requestId: crypto.randomUUID(),
+    })
+
+    render(<DocumentLibrary />)
+    const file = new File(['%PDF'], 'locked.pdf', { type: 'application/pdf' })
+    Object.defineProperty(file, 'path', { value: '/tmp/locked.pdf' })
+    await user.upload(await screen.findByLabelText('导入 PDF'), file)
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'The PDF is password protected.',
+    )
   })
 
   it('confirms deletion', async () => {

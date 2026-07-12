@@ -4,7 +4,10 @@ import {
   LESSON_CHANNELS,
   PROVIDER_CHANNELS,
   documentDetailResultSchema,
+  documentImportJobResultSchema,
+  documentPagesResultSchema,
   documentSummaryResultSchema,
+  documentTextBlocksResultSchema,
   listDocumentsResultSchema,
   lessonSessionResultSchema,
   lessonSessionsResultSchema,
@@ -20,7 +23,10 @@ import {
   type CancelProviderTestResult,
   type DocumentDraftDto,
   type DocumentDetailResult,
+  type DocumentImportJobResult,
+  type DocumentPagesResult,
   type DocumentSummaryResult,
+  type DocumentTextBlocksResult,
   type ListDocumentsResult,
   type LessonReplyDraftDto,
   type LessonRunRetryDraftDto,
@@ -119,6 +125,33 @@ const api: DeepStormingBootstrapApi = {
         DOCUMENT_CHANNELS.remove,
         { requestId, id },
         removeDocumentResultSchema,
+      )
+    },
+    importPdf: async (input): Promise<DocumentImportJobResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        DOCUMENT_CHANNELS.importPdf,
+        { requestId, filePath: input.filePath, originalName: input.originalName },
+        documentImportJobResultSchema,
+      )
+    },
+    getPages: async (documentId: string): Promise<DocumentPagesResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        DOCUMENT_CHANNELS.getPages,
+        { requestId, documentId },
+        documentPagesResultSchema,
+      )
+    },
+    getPageBlocks: async (
+      documentId: string,
+      pageNumber: number,
+    ): Promise<DocumentTextBlocksResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        DOCUMENT_CHANNELS.getPageBlocks,
+        { requestId, documentId, pageNumber },
+        documentTextBlocksResultSchema,
       )
     },
   },

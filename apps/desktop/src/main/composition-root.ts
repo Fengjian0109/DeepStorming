@@ -5,12 +5,15 @@ import {
   CreateDocumentFromText,
   DeleteDocument,
   GetDocument,
+  GetDocumentPageBlocks,
+  GetDocumentPages,
   ActivateProvider,
   CancelLessonRun,
   CancelProviderTest,
   CreateProvider,
   GetApplicationInfo,
   GetLessonSession,
+  ImportPdfDocument,
   ListDocuments,
   ListLessonSessions,
   DeleteProvider,
@@ -27,12 +30,15 @@ import {
 } from '@deepstorming/application'
 import {
   EncryptedFileSecretVault,
+  LocalPdfFileStore,
   ProviderGatewayFactory,
   SecretCleanupReporter,
   Sha256DocumentTextHasher,
+  SqliteDocumentImportRepository,
   SqliteDocumentRepository,
   SqliteLessonRepository,
   SqliteProviderRepository,
+  UnavailablePdfTextExtractor,
   migrateDatabase,
   openDatabase,
   type SqliteDatabase,
@@ -80,11 +86,14 @@ export const createCompositionRoot = async (
 
     const repository = new SqliteProviderRepository(db)
     const documentRepository = new SqliteDocumentRepository(db)
+    const documentImportRepository = new SqliteDocumentImportRepository(db)
     const lessonRepository = new SqliteLessonRepository(db)
     const ids = { generate: randomUUID }
     const clock = { now: () => new Date().toISOString() }
     const vault = new EncryptedFileSecretVault(secretsDir, new ElectronSafeStorageCipher(), ids)
     const documentHasher = new Sha256DocumentTextHasher()
+    const pdfFileStore = new LocalPdfFileStore(join(userData, 'document-files'))
+    const pdfTextExtractor = new UnavailablePdfTextExtractor()
 
     await vault.reconcile(await repository.referencedSecretRefs())
 
@@ -112,6 +121,17 @@ export const createCompositionRoot = async (
       getDocument: new GetDocument(documentRepository),
       searchDocuments: new SearchDocuments(documentRepository),
       deleteDocument: new DeleteDocument(documentRepository),
+      importPdfDocument: new ImportPdfDocument(
+        documentRepository,
+        documentImportRepository,
+        pdfFileStore,
+        pdfTextExtractor,
+        documentHasher,
+        clock,
+        ids,
+      ),
+      getDocumentPages: new GetDocumentPages(documentImportRepository),
+      getDocumentPageBlocks: new GetDocumentPageBlocks(documentImportRepository),
       listLessonSessions: new ListLessonSessions(lessonRepository),
       startLessonFromDocument: new StartLessonFromDocument(
         documentRepository,

@@ -4,6 +4,10 @@ import { createAppResultSchema } from './app-result'
 import type {
   DocumentDetailResult,
   DocumentDraftDto,
+  DocumentImportJobResult,
+  DocumentPagesResult,
+  DocumentTextBlocksResult,
+  ImportPdfDocumentRequest,
   SearchDocumentsResult,
   DocumentSummaryResult,
   ListDocumentsResult,
@@ -59,6 +63,11 @@ export type DeepStormingApi = {
     get: (id: string) => Promise<DocumentDetailResult>
     search: (query: string) => Promise<SearchDocumentsResult>
     remove: (id: string) => Promise<RemoveDocumentResult>
+    importPdf: (
+      input: Omit<ImportPdfDocumentRequest, 'requestId'>,
+    ) => Promise<DocumentImportJobResult>
+    getPages: (documentId: string) => Promise<DocumentPagesResult>
+    getPageBlocks: (documentId: string, pageNumber: number) => Promise<DocumentTextBlocksResult>
   }
   lessons: {
     list: () => Promise<LessonSessionsResult>

@@ -45,6 +45,15 @@ export const registerIpc = (
   ipcMain.handle(DOCUMENT_CHANNELS.remove, (_event, input: unknown) =>
     documentHandlers.remove(input),
   )
+  ipcMain.handle(DOCUMENT_CHANNELS.importPdf, (_event, input: unknown) =>
+    documentHandlers.importPdf(input),
+  )
+  ipcMain.handle(DOCUMENT_CHANNELS.getPages, (_event, input: unknown) =>
+    documentHandlers.getPages(input),
+  )
+  ipcMain.handle(DOCUMENT_CHANNELS.getPageBlocks, (_event, input: unknown) =>
+    documentHandlers.getPageBlocks(input),
+  )
   ipcMain.handle(LESSON_CHANNELS.list, (_event, input: unknown) => lessonHandlers.list(input))
   ipcMain.handle(LESSON_CHANNELS.startFromDocument, (_event, input: unknown) =>
     lessonHandlers.startFromDocument(input),

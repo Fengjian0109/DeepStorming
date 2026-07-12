@@ -5,8 +5,12 @@ import { appInfoRequestSchema, appInfoResultSchema } from './app-info'
 import type {
   CreateDocumentFromTextRequest,
   DocumentDetailResult,
+  DocumentImportJobResult,
+  DocumentPagesResult,
   DocumentSummaryResult,
   DocumentDraftDto,
+  DocumentTextBlocksResult,
+  ImportPdfDocumentRequest,
   ListDocumentsResult,
   RemoveDocumentResult,
 } from './document'
@@ -54,6 +58,11 @@ describe('app info contracts', () => {
       createFromText: (document: DocumentDraftDto) => Promise<DocumentSummaryResult>
       get: (id: string) => Promise<DocumentDetailResult>
       remove: (id: string) => Promise<RemoveDocumentResult>
+      importPdf: (
+        input: Omit<ImportPdfDocumentRequest, 'requestId'>,
+      ) => Promise<DocumentImportJobResult>
+      getPages: (documentId: string) => Promise<DocumentPagesResult>
+      getPageBlocks: (documentId: string, pageNumber: number) => Promise<DocumentTextBlocksResult>
     }>()
 
     expectTypeOf<CreateDocumentFromTextRequest['document']>().toMatchTypeOf<DocumentDraftDto>()

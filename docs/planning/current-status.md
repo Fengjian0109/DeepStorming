@@ -101,6 +101,7 @@
   - Contracts：新增 `documents:import-pdf`、`documents:get-pages`、`documents:get-page-blocks` channel，以及 PDF import job、page、text block 的严格 DTO schema 和结果 envelope。
   - Infrastructure：新增 migration v8 `pdf_document_foundation`，创建 `document_import_jobs`、`document_files`、`document_pages`、`document_text_blocks`；新增 `SqliteDocumentImportRepository`，覆盖 queued/parsing/ready/failed job、页面/文本块持久化和按 document 查询。
   - Application：新增 PDF file store / text extractor ports 与 `ImportPdfDocument` use case；导入状态按 `queued -> copying -> parsing -> ready` 持久化，password protected / no text layer / damaged PDF 会落成 failed job 的安全错误摘要。
+  - Desktop：新增 `importPdf/getPages/getPageBlocks` 显式 IPC 与 preload API，文档库 UI 增加 PDF 导入入口、loading、ready 后自动打开详情、failed 安全错误展示；当前 main composition 已接入本地 PDF 文件存储，文本解析器仍是稳定 failed 的占位实现，下一步替换为真实 extractor。
 
 ## Phase 5 当前范围与非目标
 
@@ -109,7 +110,7 @@
 
 ## 当前门禁
 
-1. `pnpm check`：通过；Prettier、全 workspace typecheck、38 个测试文件 / 445 个测试，以及桌面端构建全部通过。
+1. `pnpm check`：通过；Prettier、全 workspace typecheck、39 个测试文件 / 454 个测试，以及桌面端构建全部通过。
 2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖正文搜索、从搜索结果启动课堂、首条 Mock Tutor 提问、生成记录、提交学习者回复、下一轮 Mock Tutor 追问，以及重启后课堂来源片段/多轮消息/生成记录仍可读取；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
@@ -130,4 +131,4 @@ pnpm package:dir
 
 ## 下一步
 
-继续执行 `docs/superpowers/plans/2026-07-12-pdf-document-foundation.md` Task 5：Main、Preload、Renderer 接线与 UI。发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。
+继续执行 `docs/superpowers/plans/2026-07-12-pdf-document-foundation.md` Task 6：接入真实 PDF 文本解析器并补小 PDF 导入 E2E。发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。

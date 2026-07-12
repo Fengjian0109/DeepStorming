@@ -36,6 +36,14 @@ const getErrorMessage = (fallback: string, result?: { ok: false; error: { messag
   result?.error.message ?? fallback
 
 const snippetFrom = (plainText: string): string => plainText.slice(0, 280).trim()
+const filePathFrom = (file: File): string | undefined => {
+  const candidate = file as File & { path?: unknown }
+  return typeof candidate.path === 'string' && candidate.path.trim().length > 0
+    ? candidate.path
+    : undefined
+}
+
+const titleFromPdfName = (name: string): string => name.replace(/\.pdf$/iu, '').trim() || name
 
 export const DocumentLibrary = ({
   onLessonStarted,
@@ -187,6 +195,66 @@ export const DocumentLibrary = ({
     return true
   }
 
+  const importPdf = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file) return
+
+    const filePath = filePathFrom(file)
+    if (filePath === undefined) {
+      setAsyncState({
+        status: 'error',
+        message: '无法读取 PDF 文件路径，请在桌面应用中重新选择文件。',
+      })
+      return
+    }
+
+    const token = operationSequence.current + 1
+    operationSequence.current = token
+    setAsyncState({ status: 'loading', message: '正在导入 PDF…' })
+
+    const result = await window.deepstorming.documents.importPdf({
+      filePath,
+      originalName: file.name,
+    })
+    if (operationSequence.current !== token) return
+
+    if (!result.ok) {
+      setAsyncState({
+        status: 'error',
+        message: getErrorMessage('PDF 导入失败。', result),
+      })
+      return
+    }
+
+    if (result.data.status === 'failed') {
+      setAsyncState({
+        status: 'error',
+        message: result.data.error?.message ?? 'PDF 导入失败。',
+      })
+      return
+    }
+
+    if (result.data.status !== 'ready' || result.data.documentId === null) {
+      setAsyncState({ status: 'success', message: 'PDF 导入已开始。' })
+      await loadDocuments()
+      return
+    }
+
+    setAsyncState({ status: 'success', message: 'PDF 已导入。' })
+    await loadDetail({
+      id: result.data.documentId,
+      documentType: 'paper',
+      title: titleFromPdfName(result.data.originalName),
+      sourceKind: 'text_file',
+      originalFileName: result.data.originalName,
+      characterCount: 0,
+      createdAt: result.data.createdAt,
+      updatedAt: result.data.updatedAt,
+    })
+    await loadDocuments()
+  }
+
   const deleteDocument = async () => {
     if (!deleteTarget) return
 
@@ -232,6 +300,19 @@ export const DocumentLibrary = ({
             onSubmit={createDocument}
             onError={(message) => setAsyncState({ status: 'error', message })}
           />
+          <div className="document-import-card">
+            <h3>导入 PDF</h3>
+            <p className="field-help">导入带文本层的 PDF，DeepStorming 会保存页面和文本块。</p>
+            <label className="file-picker">
+              <span>导入 PDF</span>
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                disabled={asyncState.status === 'loading'}
+                onChange={(event) => void importPdf(event)}
+              />
+            </label>
+          </div>
         </aside>
 
         <main className="panel">

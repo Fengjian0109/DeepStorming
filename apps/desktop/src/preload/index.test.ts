@@ -5,8 +5,11 @@ import {
   PROVIDER_CHANNELS,
   type DocumentDetailDto,
   type DocumentDraftDto,
+  type DocumentImportJobDto,
+  type DocumentPageDto,
   type DocumentSearchResultDto,
   type DocumentSummaryDto,
+  type DocumentTextBlockDto,
   type DeepStormingApi,
   type LessonSessionDto,
   type LessonStartDraftDto,
@@ -87,6 +90,42 @@ const documentSearchResult: DocumentSearchResultDto = {
   endOffset: 4,
   createdAt: documentSummary.createdAt,
   updatedAt: documentSummary.updatedAt,
+}
+const documentImportJob: DocumentImportJobDto = {
+  id: '00000000-0000-4000-8000-000000000101',
+  documentId: documentSummary.id,
+  sourceKind: 'pdf_file',
+  status: 'ready',
+  originalName: 'paper.pdf',
+  fileSizeBytes: 1024,
+  contentHash: 'a'.repeat(64),
+  error: null,
+  createdAt: '2026-07-12T00:00:00.000Z',
+  updatedAt: '2026-07-12T00:01:00.000Z',
+  finishedAt: '2026-07-12T00:01:00.000Z',
+}
+const documentPage: DocumentPageDto = {
+  id: '00000000-0000-4000-8000-000000000201',
+  documentId: documentSummary.id,
+  pageNumber: 1,
+  width: 612,
+  height: 792,
+  text: 'body',
+  textHash: 'b'.repeat(64),
+  createdAt: '2026-07-12T00:01:00.000Z',
+}
+const documentTextBlock: DocumentTextBlockDto = {
+  id: '00000000-0000-4000-8000-000000000301',
+  documentId: documentSummary.id,
+  pageId: documentPage.id,
+  pageNumber: 1,
+  blockIndex: 0,
+  text: 'body',
+  x: 10,
+  y: 20,
+  width: 100,
+  height: 16,
+  createdAt: '2026-07-12T00:01:00.000Z',
 }
 
 const lessonDraft: LessonStartDraftDto = {
@@ -182,6 +221,9 @@ describe('preload API', () => {
       get: expect.any(Function),
       search: expect.any(Function),
       remove: expect.any(Function),
+      importPdf: expect.any(Function),
+      getPages: expect.any(Function),
+      getPageBlocks: expect.any(Function),
     })
     expect(api.lessons).toEqual({
       list: expect.any(Function),
@@ -288,6 +330,28 @@ describe('preload API', () => {
       channel: DOCUMENT_CHANNELS.remove,
       payload: { requestId: REQUEST_ID, id: PROVIDER_ID },
       response: { ok: true, data: {}, requestId: REQUEST_ID },
+    },
+    {
+      name: 'documents.importPdf',
+      call: (api: DeepStormingApi) =>
+        api.documents.importPdf({ filePath: '/tmp/paper.pdf', originalName: 'paper.pdf' }),
+      channel: DOCUMENT_CHANNELS.importPdf,
+      payload: { requestId: REQUEST_ID, filePath: '/tmp/paper.pdf', originalName: 'paper.pdf' },
+      response: { ok: true, data: documentImportJob, requestId: REQUEST_ID },
+    },
+    {
+      name: 'documents.getPages',
+      call: (api: DeepStormingApi) => api.documents.getPages(PROVIDER_ID),
+      channel: DOCUMENT_CHANNELS.getPages,
+      payload: { requestId: REQUEST_ID, documentId: PROVIDER_ID },
+      response: { ok: true, data: [documentPage], requestId: REQUEST_ID },
+    },
+    {
+      name: 'documents.getPageBlocks',
+      call: (api: DeepStormingApi) => api.documents.getPageBlocks(PROVIDER_ID, 1),
+      channel: DOCUMENT_CHANNELS.getPageBlocks,
+      payload: { requestId: REQUEST_ID, documentId: PROVIDER_ID, pageNumber: 1 },
+      response: { ok: true, data: [documentTextBlock], requestId: REQUEST_ID },
     },
     {
       name: 'lessons.list',

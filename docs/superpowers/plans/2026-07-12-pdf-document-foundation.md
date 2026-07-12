@@ -325,7 +325,7 @@ Expected: all document use case tests pass.
 
 ## Task 5: Main, Preload, Renderer
 
-- [ ] **Step 1: Write failing IPC and Preload tests**
+- [x] **Step 1: Write failing IPC and Preload tests**
 
 Update:
 
@@ -340,7 +340,7 @@ window.deepstorming.documents.getPages(documentId)
 window.deepstorming.documents.getPageBlocks(documentId, pageNumber)
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -350,7 +350,7 @@ pnpm vitest run apps/desktop/src/main/ipc/document-handlers.test.ts apps/desktop
 
 Expected: missing methods/channels.
 
-- [ ] **Step 3: Implement explicit IPC and Preload**
+- [x] **Step 3: Implement explicit IPC and Preload**
 
 Follow existing document handler style:
 
@@ -359,7 +359,7 @@ Follow existing document handler style:
 - validate result envelope
 - map unknown failures to stable error
 
-- [ ] **Step 4: Renderer tests and UI**
+- [x] **Step 4: Renderer tests and UI**
 
 Update `DocumentLibrary.test.tsx` first:
 
@@ -370,7 +370,7 @@ Update `DocumentLibrary.test.tsx` first:
 
 Then update `DocumentLibrary.tsx`.
 
-- [ ] **Step 5: Verify GREEN**
+- [x] **Step 5: Verify GREEN**
 
 Run:
 

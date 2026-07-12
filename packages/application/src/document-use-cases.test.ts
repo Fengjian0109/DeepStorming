@@ -15,6 +15,8 @@ import {
   CreateDocumentFromText,
   DeleteDocument,
   DocumentUseCaseError,
+  GetDocumentPageBlocks,
+  GetDocumentPages,
   GetDocument,
   ImportPdfDocument,
   ListDocuments,
@@ -476,5 +478,36 @@ describe('document use cases', () => {
       status: 'failed',
       error: { code: 'DOCUMENT_PDF_PARSE_FAILED', retryable: false },
     })
+  })
+
+  it('lists imported PDF pages and page blocks', async () => {
+    importRepo.pages.set(ids[0]!, [
+      {
+        id: ids[1]!,
+        documentId: ids[0]!,
+        pageNumber: 1,
+        width: 612,
+        height: 792,
+        text: 'Page text',
+        textHash: 'b'.repeat(64),
+        createdAt: now,
+      },
+    ])
+    importRepo.blocks.set(ids[0]!, [
+      {
+        id: ids[2]!,
+        documentId: ids[0]!,
+        pageId: ids[1]!,
+        pageNumber: 1,
+        blockIndex: 0,
+        text: 'Page text',
+        createdAt: now,
+      },
+    ])
+
+    await expect(new GetDocumentPages(importRepo).execute(ids[0]!)).resolves.toHaveLength(1)
+    await expect(
+      new GetDocumentPageBlocks(importRepo).execute({ documentId: ids[0]!, pageNumber: 1 }),
+    ).resolves.toEqual([expect.objectContaining({ blockIndex: 0, text: 'Page text' })])
   })
 })
