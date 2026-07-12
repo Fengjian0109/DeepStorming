@@ -119,6 +119,60 @@ ALTER TABLE lesson_model_runs_new RENAME TO lesson_model_runs;`
 const LESSON_MODEL_RUN_ERROR_SUMMARY_SQL = `
 ALTER TABLE lesson_model_runs ADD COLUMN error_summary_json TEXT;`
 
+const PDF_DOCUMENT_SQL = `
+CREATE TABLE document_import_jobs (
+ id TEXT PRIMARY KEY,
+ document_id TEXT REFERENCES learning_documents(id) ON DELETE SET NULL,
+ source_kind TEXT NOT NULL CHECK (source_kind = 'pdf_file'),
+ status TEXT NOT NULL CHECK (status IN ('queued','copying','parsing','ready','failed','cancelled')),
+ original_name TEXT NOT NULL,
+ file_size_bytes INTEGER NOT NULL CHECK (file_size_bytes >= 0),
+ content_hash TEXT NOT NULL,
+ error_json TEXT,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ finished_at TEXT,
+ CHECK ((status = 'failed' AND error_json IS NOT NULL) OR (status != 'failed' AND error_json IS NULL))
+);
+CREATE INDEX document_import_jobs_document_id ON document_import_jobs(document_id);
+CREATE TABLE document_files (
+ document_id TEXT PRIMARY KEY REFERENCES learning_documents(id) ON DELETE CASCADE,
+ import_job_id TEXT NOT NULL REFERENCES document_import_jobs(id) ON DELETE CASCADE,
+ original_name TEXT NOT NULL,
+ stored_path TEXT NOT NULL,
+ content_hash TEXT NOT NULL,
+ file_size_bytes INTEGER NOT NULL CHECK (file_size_bytes >= 0),
+ created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX unique_document_file_content_hash ON document_files(content_hash);
+CREATE TABLE document_pages (
+ id TEXT PRIMARY KEY,
+ document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE CASCADE,
+ page_number INTEGER NOT NULL CHECK (page_number > 0),
+ width REAL NOT NULL CHECK (width > 0),
+ height REAL NOT NULL CHECK (height > 0),
+ text TEXT NOT NULL,
+ text_hash TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(document_id,page_number)
+);
+CREATE INDEX document_pages_document_id ON document_pages(document_id);
+CREATE TABLE document_text_blocks (
+ id TEXT PRIMARY KEY,
+ document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE CASCADE,
+ page_id TEXT NOT NULL REFERENCES document_pages(id) ON DELETE CASCADE,
+ page_number INTEGER NOT NULL CHECK (page_number > 0),
+ block_index INTEGER NOT NULL CHECK (block_index >= 0),
+ text TEXT NOT NULL,
+ x REAL CHECK (x IS NULL OR x >= 0),
+ y REAL CHECK (y IS NULL OR y >= 0),
+ width REAL CHECK (width IS NULL OR width > 0),
+ height REAL CHECK (height IS NULL OR height > 0),
+ created_at TEXT NOT NULL,
+ UNIQUE(page_id,block_index)
+);
+CREATE INDEX document_text_blocks_document_page ON document_text_blocks(document_id,page_number,block_index);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -127,6 +181,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 5, name: 'lesson_model_run_foundation', sql: LESSON_MODEL_RUN_SQL },
   { version: 6, name: 'lesson_follow_up_operation', sql: LESSON_FOLLOW_UP_SQL },
   { version: 7, name: 'lesson_model_run_error_summary', sql: LESSON_MODEL_RUN_ERROR_SUMMARY_SQL },
+  { version: 8, name: 'pdf_document_foundation', sql: PDF_DOCUMENT_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

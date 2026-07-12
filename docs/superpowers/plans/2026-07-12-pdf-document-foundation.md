@@ -195,7 +195,7 @@ Expected: all contract tests pass.
 
 ## Task 3: SQLite migration and repository
 
-- [ ] **Step 1: Write failing migration test**
+- [x] **Step 1: Write failing migration test**
 
 Modify `packages/infrastructure/src/database/migrations.test.ts` to assert:
 
@@ -206,7 +206,7 @@ expect(tables.map((row) => row.name)).toContain('document_pages')
 expect(tables.map((row) => row.name)).toContain('document_text_blocks')
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -216,7 +216,7 @@ pnpm vitest run packages/infrastructure/src/database/migrations.test.ts
 
 Expected: missing table assertion fails.
 
-- [ ] **Step 3: Add migration**
+- [x] **Step 3: Add migration**
 
 Add a new migration after current version:
 
@@ -229,7 +229,7 @@ CREATE TABLE document_text_blocks (...);
 
 Use explicit `CHECK` constraints for status and source kind. Use `ON DELETE CASCADE` for document-owned rows.
 
-- [ ] **Step 4: Add repository tests and implementation**
+- [x] **Step 4: Add repository tests and implementation**
 
 Create `packages/infrastructure/src/database/sqlite-document-import-repository.test.ts` covering:
 
@@ -241,7 +241,7 @@ Create `packages/infrastructure/src/database/sqlite-document-import-repository.t
 
 Implement `sqlite-document-import-repository.ts` with explicit column lists and JSON runtime validation only where JSON exists.
 
-- [ ] **Step 5: Verify GREEN**
+- [x] **Step 5: Verify GREEN**
 
 Run:
 

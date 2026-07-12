@@ -262,6 +262,71 @@ Migration 7 (`lesson_model_run_error_summary`) 为 `lesson_model_runs` 追加 `e
 
 该字段是用户安全摘要，不是诊断日志；排查真实 Provider 问题时应通过后续专门的脱敏日志/遥测设计扩展，而不是把原始错误写入本表。
 
+### 5.0.9 PDF 文档底座（Migration 8）
+
+Migration 8 (`pdf_document_foundation`) 在现有 `learning_documents` 上追加 PDF 导入状态、文件、页面和文本块持久化。该切片仍复用 Phase 3 的 `learning_documents` 聚合根，不启用下述 5.1 的完整 `documents` 蓝图表。
+
+#### `document_import_jobs`
+
+| 字段            | 类型    | 约束                                                 | 说明                                            |
+| --------------- | ------- | ---------------------------------------------------- | ----------------------------------------------- |
+| id              | TEXT    | PK                                                   | Import Job ID                                   |
+| document_id     | TEXT    | FK `learning_documents(id)` ON DELETE SET NULL, NULL | 导入完成后关联的文档                            |
+| source_kind     | TEXT    | NOT NULL, `CHECK (source_kind = 'pdf_file')`         | 当前只支持 PDF 文件                             |
+| status          | TEXT    | NOT NULL                                             | `queued/copying/parsing/ready/failed/cancelled` |
+| original_name   | TEXT    | NOT NULL                                             | 脱路径后的原始文件名                            |
+| file_size_bytes | INTEGER | NOT NULL, `CHECK (file_size_bytes >= 0)`             | 文件大小                                        |
+| content_hash    | TEXT    | NOT NULL                                             | PDF 文件 SHA-256                                |
+| error_json      | TEXT    | NULL                                                 | 失败时的安全错误摘要 JSON                       |
+| created_at      | TEXT    | NOT NULL                                             | 创建时间                                        |
+| updated_at      | TEXT    | NOT NULL                                             | 最近更新时间                                    |
+| finished_at     | TEXT    | NULL                                                 | 终态时间                                        |
+
+约束：`status = 'failed'` 时必须存在 `error_json`；非失败状态不得保存错误摘要。`error_json` 只保存 `{ code, message, retryable }`，不得包含本地路径、Provider 原始响应、堆栈或密钥。
+
+#### `document_files`
+
+| 字段            | 类型    | 约束                                              | 说明                 |
+| --------------- | ------- | ------------------------------------------------- | -------------------- |
+| document_id     | TEXT    | PK, FK `learning_documents(id)` ON DELETE CASCADE | 所属文档             |
+| import_job_id   | TEXT    | FK `document_import_jobs(id)` ON DELETE CASCADE   | 来源导入任务         |
+| original_name   | TEXT    | NOT NULL                                          | 脱路径后的原始文件名 |
+| stored_path     | TEXT    | NOT NULL                                          | 应用私有目录相对路径 |
+| content_hash    | TEXT    | NOT NULL, UNIQUE                                  | PDF 文件 SHA-256     |
+| file_size_bytes | INTEGER | NOT NULL, `CHECK (file_size_bytes >= 0)`          | 文件大小             |
+| created_at      | TEXT    | NOT NULL                                          | 创建时间             |
+
+#### `document_pages`
+
+| 字段        | 类型    | 约束                                          | 说明             |
+| ----------- | ------- | --------------------------------------------- | ---------------- |
+| id          | TEXT    | PK                                            | 页面 ID          |
+| document_id | TEXT    | FK `learning_documents(id)` ON DELETE CASCADE | 所属文档         |
+| page_number | INTEGER | NOT NULL, `CHECK (page_number > 0)`           | 1-based 页码     |
+| width       | REAL    | NOT NULL, `CHECK (width > 0)`                 | 页面宽度         |
+| height      | REAL    | NOT NULL, `CHECK (height > 0)`                | 页面高度         |
+| text        | TEXT    | NOT NULL                                      | 页面提取文本     |
+| text_hash   | TEXT    | NOT NULL                                      | 页面文本 SHA-256 |
+| created_at  | TEXT    | NOT NULL                                      | 创建时间         |
+
+唯一约束：`UNIQUE(document_id,page_number)`。
+
+#### `document_text_blocks`
+
+| 字段         | 类型    | 约束                                          | 说明               |
+| ------------ | ------- | --------------------------------------------- | ------------------ |
+| id           | TEXT    | PK                                            | 文本块 ID          |
+| document_id  | TEXT    | FK `learning_documents(id)` ON DELETE CASCADE | 所属文档           |
+| page_id      | TEXT    | FK `document_pages(id)` ON DELETE CASCADE     | 所属页面           |
+| page_number  | INTEGER | NOT NULL, `CHECK (page_number > 0)`           | 冗余页码，便于查询 |
+| block_index  | INTEGER | NOT NULL, `CHECK (block_index >= 0)`          | 页面内文本块顺序   |
+| text         | TEXT    | NOT NULL                                      | 文本块内容         |
+| x/y          | REAL    | NULL, 非负                                    | 可选左上角坐标     |
+| width/height | REAL    | NULL, 正数                                    | 可选块尺寸         |
+| created_at   | TEXT    | NOT NULL                                      | 创建时间           |
+
+唯一约束：`UNIQUE(page_id,block_index)`。删除 `document_pages` 或 `learning_documents` 会级联删除文本块。
+
 > 下述 5.1 起的表结构仍保留为更完整文档导入/解析路线的目标蓝图，其中多数尚未实现。
 
 ### 5.1 `documents`

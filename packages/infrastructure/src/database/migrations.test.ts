@@ -50,6 +50,10 @@ test('applies migration two and creates document tables', async () => {
     .all() as Array<{ name: string }>
   expect(tables.map((row) => row.name)).toContain('learning_documents')
   expect(tables.map((row) => row.name)).toContain('document_text_versions')
+  expect(tables.map((row) => row.name)).toContain('document_import_jobs')
+  expect(tables.map((row) => row.name)).toContain('document_files')
+  expect(tables.map((row) => row.name)).toContain('document_pages')
+  expect(tables.map((row) => row.name)).toContain('document_text_blocks')
   expect(db.prepare('SELECT version,name FROM schema_migrations ORDER BY version').all()).toEqual([
     { version: 1, name: 'provider_foundation' },
     { version: 2, name: 'document_text_import' },
@@ -58,6 +62,7 @@ test('applies migration two and creates document tables', async () => {
     { version: 5, name: 'lesson_model_run_foundation' },
     { version: 6, name: 'lesson_follow_up_operation' },
     { version: 7, name: 'lesson_model_run_error_summary' },
+    { version: 8, name: 'pdf_document_foundation' },
   ])
 
   db.close()
@@ -85,6 +90,7 @@ test('applies migrations three and four and creates lesson tables', async () => 
     { version: 5, name: 'lesson_model_run_foundation' },
     { version: 6, name: 'lesson_follow_up_operation' },
     { version: 7, name: 'lesson_model_run_error_summary' },
+    { version: 8, name: 'pdf_document_foundation' },
   ])
   const columns = db.prepare('PRAGMA table_info(lesson_model_runs)').all() as Array<{
     name: string
@@ -118,7 +124,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 8, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 9, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })
