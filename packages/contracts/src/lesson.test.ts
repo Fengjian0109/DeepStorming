@@ -277,5 +277,36 @@ describe('lesson contracts', () => {
         contextCharacterCount: 0,
       }).success,
     ).toBe(false)
+
+    expect(
+      lessonModelRunInputSummarySchema.safeParse({
+        documentId,
+        documentTitle: 'Paper Map',
+        sourceAnchorIds: [anchorId],
+        sourceCharacterRange: { startOffset: 4, endOffset: 12 },
+        snippetCharacterCount: 8,
+        contextCharacterCount: 145,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            pageNumberStart: 1,
+            pageNumberEnd: 2,
+            charCount: 144,
+          },
+        ],
+      }).success,
+    ).toBe(false)
+
+    expect(
+      lessonModelRunInputSummarySchema.safeParse({
+        documentId,
+        documentTitle: 'Paper Map',
+        sourceAnchorIds: [anchorId],
+        sourceCharacterRange: { startOffset: 4, endOffset: 12 },
+        snippetCharacterCount: 8,
+        contextCharacterCount: 1,
+        contextChunks: [],
+      }).success,
+    ).toBe(false)
   })
 })

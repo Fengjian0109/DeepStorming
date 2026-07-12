@@ -97,6 +97,14 @@ export const lessonModelRunInputSummarySchema = z
     contextChunks: z.array(lessonContextChunkSummarySchema),
     learnerReplyCharacterCount: z.number().int().nonnegative().optional(),
   })
+  .refine(
+    (value) =>
+      value.contextCharacterCount ===
+      value.contextChunks.reduce((total, chunk) => total + chunk.charCount, 0),
+    {
+      message: 'contextCharacterCount must match the sum of context chunk charCount values',
+    },
+  )
   .strict()
 
 export const lessonModelRunErrorSummarySchema = z

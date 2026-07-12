@@ -165,13 +165,14 @@ export const normalizeDocumentChunk = (chunk: DocumentChunk): DocumentChunk => {
   if (chunk.blockIds.length === 0 || chunk.blockIds.some((blockId) => blockId.trim().length === 0)) {
     throw new Error('Document chunk block ids are invalid')
   }
-  if (!Number.isInteger(chunk.charCount) || chunk.charCount < 0) {
+  const text = normalizeNonBlank(chunk.text, 'Document chunk text must not be blank')
+  if (!Number.isInteger(chunk.charCount) || chunk.charCount !== [...text].length) {
     throw new Error('Document chunk character count is invalid')
   }
 
   return {
     ...chunk,
-    text: normalizeNonBlank(chunk.text, 'Document chunk text must not be blank'),
+    text,
     sourceVersion: normalizeNonBlank(chunk.sourceVersion, 'Document chunk source version is invalid'),
     rebuildToken: normalizeNonBlank(chunk.rebuildToken, 'Document chunk rebuild token is invalid'),
   }

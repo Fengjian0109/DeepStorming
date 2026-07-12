@@ -347,6 +347,20 @@ describe('document contracts', () => {
       }).success,
     ).toBe(false)
 
+    expect(
+      documentChunkSchema.safeParse({
+        id: requestId,
+        documentId: '00000000-0000-4000-8000-000000000201',
+        pageNumberStart: 1,
+        pageNumberEnd: 1,
+        blockIds: ['p1-b1'],
+        text: 'chunk text',
+        charCount: 0,
+        sourceVersion: 'page-text:v1',
+        rebuildToken: 'chunk-rule:v1',
+      }).success,
+    ).toBe(false)
+
     expect(documentContextBudgetSchema.safeParse({ maxChunks: 4, maxCharacters: 2400 }).success).toBe(
       true,
     )

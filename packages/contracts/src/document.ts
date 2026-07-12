@@ -160,6 +160,9 @@ export const documentChunkSchema = z
   .refine((value) => value.pageNumberEnd >= value.pageNumberStart, {
     message: 'pageNumberEnd must be greater than or equal to pageNumberStart',
   })
+  .refine((value) => value.charCount === [...value.text.trim()].length, {
+    message: 'charCount must match the normalized chunk text length',
+  })
 
 export const documentContextBudgetSchema = z
   .object({

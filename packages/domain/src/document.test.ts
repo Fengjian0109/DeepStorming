@@ -183,6 +183,20 @@ describe('document domain', () => {
         rebuildToken: 'chunk-rule:v1',
       }),
     ).toThrow('Document chunk page range is invalid')
+
+    expect(() =>
+      normalizeDocumentChunk({
+        id: '00000000-0000-4000-8000-000000000901',
+        documentId: '00000000-0000-4000-8000-000000000902',
+        pageNumberStart: 1,
+        pageNumberEnd: 1,
+        blockIds: ['p1-b1'],
+        text: 'chunk text',
+        charCount: 0,
+        sourceVersion: 'page-text:v1',
+        rebuildToken: 'chunk-rule:v1',
+      }),
+    ).toThrow('Document chunk character count is invalid')
   })
 
   it('normalizes document context budgets and rejects invalid chunk limits', () => {

@@ -141,6 +141,77 @@ const normalizeNonBlank = (value: string, message: string): string => {
   return normalized
 }
 
+export const normalizeLessonContextChunkSummary = (
+  summary: LessonContextChunkSummary,
+): LessonContextChunkSummary => {
+  if (!UUID.test(summary.chunkId)) throw new Error('Lesson context chunk id is invalid')
+  if (!Number.isInteger(summary.pageNumberStart) || summary.pageNumberStart < 1) {
+    throw new Error('Lesson context chunk page range is invalid')
+  }
+  if (
+    !Number.isInteger(summary.pageNumberEnd) ||
+    summary.pageNumberEnd < summary.pageNumberStart
+  ) {
+    throw new Error('Lesson context chunk page range is invalid')
+  }
+  if (!Number.isInteger(summary.charCount) || summary.charCount < 0) {
+    throw new Error('Lesson context chunk character count is invalid')
+  }
+
+  return summary
+}
+
+export const normalizeLessonModelRunInputSummary = (
+  summary: LessonModelRunInputSummary,
+): LessonModelRunInputSummary => {
+  if (!UUID.test(summary.documentId)) throw new Error('Lesson model run document id is invalid')
+  if (summary.sourceAnchorIds.length === 0 || summary.sourceAnchorIds.some((id) => !UUID.test(id))) {
+    throw new Error('Lesson model run source anchors are invalid')
+  }
+  if (
+    !Number.isInteger(summary.sourceCharacterRange.startOffset) ||
+    summary.sourceCharacterRange.startOffset < 0
+  ) {
+    throw new Error('Lesson model run source character range is invalid')
+  }
+  if (
+    !Number.isInteger(summary.sourceCharacterRange.endOffset) ||
+    summary.sourceCharacterRange.endOffset <= summary.sourceCharacterRange.startOffset
+  ) {
+    throw new Error('Lesson model run source character range is invalid')
+  }
+  if (!Number.isInteger(summary.snippetCharacterCount) || summary.snippetCharacterCount < 0) {
+    throw new Error('Lesson snippet character count is invalid')
+  }
+  if (!Number.isInteger(summary.contextCharacterCount) || summary.contextCharacterCount < 0) {
+    throw new Error('Lesson context character count is invalid')
+  }
+  if (
+    summary.learnerReplyCharacterCount !== undefined &&
+    (!Number.isInteger(summary.learnerReplyCharacterCount) || summary.learnerReplyCharacterCount < 0)
+  ) {
+    throw new Error('Lesson learner reply character count is invalid')
+  }
+
+  const normalizedContextChunks = summary.contextChunks.map(normalizeLessonContextChunkSummary)
+  const contextCharacterCount = normalizedContextChunks.reduce(
+    (total, chunk) => total + chunk.charCount,
+    0,
+  )
+  if (summary.contextCharacterCount !== contextCharacterCount) {
+    throw new Error('Lesson context character count is invalid')
+  }
+
+  return {
+    ...summary,
+    documentTitle: normalizeNonBlank(
+      summary.documentTitle,
+      'Lesson model run document title must not be blank',
+    ),
+    contextChunks: normalizedContextChunks,
+  }
+}
+
 export const normalizeLessonStartDraft = (draft: LessonStartDraft): NormalizedLessonStartDraft => {
   if (!UUID.test(draft.documentId)) throw new Error('Lesson document id is invalid')
   if (!Number.isInteger(draft.source.startOffset) || draft.source.startOffset < 0) {

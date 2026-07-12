@@ -3,6 +3,8 @@ import {
   LESSON_MESSAGE_ROLES,
   LESSON_MODEL_RUN_STATUSES,
   LESSON_SESSION_STATUSES,
+  normalizeLessonContextChunkSummary,
+  normalizeLessonModelRunInputSummary,
   type LessonModelRunInputSummary,
   normalizeLessonStartDraft,
 } from './lesson'
@@ -96,7 +98,7 @@ describe('lesson domain', () => {
   })
 
   it('supports lesson model run summaries with required context chunks', () => {
-    const summary: LessonModelRunInputSummary = {
+    const summary: LessonModelRunInputSummary = normalizeLessonModelRunInputSummary({
       documentId: '00000000-0000-4000-8000-000000000001',
       documentTitle: 'Paper',
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
@@ -111,9 +113,55 @@ describe('lesson domain', () => {
           charCount: 144,
         },
       ],
-    }
+    })
 
     expect(summary.contextChunks).toHaveLength(1)
     expect(summary.contextCharacterCount).toBe(144)
+  })
+
+  it('normalizes lesson context chunk summaries and rejects invalid values', () => {
+    expect(
+      normalizeLessonContextChunkSummary({
+        chunkId: '00000000-0000-4000-8000-000000000901',
+        pageNumberStart: 1,
+        pageNumberEnd: 2,
+        charCount: 144,
+      }),
+    ).toEqual({
+      chunkId: '00000000-0000-4000-8000-000000000901',
+      pageNumberStart: 1,
+      pageNumberEnd: 2,
+      charCount: 144,
+    })
+
+    expect(() =>
+      normalizeLessonContextChunkSummary({
+        chunkId: '00000000-0000-4000-8000-000000000901',
+        pageNumberStart: 2,
+        pageNumberEnd: 1,
+        charCount: 144,
+      }),
+    ).toThrow('Lesson context chunk page range is invalid')
+  })
+
+  it('rejects lesson model run summaries with inconsistent context totals', () => {
+    expect(() =>
+      normalizeLessonModelRunInputSummary({
+        documentId: '00000000-0000-4000-8000-000000000001',
+        documentTitle: 'Paper',
+        sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+        sourceCharacterRange: { startOffset: 0, endOffset: 8 },
+        snippetCharacterCount: 8,
+        contextCharacterCount: 145,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            pageNumberStart: 1,
+            pageNumberEnd: 2,
+            charCount: 144,
+          },
+        ],
+      }),
+    ).toThrow('Lesson context character count is invalid')
   })
 })
