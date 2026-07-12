@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { DocumentForm } from './DocumentForm'
 import { DocumentList } from './DocumentList'
+import { PdfReaderPanel } from './PdfReaderPanel'
 
 type AsyncState =
   | { status: 'idle' }
@@ -61,6 +62,9 @@ export const DocumentLibrary = ({
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>()
   const [detailState, setDetailState] = useState<DetailState>({ status: 'idle' })
   const [pagePreviewState, setPagePreviewState] = useState<PagePreviewState>({ status: 'idle' })
+  const [selectedPdfTarget, setSelectedPdfTarget] = useState<
+    Readonly<{ pageNumber: number; blockId: string }>
+  >()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummaryDto>()
@@ -92,6 +96,7 @@ export const DocumentLibrary = ({
     const requestSequence = detailRequestSequence.current + 1
     detailRequestSequence.current = requestSequence
     setSelectedDocumentId(document.id)
+    setSelectedPdfTarget(undefined)
     setDetailState({ status: 'loading', documentId: document.id })
     setPagePreviewState({ status: 'loading', documentId: document.id })
     const result = await window.deepstorming.documents.get(document.id)
@@ -177,6 +182,12 @@ export const DocumentLibrary = ({
     startOffset: number
     endOffset: number
     snippet: string
+    target?: Readonly<{
+      kind: 'pdf_block'
+      pageNumber: number
+      blockId: string
+      blockIndex: number
+    }>
   }) => {
     const token = operationSequence.current + 1
     operationSequence.current = token
@@ -189,6 +200,7 @@ export const DocumentLibrary = ({
         startOffset: input.startOffset,
         endOffset: input.endOffset,
         snippet: input.snippet,
+        ...(input.target === undefined ? {} : { target: input.target }),
       },
     })
     if (operationSequence.current !== token) return
@@ -309,6 +321,7 @@ export const DocumentLibrary = ({
       setSelectedDocumentId(undefined)
       setDetailState({ status: 'idle' })
       setPagePreviewState({ status: 'idle' })
+      setSelectedPdfTarget(undefined)
     }
     setDeleteTarget(undefined)
     setAsyncState({ status: 'success', message: '文档已删除。' })
@@ -520,24 +533,24 @@ export const DocumentLibrary = ({
               {pagePreviewState.status === 'ready' &&
                 pagePreviewState.documentId === detailState.document.id &&
                 pagePreviewState.pages.length > 0 && (
-                  <section className="pdf-page-preview" aria-label="PDF 页面预览">
-                    <h3>PDF 页面与文本块</h3>
-                    {pagePreviewState.pages.map(({ page, blocks }) => (
-                      <article key={page.id} className="pdf-page-card">
-                        <h4>PDF 页面 {page.pageNumber}</h4>
-                        <p className="field-help">
-                          {Math.round(page.width)} × {Math.round(page.height)}
-                        </p>
-                        <ul>
-                          {blocks.map((block) => (
-                            <li key={block.id}>
-                              Block {block.blockIndex + 1} · {block.text}
-                            </li>
-                          ))}
-                        </ul>
-                      </article>
-                    ))}
-                  </section>
+                  <PdfReaderPanel
+                    documentId={detailState.document.id}
+                    pages={pagePreviewState.pages}
+                    selectedTarget={selectedPdfTarget}
+                    onSelectTarget={setSelectedPdfTarget}
+                    onStartLesson={(input) =>
+                      void startLesson({
+                        ...input,
+                        documentTitle: detailState.document.title,
+                        target: {
+                          kind: 'pdf_block',
+                          pageNumber: input.pageNumber,
+                          blockId: input.blockId,
+                          blockIndex: input.blockIndex,
+                        },
+                      })
+                    }
+                  />
                 )}
             </article>
           )}

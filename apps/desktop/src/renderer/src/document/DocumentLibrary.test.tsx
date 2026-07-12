@@ -275,6 +275,23 @@ describe('DocumentLibrary', () => {
     expect(await screen.findByText('PDF body')).toBeTruthy()
     expect(await screen.findByText('PDF 页面 1')).toBeTruthy()
     expect(await screen.findByText('Block 1 · PDF body')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '选择 Block 1' }))
+    await user.click(screen.getByRole('button', { name: '用此 block 开始课堂' }))
+    expect(window.deepstorming.lessons.startFromDocument).toHaveBeenCalledWith({
+      documentId: pdfDocument.id,
+      documentTitle: 'paper',
+      source: {
+        startOffset: 0,
+        endOffset: 8,
+        snippet: 'PDF body',
+        target: {
+          kind: 'pdf_block',
+          pageNumber: 1,
+          blockId: '00000000-0000-4000-8000-000000000301',
+          blockIndex: 0,
+        },
+      },
+    })
   })
 
   it('shows a safe PDF import error', async () => {
