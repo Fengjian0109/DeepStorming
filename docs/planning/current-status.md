@@ -2,7 +2,7 @@
 
 - 更新时间：2026-07-12
 - 当前分支：`main`
-- 当前阶段：Phase 6 PDF 文档底座
+- 当前阶段：Phase 6 PDF 文档底座 + D3 文档阅读器与证据定位
 - 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、桌面 PDF 导入 UI 与 E2E 已完成
 
 ## 已完成
@@ -134,4 +134,4 @@ pnpm package:dir
 
 ## 下一步
 
-继续进入 D3 文档阅读器与证据定位：PDF viewer shell、页码导航、搜索命中、block highlight，以及 Lesson source anchor 的 page/block 扩展。发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。
+D3 已完成：详情页内嵌文本层 PDF reader，支持页码浏览、block 搜索/高亮、从 block 启动课堂、页码/block 来源展示和回到证据。下一步进入 D4 Chunk / 检索 / 上下文预算；发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。

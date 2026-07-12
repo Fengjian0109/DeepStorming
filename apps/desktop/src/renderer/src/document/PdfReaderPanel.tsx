@@ -73,30 +73,38 @@ export const PdfReaderPanel = ({
       <div className="pdf-reader-pages">
         {pages.map(({ page, blocks }) => {
           const visibleBlocks = blocks.filter(
-            (block) => normalizedQuery.length === 0 || normalize(block.text).includes(normalizedQuery),
+            (block) =>
+              normalizedQuery.length === 0 || normalize(block.text).includes(normalizedQuery),
           )
           return (
             <article key={page.id} className="pdf-page-card">
               <h4>PDF 页面 {page.pageNumber}</h4>
-              <p className="field-help">{Math.round(page.width)} × {Math.round(page.height)}</p>
+              <p className="field-help">
+                {Math.round(page.width)} × {Math.round(page.height)}
+              </p>
               {visibleBlocks.length === 0 ? (
                 <p className="muted-state">没有匹配的文本块。</p>
               ) : (
                 <ul>
                   {visibleBlocks.map((block) => {
                     const isSelected =
-                      activeTarget?.pageNumber === page.pageNumber && activeTarget.blockId === block.id
+                      activeTarget?.pageNumber === page.pageNumber &&
+                      activeTarget.blockId === block.id
                     const range = offsets.get(block.id)
                     return (
                       <li key={block.id} className={isSelected ? 'pdf-block-active' : undefined}>
                         <button type="button" onClick={() => select(page.pageNumber, block.id)}>
                           选择 Block {block.blockIndex + 1}
                         </button>
-                        <span>Block {block.blockIndex + 1} · {block.text}</span>
+                        <span>
+                          Block {block.blockIndex + 1} · {block.text}
+                        </span>
                         {isSelected && (
                           <div>
                             <p className="field-help">
-                              {range === undefined ? '证据文本不可定位' : `字符 ${range.startOffset}–${range.endOffset}`}
+                              {range === undefined
+                                ? '证据文本不可定位'
+                                : `字符 ${range.startOffset}–${range.endOffset}`}
                             </p>
                             <button
                               type="button"

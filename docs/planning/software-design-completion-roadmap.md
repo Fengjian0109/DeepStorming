@@ -2,7 +2,7 @@
 
 - 日期：2026-07-12
 - 目标：把当前已完成的 Provider / 文本文档 / LessonSession 基线，收敛到可发布 MVP 所需的剩余软件设计与实施顺序。
-- 状态：Phase 5 Provider-backed lesson loop 与 Phase 6 PDF 文档底座已完成；下一阶段进入文档阅读器与证据定位、真实云 Provider 手动验收和发布准备。
+- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座与 D3 文档阅读器/证据定位已完成；下一阶段进入 D4 检索上下文、真实云 Provider 手动验收和发布准备。
 
 ## 1. 当前设计基线
 
@@ -71,11 +71,11 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 
 目的：让用户在 UI 中打开 PDF、查看页码、搜索文本、从命中的 block 启动课堂，并能从 AI 引用跳回证据。
 
-设计范围：
+设计范围（已完成）：
 
 - PDF viewer shell。
-- page navigation、zoom、search hit、block highlight。
-- Lesson source anchor 扩展：`pageNumber`、`blockId`、可选 bounding box。
+- page navigation、search hit、block highlight（文本层 reader shell）。
+- Lesson source anchor 扩展：`pageNumber`、`blockId`、`blockIndex`。
 - 删除文档时级联删除 page/block/chunk/index，不破坏 lesson 审计历史中已保存的 snippet。
 
 非目标：
@@ -84,6 +84,8 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 - 图表理解。
 - Embedding。
 - 多窗口 PDF 阅读器。
+
+实现说明：本阶段 intentionally 延后 canvas/zoom/bbox；阅读器使用已持久化 page/block 文本，课堂保留 text offset/snippet 作为审计兼容字段，并支持从课堂回到原 block。
 
 ### D4. Chunk / 检索 / 上下文预算
 

@@ -259,7 +259,9 @@ describe('LessonWorkspace', () => {
       .fn()
       .mockResolvedValue({ ok: true, data: pdfSession, requestId: crypto.randomUUID() })
     const onReturnToEvidence = vi.fn()
-    render(<LessonWorkspace selectedLessonId={session.id} onReturnToEvidence={onReturnToEvidence} />)
+    render(
+      <LessonWorkspace selectedLessonId={session.id} onReturnToEvidence={onReturnToEvidence} />,
+    )
 
     expect(await screen.findByText('第 2 页 · Block 2')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '回到证据' }))

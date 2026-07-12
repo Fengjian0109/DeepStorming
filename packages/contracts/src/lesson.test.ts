@@ -25,7 +25,7 @@ const session = {
   status: 'active',
   documentId,
   documentTitle: 'Paper Map',
-      sourceAnchors: [
+  sourceAnchors: [
     {
       id: anchorId,
       documentId,

@@ -29,7 +29,9 @@ export const LessonWorkspace = ({
   onReturnToEvidence,
 }: {
   selectedLessonId: string | undefined
-  onReturnToEvidence?: (target: Readonly<{ documentId: string; pageNumber: number; blockId: string }>) => void
+  onReturnToEvidence?: (
+    target: Readonly<{ documentId: string; pageNumber: number; blockId: string }>,
+  ) => void
 }): React.JSX.Element => {
   const [listState, setListState] = useState<LessonListState>({ status: 'loading' })
   const [detailState, setDetailState] = useState<LessonDetailState>({ status: 'idle' })
@@ -273,24 +275,25 @@ export const LessonWorkspace = ({
                         ? `第 ${anchor.target.pageNumber} 页 · Block ${anchor.target.blockIndex + 1}`
                         : `字符 ${anchor.startOffset}–${anchor.endOffset}`}
                     </footer>
-                    {anchor.target?.kind === 'pdf_block' && (() => {
-                      const target = anchor.target
-                      return (
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() =>
-                          onReturnToEvidence?.({
-                            documentId: anchor.documentId,
-                            pageNumber: target.pageNumber,
-                            blockId: target.blockId,
-                          })
-                        }
-                      >
-                        回到证据
-                      </button>
-                      )
-                    })()}
+                    {anchor.target?.kind === 'pdf_block' &&
+                      (() => {
+                        const target = anchor.target
+                        return (
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() =>
+                              onReturnToEvidence?.({
+                                documentId: anchor.documentId,
+                                pageNumber: target.pageNumber,
+                                blockId: target.blockId,
+                              })
+                            }
+                          >
+                            回到证据
+                          </button>
+                        )
+                      })()}
                   </blockquote>
                 ))}
               </div>

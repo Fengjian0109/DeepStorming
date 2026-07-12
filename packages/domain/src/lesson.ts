@@ -151,7 +151,7 @@ export const normalizeLessonStartDraft = (draft: LessonStartDraft): NormalizedLe
   const title =
     draft.title === undefined
       ? `${documentTitle} 课堂`
-    : normalizeNonBlank(draft.title, 'Lesson title must not be blank')
+      : normalizeNonBlank(draft.title, 'Lesson title must not be blank')
 
   const target = draft.source.target ?? { kind: 'text_range' as const }
   if (target.kind === 'pdf_block') {

@@ -174,9 +174,16 @@ test('creates text documents and persists them across restart', async () => {
       await expect(page.locator('.document-detail .document-body')).toContainText(pdfFixtureText)
       await expect(page.getByText('PDF 页面 1')).toBeVisible()
       await expect(page.getByText(`Block 1 · ${pdfFixtureText}`)).toBeVisible()
-      await page.locator('.document-detail').getByRole('button', { name: '开始课堂' }).click()
+      await page.getByRole('button', { name: '选择 Block 1' }).click()
+      await page.getByRole('button', { name: '用此 block 开始课堂' }).click()
       await expect(page.locator('#lesson-title')).toHaveText('课堂')
       await expect(page.locator('.lesson-anchor').getByText(pdfFixtureText)).toBeVisible()
+      await expect(page.getByText('第 1 页 · Block 1')).toBeVisible()
+      await page.getByRole('button', { name: '回到证据' }).click()
+      await expect(
+        page.locator('.document-detail').getByRole('heading', { name: 'evidence' }),
+      ).toBeVisible()
+      await expect(page.locator('.pdf-block-active')).toBeVisible()
       await page.getByRole('button', { name: '文档库' }).click()
 
       await page.getByLabel('搜索文档内容').fill('Evidence')

@@ -62,7 +62,9 @@ const mapAnchor = (row: AnchorRow): StoredLessonSourceAnchor => ({
   startOffset: row.start_offset,
   endOffset: row.end_offset,
   snippet: row.snippet,
-  ...(row.target_json === null ? {} : { target: parseJsonObject<LessonSourceTarget>(row.target_json) }),
+  ...(row.target_json === null
+    ? {}
+    : { target: parseJsonObject<LessonSourceTarget>(row.target_json) }),
 })
 
 const parseSourceAnchorIds = (value: string): readonly string[] => {

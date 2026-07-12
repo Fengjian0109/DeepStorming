@@ -70,9 +70,8 @@ export const DocumentLibrary = ({
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>()
   const [detailState, setDetailState] = useState<DetailState>({ status: 'idle' })
   const [pagePreviewState, setPagePreviewState] = useState<PagePreviewState>({ status: 'idle' })
-  const [selectedPdfTarget, setSelectedPdfTarget] = useState<
-    Readonly<{ pageNumber: number; blockId: string }>
-  >()
+  const [selectedPdfTarget, setSelectedPdfTarget] =
+    useState<Readonly<{ pageNumber: number; blockId: string }>>()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummaryDto>()
