@@ -236,7 +236,7 @@ describe('lesson contracts', () => {
     ).toBe(true)
   })
 
-  it('requires lesson model run context chunk summaries', () => {
+  it('requires the context chunk field but allows an empty summary list', () => {
     expect(
       lessonModelRunInputSummarySchema.safeParse({
         documentId,
@@ -256,14 +256,26 @@ describe('lesson contracts', () => {
       }).success,
     ).toBe(true)
 
-    expect(() =>
-      lessonModelRunSchema.parse({
+    expect(
+      lessonModelRunSchema.safeParse({
         ...session.modelRuns[0],
         inputSummary: {
           ...session.modelRuns[0].inputSummary,
+          contextCharacterCount: 0,
           contextChunks: [],
         },
-      }),
-    ).toThrow()
+      }).success,
+    ).toBe(true)
+
+    expect(
+      lessonModelRunInputSummarySchema.safeParse({
+        documentId,
+        documentTitle: 'Paper Map',
+        sourceAnchorIds: [anchorId],
+        sourceCharacterRange: { startOffset: 4, endOffset: 12 },
+        snippetCharacterCount: 8,
+        contextCharacterCount: 0,
+      }).success,
+    ).toBe(false)
   })
 })

@@ -94,7 +94,7 @@ export const lessonModelRunInputSummarySchema = z
       }),
     snippetCharacterCount: z.number().int().nonnegative(),
     contextCharacterCount: z.number().int().nonnegative(),
-    contextChunks: z.array(lessonContextChunkSummarySchema).min(1),
+    contextChunks: z.array(lessonContextChunkSummarySchema),
     learnerReplyCharacterCount: z.number().int().nonnegative().optional(),
   })
   .strict()
