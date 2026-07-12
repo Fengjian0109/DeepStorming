@@ -1,5 +1,4 @@
 import {
-  type LessonContextChunkSummary,
   normalizeLessonStartDraft,
   type LessonPromptManifest,
   type LessonReplyDraft,
@@ -93,15 +92,6 @@ const localTutorReply = (learnerReply: string, snippet: string): LessonTutorRepl
   content: createMockTutorFollowUp(learnerReply, snippet),
   providerId: null,
   modelName: 'mock-local',
-})
-
-const summarizeContextChunk = (
-  anchor: StoredLessonSession['sourceAnchors'][number],
-): LessonContextChunkSummary => ({
-  chunkId: anchor.id,
-  pageNumberStart: anchor.target?.kind === 'pdf_block' ? anchor.target.pageNumber : 1,
-  pageNumberEnd: anchor.target?.kind === 'pdf_block' ? anchor.target.pageNumber : 1,
-  charCount: anchor.snippet.length,
 })
 
 const liveToken = (): CancellationToken => ({
@@ -294,8 +284,8 @@ const followUpModelRun = (
       endOffset: input.anchor.endOffset,
     },
     snippetCharacterCount: input.anchor.snippet.length,
-    contextCharacterCount: input.anchor.snippet.length,
-    contextChunks: [summarizeContextChunk(input.anchor)],
+    contextCharacterCount: 0,
+    contextChunks: [],
     learnerReplyCharacterCount: input.learnerReply.length,
   },
   sourceAnchorIds: [input.anchor.id],
@@ -487,15 +477,8 @@ export class StartLessonFromDocument {
               endOffset: draft.source.endOffset,
             },
             snippetCharacterCount: draft.source.snippet.length,
-            contextCharacterCount: draft.source.snippet.length,
-            contextChunks: [
-              {
-                chunkId: anchorId,
-                pageNumberStart: draft.source.target.kind === 'pdf_block' ? draft.source.target.pageNumber : 1,
-                pageNumberEnd: draft.source.target.kind === 'pdf_block' ? draft.source.target.pageNumber : 1,
-                charCount: draft.source.snippet.length,
-              },
-            ],
+            contextCharacterCount: 0,
+            contextChunks: [],
           },
           sourceAnchorIds: [anchorId],
           outputMessageId: messageId,
