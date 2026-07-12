@@ -28,6 +28,7 @@ export type LessonUseCaseErrorCode =
   | 'LESSON_VALIDATION_FAILED'
   | 'LESSON_DOCUMENT_NOT_FOUND'
   | 'LESSON_NOT_FOUND'
+  | 'OPERATION_CANCELLED'
   | 'DATABASE_UNAVAILABLE'
   | 'INTERNAL_ERROR'
 
@@ -96,19 +97,102 @@ const liveToken = (): CancellationToken => ({
   onCancel: () => () => undefined,
 })
 
+class CancellationSource implements CancellationToken {
+  private isCancelled = false
+  private readonly listeners = new Set<() => void>()
+
+  public get cancelled(): boolean {
+    return this.isCancelled
+  }
+
+  public onCancel(listener: () => void): () => void {
+    if (this.isCancelled) {
+      listener()
+      return () => undefined
+    }
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  public cancel(): void {
+    if (this.isCancelled) return
+    this.isCancelled = true
+    for (const listener of [...this.listeners]) listener()
+  }
+}
+
+export class LessonRunOperations {
+  private readonly operations = new Map<string, CancellationSource>()
+
+  public start(operationId: string): CancellationToken {
+    if (this.operations.has(operationId)) {
+      throw new LessonUseCaseError(
+        'LESSON_VALIDATION_FAILED',
+        'A lesson generation with this operation ID is already running.',
+        false,
+        { operationId },
+      )
+    }
+    const source = new CancellationSource()
+    this.operations.set(operationId, source)
+    return source
+  }
+
+  public cancel(operationId: string): boolean {
+    const source = this.operations.get(operationId)
+    if (source === undefined) return false
+    source.cancel()
+    return true
+  }
+
+  public complete(operationId: string): void {
+    this.operations.delete(operationId)
+  }
+}
+
+export type CancelLessonRunInput = Readonly<{ operationId: string }>
+export type CancelLessonRunResult = Readonly<{ cancelled: boolean }>
+
+export class CancelLessonRun {
+  public constructor(private readonly operations: LessonRunOperations) {}
+
+  public execute(input: CancelLessonRunInput): CancelLessonRunResult {
+    if (!UUID.test(input.operationId)) {
+      throw new LessonUseCaseError(
+        'LESSON_VALIDATION_FAILED',
+        'Lesson operation id is invalid.',
+        false,
+      )
+    }
+    return { cancelled: this.operations.cancel(input.operationId) }
+  }
+}
+
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[1-5][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu
 
 const normalizeLessonReplyDraft = (draft: LessonReplyDraft): LessonReplyDraft => {
   if (!UUID.test(draft.lessonId)) throw new Error('Lesson id is invalid')
+  if (draft.operationId !== undefined && !UUID.test(draft.operationId)) {
+    throw new Error('Lesson operation id is invalid')
+  }
   const content = draft.content.trim()
   if (content.length === 0) throw new Error('Lesson reply must not be blank')
   if (content.length > 1_000) throw new Error('Lesson reply is too long')
-  return { lessonId: draft.lessonId, content }
+  return {
+    lessonId: draft.lessonId,
+    content,
+    ...(draft.operationId === undefined ? {} : { operationId: draft.operationId }),
+  }
 }
 
 const normalizeLessonRunRetryDraft = (draft: LessonRunRetryDraft): LessonRunRetryDraft => {
   if (!UUID.test(draft.lessonId)) throw new Error('Lesson id is invalid')
   if (!UUID.test(draft.modelRunId)) throw new Error('Lesson model run id is invalid')
+  if (draft.operationId !== undefined && !UUID.test(draft.operationId)) {
+    throw new Error('Lesson operation id is invalid')
+  }
   return draft
 }
 
@@ -124,6 +208,14 @@ const databaseError = (): LessonUseCaseError =>
 
 const internalError = (): LessonUseCaseError =>
   new LessonUseCaseError('INTERNAL_ERROR', 'The lesson operation could not be completed.', true)
+
+const cancelledError = (operationId?: string): LessonUseCaseError =>
+  new LessonUseCaseError(
+    'OPERATION_CANCELLED',
+    'The lesson generation was cancelled.',
+    false,
+    operationId === undefined ? undefined : { operationId },
+  )
 
 const isLessonError = (error: unknown): error is LessonUseCaseError =>
   error instanceof LessonUseCaseError
@@ -141,10 +233,12 @@ const asInternalError = (error: unknown): LessonUseCaseError => {
 const generateTutorReply = async (
   generator: LessonTutorReplyGeneratorPort | undefined,
   input: LessonTutorReplyRequest,
+  token: CancellationToken,
 ): Promise<LessonTutorReplyResult> => {
+  if (token.cancelled) throw cancelledError()
   if (generator === undefined) return localTutorReply(input.learnerReply, input.sourceSnippet)
   try {
-    return await generator.generateFollowUp(input)
+    return await generator.generateFollowUp(input, token)
   } catch (error) {
     throw asInternalError(error)
   }
@@ -224,11 +318,26 @@ const failModelRun = (
   finishedAt: string,
 ): LessonModelRun => ({
   ...modelRun,
-  status: 'failed',
+  status: error.code === 'OPERATION_CANCELLED' ? 'cancelled' : 'failed',
   outputMessageId: null,
   errorSummary: errorSummaryFrom(error),
   finishedAt,
 })
+
+const startOperation = (
+  operations: LessonRunOperations | undefined,
+  operationId: string | undefined,
+): CancellationToken => {
+  if (operations === undefined || operationId === undefined) return liveToken()
+  return operations.start(operationId)
+}
+
+const completeOperation = (
+  operations: LessonRunOperations | undefined,
+  operationId: string | undefined,
+): void => {
+  if (operations !== undefined && operationId !== undefined) operations.complete(operationId)
+}
 
 export class ListLessonSessions {
   public constructor(private readonly repository: LessonRepositoryPort) {}
@@ -374,6 +483,7 @@ export class SubmitLessonReply {
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
     private readonly tutorReplyGenerator?: LessonTutorReplyGeneratorPort,
+    private readonly operations?: LessonRunOperations,
   ) {}
 
   public async execute(input: LessonReplyDraft): Promise<LessonSession> {
@@ -437,14 +547,19 @@ export class SubmitLessonReply {
       updatedAt: createdAt,
     }
     await saveLesson(this.lessons, pending)
+    const token = startOperation(this.operations, draft.operationId)
 
     let tutorReply: LessonTutorReplyResult
     try {
-      tutorReply = await generateTutorReply(this.tutorReplyGenerator, {
-        documentTitle: session.documentTitle,
-        sourceSnippet: anchor.snippet,
-        learnerReply: draft.content,
-      })
+      tutorReply = await generateTutorReply(
+        this.tutorReplyGenerator,
+        {
+          documentTitle: session.documentTitle,
+          sourceSnippet: anchor.snippet,
+          learnerReply: draft.content,
+        },
+        token,
+      )
     } catch (error) {
       const lessonError = asInternalError(error)
       await saveLesson(this.lessons, {
@@ -454,6 +569,8 @@ export class SubmitLessonReply {
         ),
       })
       throw lessonError
+    } finally {
+      completeOperation(this.operations, draft.operationId)
     }
 
     const updated: StoredLessonSession = {
@@ -487,6 +604,7 @@ export class RetryLessonRun {
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
     private readonly tutorReplyGenerator?: LessonTutorReplyGeneratorPort,
+    private readonly operations?: LessonRunOperations,
   ) {}
 
   public async execute(input: LessonRunRetryDraft): Promise<LessonSession> {
@@ -553,14 +671,19 @@ export class RetryLessonRun {
       updatedAt: createdAt,
     }
     await saveLesson(this.lessons, pending)
+    const token = startOperation(this.operations, draft.operationId)
 
     let tutorReply: LessonTutorReplyResult
     try {
-      tutorReply = await generateTutorReply(this.tutorReplyGenerator, {
-        documentTitle: session.documentTitle,
-        sourceSnippet: anchor.snippet,
-        learnerReply: learnerMessage.content,
-      })
+      tutorReply = await generateTutorReply(
+        this.tutorReplyGenerator,
+        {
+          documentTitle: session.documentTitle,
+          sourceSnippet: anchor.snippet,
+          learnerReply: learnerMessage.content,
+        },
+        token,
+      )
     } catch (error) {
       const lessonError = asInternalError(error)
       await saveLesson(this.lessons, {
@@ -570,6 +693,8 @@ export class RetryLessonRun {
         ),
       })
       throw lessonError
+    } finally {
+      completeOperation(this.operations, draft.operationId)
     }
 
     const updated: StoredLessonSession = {
@@ -604,7 +729,10 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
     private readonly gatewayFactory: ProviderGatewayFactoryPort,
   ) {}
 
-  public async generateFollowUp(input: LessonTutorReplyRequest): Promise<LessonTutorReplyResult> {
+  public async generateFollowUp(
+    input: LessonTutorReplyRequest,
+    token: CancellationToken,
+  ): Promise<LessonTutorReplyResult> {
     let activeProvider
     try {
       activeProvider = (await this.providers.list()).find((provider) => provider.isActive)
@@ -641,7 +769,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             sourceSnippet: input.sourceSnippet,
             learnerReply: input.learnerReply,
           },
-      liveToken(),
+      token,
     )
     return {
       content: generated.content,

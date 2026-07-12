@@ -54,6 +54,9 @@ export const registerIpc = (
   ipcMain.handle(LESSON_CHANNELS.retryRun, (_event, input: unknown) =>
     lessonHandlers.retryRun(input),
   )
+  ipcMain.handle(LESSON_CHANNELS.cancelRun, (_event, input: unknown) =>
+    lessonHandlers.cancelRun(input),
+  )
   ipcMain.handle(PROVIDER_CHANNELS.list, (_event, input: unknown) => providerHandlers.list(input))
   ipcMain.handle(PROVIDER_CHANNELS.create, (_event, input: unknown) =>
     providerHandlers.create(input),

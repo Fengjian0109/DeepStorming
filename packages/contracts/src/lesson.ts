@@ -7,6 +7,7 @@ export const LESSON_CHANNELS = {
   get: 'lessons:get',
   reply: 'lessons:reply',
   retryRun: 'lessons:retry-run',
+  cancelRun: 'lessons:cancel-run',
 } as const
 
 const requestIdSchema = z.string().uuid()
@@ -135,6 +136,7 @@ export const lessonReplyDraftSchema = z
   .object({
     lessonId: lessonIdSchema,
     content: requiredTextSchema.max(1_000),
+    operationId: z.string().uuid().optional(),
   })
   .strict()
 
@@ -142,6 +144,7 @@ export const lessonRunRetryDraftSchema = z
   .object({
     lessonId: lessonIdSchema,
     modelRunId: z.string().uuid(),
+    operationId: z.string().uuid().optional(),
   })
   .strict()
 
@@ -156,6 +159,7 @@ const lessonSharedErrorCodeSchema = appErrorCodeSchema.extract([
   'INTERNAL_ERROR',
   'IPC_RESPONSE_INVALID',
   'DATABASE_UNAVAILABLE',
+  'OPERATION_CANCELLED',
 ])
 
 export const lessonErrorCodeSchema = z.union([
@@ -175,6 +179,7 @@ export const replyToLessonRequestSchema = z
     requestId: requestIdSchema,
     lessonId: lessonIdSchema,
     content: requiredTextSchema.max(1_000),
+    operationId: z.string().uuid(),
   })
   .strict()
 export const retryLessonRunRequestSchema = z
@@ -182,6 +187,13 @@ export const retryLessonRunRequestSchema = z
     requestId: requestIdSchema,
     lessonId: lessonIdSchema,
     modelRunId: z.string().uuid(),
+    operationId: z.string().uuid(),
+  })
+  .strict()
+export const cancelLessonRunRequestSchema = z
+  .object({
+    requestId: requestIdSchema,
+    operationId: z.string().uuid(),
   })
   .strict()
 
@@ -204,6 +216,9 @@ const createLessonResultSchema = <T extends z.ZodType>(dataSchema: T) =>
 
 export const lessonSessionsResultSchema = createLessonResultSchema(z.array(lessonSessionSchema))
 export const lessonSessionResultSchema = createLessonResultSchema(lessonSessionSchema)
+export const cancelLessonRunResultSchema = createLessonResultSchema(
+  z.object({ cancelled: z.boolean() }).strict(),
+)
 
 export type LessonSessionStatusDto = z.infer<typeof lessonSessionStatusSchema>
 export type LessonSourceAnchorDto = z.infer<typeof lessonSourceAnchorSchema>
@@ -223,5 +238,7 @@ export type StartLessonFromDocumentRequest = z.infer<typeof startLessonFromDocum
 export type GetLessonRequest = z.infer<typeof getLessonRequestSchema>
 export type ReplyToLessonRequest = z.infer<typeof replyToLessonRequestSchema>
 export type RetryLessonRunRequest = z.infer<typeof retryLessonRunRequestSchema>
+export type CancelLessonRunRequest = z.infer<typeof cancelLessonRunRequestSchema>
 export type LessonSessionsResult = z.infer<typeof lessonSessionsResultSchema>
 export type LessonSessionResult = z.infer<typeof lessonSessionResultSchema>
+export type CancelLessonRunResult = z.infer<typeof cancelLessonRunResultSchema>

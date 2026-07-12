@@ -7,8 +7,10 @@ import type {
   StoredLessonSession,
 } from './lesson-ports'
 import {
+  CancelLessonRun,
   GetLessonSession,
   LessonUseCaseError,
+  LessonRunOperations,
   ListLessonSessions,
   ProviderLessonTutorReplyGenerator,
   RetryLessonRun,
@@ -36,6 +38,7 @@ const followUpMessageId = '00000000-0000-4000-8000-000000000107'
 const retryRunId = '00000000-0000-4000-8000-000000000108'
 const retryMessageId = '00000000-0000-4000-8000-000000000109'
 const documentId = '00000000-0000-4000-8000-000000000001'
+const operationId = '00000000-0000-4000-8000-000000000701'
 
 const documentRecord: StoredDocumentDetail = {
   id: documentId,
@@ -131,11 +134,14 @@ class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
     readonly learnerReply: string
   }> = []
 
-  async generateFollowUp(input: {
-    documentTitle: string
-    sourceSnippet: string
-    learnerReply: string
-  }) {
+  async generateFollowUp(
+    input: {
+      documentTitle: string
+      sourceSnippet: string
+      learnerReply: string
+    },
+    _token: CancellationToken,
+  ) {
     this.calls.push(input)
     return {
       content: `Provider 追问：${input.learnerReply} / ${input.sourceSnippet}`,
@@ -147,12 +153,24 @@ class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
 
 class ObservingTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
   public fail = false
+  public cancel = false
 
   public constructor(private readonly observe: () => void) {}
 
-  async generateFollowUp() {
+  async generateFollowUp(_input: unknown, token: CancellationToken) {
     this.observe()
     if (this.fail) throw new Error('provider failed')
+    if (this.cancel) {
+      token.onCancel(() => undefined)
+      throw new LessonUseCaseError(
+        'OPERATION_CANCELLED',
+        'The lesson generation was cancelled.',
+        false,
+        {
+          operationId,
+        },
+      )
+    }
     return {
       content: 'Provider 追问',
       providerId: '00000000-0000-4000-8000-000000000501',
@@ -583,6 +601,63 @@ describe('lesson use cases', () => {
     })
   })
 
+  it('cancels an in-flight provider reply and persists the run as cancelled', async () => {
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(documents, lessons, clock, {
+      generate: () => startIds[startIndex++]!,
+    }).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+    const operations = new LessonRunOperations()
+    const cancel = new CancelLessonRun(operations)
+    const generator = new ObservingTutorReplyGenerator(() => {
+      expect(cancel.execute({ operationId })).toEqual({ cancelled: true })
+    })
+    generator.cancel = true
+
+    await expect(
+      new SubmitLessonReply(
+        lessons,
+        clock,
+        { generate: () => replyIds[replyIndex++]! },
+        generator,
+        operations,
+      ).execute({
+        lessonId: created.id,
+        content: '它在说明证据如何支撑判断。',
+        operationId,
+      }),
+    ).rejects.toMatchObject({
+      code: 'OPERATION_CANCELLED',
+      retryable: false,
+      details: { operationId },
+    })
+
+    expect(cancel.execute({ operationId })).toEqual({ cancelled: false })
+    const cancelled = lessons.records.get(lessonId)
+    expect(cancelled?.messages.at(-1)).toMatchObject({
+      id: learnerMessageId,
+      role: 'learner',
+    })
+    expect(cancelled?.messages.some((message) => message.id === followUpMessageId)).toBe(false)
+    expect(cancelled?.modelRuns.at(-1)).toMatchObject({
+      id: followUpRunId,
+      status: 'cancelled',
+      outputMessageId: null,
+      errorSummary: {
+        code: 'OPERATION_CANCELLED',
+        message: 'The lesson generation was cancelled.',
+        retryable: false,
+      },
+      finishedAt: now,
+    })
+  })
+
   it('generates tutor replies through the active provider gateway', async () => {
     const providers = new FakeProviderRepository()
     const vault = new FakeVault()
@@ -592,11 +667,14 @@ describe('lesson use cases', () => {
       providers,
       vault,
       factory,
-    ).generateFollowUp({
-      documentTitle: 'Paper Map',
-      sourceSnippet: 'Evidence',
-      learnerReply: '它在说明证据如何支撑判断。',
-    })
+    ).generateFollowUp(
+      {
+        documentTitle: 'Paper Map',
+        sourceSnippet: 'Evidence',
+        learnerReply: '它在说明证据如何支撑判断。',
+      },
+      { cancelled: false, onCancel: () => () => undefined },
+    )
 
     expect(result).toEqual({
       content: 'Provider 追问',

@@ -473,7 +473,11 @@ describe('provider error and API contracts', () => {
           },
           requestId,
         }),
-        reply: async (_reply: { lessonId: string; content: string }) => ({
+        reply: async (_reply: {
+          lessonId: string
+          content: string
+          operationId?: string | undefined
+        }) => ({
           ok: true as const,
           data: {
             id: providerId,
@@ -497,7 +501,11 @@ describe('provider error and API contracts', () => {
           },
           requestId,
         }),
-        retryRun: async (_retry: { lessonId: string; modelRunId: string }) => ({
+        retryRun: async (_retry: {
+          lessonId: string
+          modelRunId: string
+          operationId?: string | undefined
+        }) => ({
           ok: true as const,
           data: {
             id: providerId,
@@ -519,6 +527,11 @@ describe('provider error and API contracts', () => {
             createdAt: '2026-07-10T05:00:00.000Z',
             updatedAt: '2026-07-10T05:10:00.000Z',
           },
+          requestId,
+        }),
+        cancelRun: async (_operationId: string) => ({
+          ok: true as const,
+          data: { cancelled: true },
           requestId,
         }),
       },

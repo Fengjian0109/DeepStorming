@@ -5,6 +5,7 @@ import type {
   LessonSourceAnchor,
   LessonSessionStatus,
 } from '@deepstorming/domain'
+import type { CancellationToken } from './provider-ports'
 
 export type StoredLessonSourceAnchor = LessonSourceAnchor
 export type StoredLessonMessage = LessonMessage
@@ -38,7 +39,10 @@ export type LessonTutorReplyResult = Readonly<{
 }>
 
 export interface LessonTutorReplyGeneratorPort {
-  generateFollowUp(input: LessonTutorReplyRequest): Promise<LessonTutorReplyResult>
+  generateFollowUp(
+    input: LessonTutorReplyRequest,
+    token: CancellationToken,
+  ): Promise<LessonTutorReplyResult>
 }
 
 export interface LessonRepositoryPort {

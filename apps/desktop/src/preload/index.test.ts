@@ -189,6 +189,7 @@ describe('preload API', () => {
       get: expect.any(Function),
       reply: expect.any(Function),
       retryRun: expect.any(Function),
+      cancelRun: expect.any(Function),
     })
   })
 
@@ -318,6 +319,7 @@ describe('preload API', () => {
         requestId: REQUEST_ID,
         lessonId: OPERATION_ID,
         content: '它在说明证据如何支撑判断。',
+        operationId: REQUEST_ID,
       },
       response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
     },
@@ -327,14 +329,23 @@ describe('preload API', () => {
         api.lessons.retryRun({
           lessonId: OPERATION_ID,
           modelRunId: '00000000-0000-4000-8000-000000000501',
+          operationId: REQUEST_ID,
         }),
       channel: LESSON_CHANNELS.retryRun,
       payload: {
         requestId: REQUEST_ID,
         lessonId: OPERATION_ID,
         modelRunId: '00000000-0000-4000-8000-000000000501',
+        operationId: REQUEST_ID,
       },
       response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
+    },
+    {
+      name: 'lessons.cancelRun',
+      call: (api: DeepStormingApi) => api.lessons.cancelRun(OPERATION_ID),
+      channel: LESSON_CHANNELS.cancelRun,
+      payload: { requestId: REQUEST_ID, operationId: OPERATION_ID },
+      response: { ok: true, data: { cancelled: true }, requestId: REQUEST_ID },
     },
   ])('invokes one fixed IPC channel and validates $name responses', async (testCase) => {
     const api = await loadApi()

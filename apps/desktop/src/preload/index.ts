@@ -8,6 +8,7 @@ import {
   listDocumentsResultSchema,
   lessonSessionResultSchema,
   lessonSessionsResultSchema,
+  cancelLessonRunResultSchema,
   removeDocumentResultSchema,
   searchDocumentsResultSchema,
   type DeepStormingBootstrapApi,
@@ -25,6 +26,7 @@ import {
   type LessonRunRetryDraftDto,
   type LessonSessionResult,
   type LessonSessionsResult,
+  type CancelLessonRunResult,
   type LessonStartDraftDto,
   type RemoveDocumentResult,
   type SearchDocumentsResult,
@@ -139,18 +141,28 @@ const api: DeepStormingBootstrapApi = {
     },
     reply: async (reply: LessonReplyDraftDto): Promise<LessonSessionResult> => {
       const requestId = globalThis.crypto.randomUUID()
+      const operationId = reply.operationId ?? globalThis.crypto.randomUUID()
       return invokeValidated(
         LESSON_CHANNELS.reply,
-        { requestId, lessonId: reply.lessonId, content: reply.content },
+        { requestId, lessonId: reply.lessonId, content: reply.content, operationId },
         lessonSessionResultSchema,
       )
     },
     retryRun: async (retry: LessonRunRetryDraftDto): Promise<LessonSessionResult> => {
       const requestId = globalThis.crypto.randomUUID()
+      const operationId = retry.operationId ?? globalThis.crypto.randomUUID()
       return invokeValidated(
         LESSON_CHANNELS.retryRun,
-        { requestId, lessonId: retry.lessonId, modelRunId: retry.modelRunId },
+        { requestId, lessonId: retry.lessonId, modelRunId: retry.modelRunId, operationId },
         lessonSessionResultSchema,
+      )
+    },
+    cancelRun: async (operationId: string): Promise<CancelLessonRunResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LESSON_CHANNELS.cancelRun,
+        { requestId, operationId },
+        cancelLessonRunResultSchema,
       )
     },
   },

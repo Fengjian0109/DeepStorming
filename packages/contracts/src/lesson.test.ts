@@ -5,6 +5,8 @@ import {
   lessonSessionResultSchema,
   lessonSessionSchema,
   lessonSessionsResultSchema,
+  cancelLessonRunRequestSchema,
+  cancelLessonRunResultSchema,
   replyToLessonRequestSchema,
   retryLessonRunRequestSchema,
   startLessonFromDocumentRequestSchema,
@@ -83,6 +85,7 @@ describe('lesson contracts', () => {
       get: 'lessons:get',
       reply: 'lessons:reply',
       retryRun: 'lessons:retry-run',
+      cancelRun: 'lessons:cancel-run',
     })
   })
 
@@ -114,6 +117,7 @@ describe('lesson contracts', () => {
         requestId,
         lessonId,
         content: '它在说明证据如何支撑判断。',
+        operationId: modelRunId,
       }).success,
     ).toBe(true)
     expect(
@@ -128,6 +132,13 @@ describe('lesson contracts', () => {
         requestId,
         lessonId,
         modelRunId,
+        operationId: modelRunId,
+      }).success,
+    ).toBe(true)
+    expect(
+      cancelLessonRunRequestSchema.safeParse({
+        requestId,
+        operationId: modelRunId,
       }).success,
     ).toBe(true)
   })
@@ -183,10 +194,17 @@ describe('lesson contracts', () => {
         ok: false,
         requestId,
         error: {
-          code: 'LESSON_DOCUMENT_NOT_FOUND',
-          message: 'Missing',
+          code: 'OPERATION_CANCELLED',
+          message: 'Cancelled',
           retryable: false,
         },
+      }).success,
+    ).toBe(true)
+    expect(
+      cancelLessonRunResultSchema.safeParse({
+        ok: true,
+        data: { cancelled: true },
+        requestId,
       }).success,
     ).toBe(true)
   })

@@ -17,6 +17,7 @@ import type {
   VoidResult,
 } from './provider'
 import type {
+  CancelLessonRunResult,
   LessonReplyDraftDto,
   LessonRunRetryDraftDto,
   LessonSessionResult,
@@ -65,6 +66,7 @@ export type DeepStormingApi = {
     get: (id: string) => Promise<LessonSessionResult>
     reply: (reply: LessonReplyDraftDto) => Promise<LessonSessionResult>
     retryRun: (retry: LessonRunRetryDraftDto) => Promise<LessonSessionResult>
+    cancelRun: (operationId: string) => Promise<CancelLessonRunResult>
   }
   provider: {
     list: () => Promise<ListProvidersResult>

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type {
+  CancelLessonRun,
   GetLessonSession,
   ListLessonSessions,
   RetryLessonRun,
@@ -8,6 +9,8 @@ import type {
 } from '@deepstorming/application'
 import { LessonUseCaseError } from '@deepstorming/application'
 import {
+  cancelLessonRunRequestSchema,
+  cancelLessonRunResultSchema,
   getLessonRequestSchema,
   lessonSessionResultSchema,
   lessonSessionsResultSchema,
@@ -17,6 +20,8 @@ import {
   startLessonFromDocumentRequestSchema,
   type LessonSessionResult,
   type LessonSessionsResult,
+  type CancelLessonRunRequest,
+  type CancelLessonRunResult,
   type ReplyToLessonRequest,
   type RetryLessonRunRequest,
   type StartLessonFromDocumentRequest,
@@ -30,7 +35,7 @@ type Schema<T> = Readonly<{ safeParse(input: unknown): SafeParseResult<T> }>
 type ResultSchema<T> = Readonly<{
   safeParse(input: unknown): Readonly<{ success: true; data: T }> | Readonly<{ success: false }>
 }>
-type LessonIpcResult = LessonSessionsResult | LessonSessionResult
+type LessonIpcResult = LessonSessionsResult | LessonSessionResult | CancelLessonRunResult
 type LessonIpcError = Extract<LessonIpcResult, { ok: false }>['error']
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[1-5][\da-f]{3}-[89ab][\da-f]{12}$/u
@@ -41,6 +46,7 @@ export type LessonIpcHandlers = Readonly<{
   get(input: unknown): Promise<LessonSessionResult>
   reply(input: unknown): Promise<LessonSessionResult>
   retryRun(input: unknown): Promise<LessonSessionResult>
+  cancelRun(input: unknown): Promise<CancelLessonRunResult>
 }>
 
 export type LessonIpcDependencies = Readonly<{
@@ -49,6 +55,7 @@ export type LessonIpcDependencies = Readonly<{
   getLessonSession: GetLessonSession
   submitLessonReply: SubmitLessonReply
   retryLessonRun: RetryLessonRun
+  cancelLessonRun: CancelLessonRun
 }>
 
 const requestIdFrom = (input: unknown): string => {
@@ -163,6 +170,7 @@ export const createLessonIpcHandlers = (
         dependencies.submitLessonReply.execute({
           lessonId: request.lessonId,
           content: request.content,
+          operationId: request.operationId,
         }),
     ),
   retryRun: (input) =>
@@ -174,6 +182,15 @@ export const createLessonIpcHandlers = (
         dependencies.retryLessonRun.execute({
           lessonId: request.lessonId,
           modelRunId: request.modelRunId,
+          operationId: request.operationId,
         }),
+    ),
+  cancelRun: (input) =>
+    handle(
+      input,
+      cancelLessonRunRequestSchema,
+      cancelLessonRunResultSchema,
+      (request: CancelLessonRunRequest) =>
+        dependencies.cancelLessonRun.execute({ operationId: request.operationId }),
     ),
 })

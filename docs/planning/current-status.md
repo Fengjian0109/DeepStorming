@@ -3,7 +3,7 @@
 - 更新时间：2026-07-12
 - 当前分支：`main`
 - 当前阶段：Phase 5 Provider 课堂生成接线
-- 状态：本地 LessonSession、多轮课堂、生成记录、failed/cancelled run 重试入口、Provider Gateway 成功/失败路径接线，以及安全错误摘要持久化已完成
+- 状态：本地 LessonSession、多轮课堂、生成记录、failed/cancelled run 重试入口、Provider Gateway 成功/失败/取消路径接线，以及安全错误摘要持久化已完成
 
 ## 已完成
 
@@ -84,16 +84,22 @@
   - Application：Provider/generator 失败时把 run 保存为 `failed`，并写入由稳定 `LessonUseCaseError` 派生的安全摘要；`started/succeeded` run 保持 `null`。
   - Renderer：生成记录展示安全错误消息，failed/cancelled run 保留重试入口。
   - 安全边界：不持久化 API Key、Authorization header、原始 Provider 响应、原始 prompt 或堆栈。
-  - 当前限制：Lesson IPC 尚未贯穿取消 token；下一步补 `cancelled` 语义。
+- Phase 5 Lesson Provider 取消语义：
+  - Contracts / Main / Preload：新增显式 `lessons:cancel-run` channel 和 `window.deepstorming.lessons.cancelRun(operationId)`；reply/retry 请求携带 `operationId`，不暴露泛用 invoke。
+  - Application：新增 `LessonRunOperations` 与 `CancelLessonRun`，为正在执行的 lesson reply/retry 注册取消 token；取消完成后清理内存 registry。
+  - Provider 接线：`LessonTutorReplyGeneratorPort` 接收 `CancellationToken`，`ProviderLessonTutorReplyGenerator` 将同一个 token 传给 Mock/OpenAI-compatible gateway。
+  - 持久化语义：取消时保留已保存的 learner message（reply 场景）和 started run，并把同一 run 更新为 `cancelled`、`outputMessageId=null`、`errorSummary.code=OPERATION_CANCELLED`。
+  - Renderer：提交回答和重试生成 pending 时显示“取消生成/取消重试”，取消成功后显示“生成已取消。”；failed/cancelled run 仍保留重试入口。
+  - 当前限制：取消 registry 是进程内状态；应用重启后只能重试已持久化的 failed/cancelled run，不恢复 in-flight 外部请求。
 
 ## Phase 5 当前范围与非目标
 
-- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、正文搜索、snippet 与字符 offset、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功路径接线、reply/retry 的 `started/failed/succeeded` run 持久化，以及 failed run 的安全错误摘要持久化与展示。
-- 非目标：PDF/OCR、页面块结构化解析、FTS5/BM25、chunking、embeddings、Lesson Provider 取消语义、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
+- 已完成范围：本地纯文本文档库、文本导入、列表/详情/删除、SQLite 持久化、正文搜索、snippet 与字符 offset、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化，以及安全错误摘要持久化与展示。
+- 非目标：PDF/OCR、页面块结构化解析、FTS5/BM25、chunking、embeddings、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
 
 ## 当前门禁
 
-1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 428 个测试，以及桌面端构建全部通过。
+1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 433 个测试，以及桌面端构建全部通过。
 2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖正文搜索、从搜索结果启动课堂、首条 Mock Tutor 提问、生成记录、提交学习者回复、下一轮 Mock Tutor 追问，以及重启后课堂来源片段/多轮消息/生成记录仍可读取；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
@@ -114,4 +120,4 @@ pnpm package:dir
 
 ## 下一步
 
-进入 Lesson Provider 取消语义：贯穿取消 token，将取消保存为 `cancelled`，并复用安全错误摘要展示稳定原因。发布前仍需补真实云 Provider 手动验收、签名、图标与公证。
+进入真实云 Provider 手动验收与发布前收尾：补 DeepSeek/OpenAI-compatible 手动验收清单，随后处理签名、图标与公证。产品能力侧下一步可扩展来源 anchor 到 PDF page/block/chunk。

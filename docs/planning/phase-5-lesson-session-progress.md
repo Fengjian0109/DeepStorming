@@ -1,8 +1,8 @@
 # Phase 5 课堂最小会话进度
 
 - 更新时间：2026-07-12
-- 范围：从文档详情或搜索结果启动本地 `LessonSession`，记录 Prompt / Model Run，支持学习者回复触发下一轮追问，为 failed/cancelled run 提供本地重试入口，把成功路径接到 Provider Gateway，并持久化失败 run 的安全错误摘要
-- 状态：课堂会话、消息基础、生成记录、本地多轮闭环、运行恢复基础、Gateway 生成端口、Provider 成功/失败路径接线与安全错误摘要已完成并通过针对性测试
+- 范围：从文档详情或搜索结果启动本地 `LessonSession`，记录 Prompt / Model Run，支持学习者回复触发下一轮追问，为 failed/cancelled run 提供本地重试入口，把成功/失败/取消路径接到 Provider Gateway，并持久化安全错误摘要
+- 状态：课堂会话、消息基础、生成记录、本地多轮闭环、运行恢复基础、Gateway 生成端口、Provider 成功/失败/取消路径接线与安全错误摘要已完成并通过门禁
 
 ## 本轮落地内容
 
@@ -45,7 +45,7 @@
 - Domain / Contracts：新增 `LessonRunRetryDraft`、`lessons:retry-run` channel、`retryLessonRunRequestSchema` 和 `LessonRunRetryDraftDto`。
 - Application：新增 `RetryLessonRun`；仅允许重试 `failed/cancelled` 的 model run，拒绝 `started/succeeded`，并映射为稳定的 `LESSON_VALIDATION_FAILED`。
 - 重试语义：保留原 failed/cancelled run 不变；基于最近一条 learner message 和原 run 的 source anchor 追加新的 deterministic tutor follow-up message，并追加新的 `succeeded` `lesson_tutor_follow_up` run。
-- Main / Preload：IPC handler 调用单个 use case，Preload 暴露 `window.deepstorming.lessons.retryRun({ lessonId, modelRunId })`，不暴露泛用 invoke。
+- Main / Preload：IPC handler 调用单个 use case，Preload 暴露 `window.deepstorming.lessons.retryRun({ lessonId, modelRunId, operationId? })`，不暴露泛用 invoke。
 - Renderer：生成记录展示原始状态；`failed/cancelled` run 显示“重试生成 …”按钮，重试过程覆盖 loading/success/error UI。
 - Infrastructure：无新增 migration；复用现有 `lesson_model_runs.status`、`output_message_id` 和 Repository `save(session)` 保存重试后的追加消息/运行记录。
 
@@ -62,7 +62,7 @@
 - Fallback：没有激活 Provider 时继续使用本地 deterministic Mock Tutor，不破坏现有离线课堂流程和 E2E。
 - Submit / Retry：`SubmitLessonReply` 与 `RetryLessonRun` 支持注入 tutor generator；成功生成后，message 使用 Provider 返回 content，model run 记录 active provider 的 `providerId/modelName`。
 - Main：组合根复用 `ProviderGatewayFactory`，把 Provider-backed generator 注入课堂 reply/retry use case。
-- 当前限制：取消 token 尚未贯穿 lesson IPC。
+- 取消入口：`lessons:reply` / `lessons:retry-run` 请求携带 `operationId`，`lessons:cancel-run` 可对同一个 operationId 发出取消请求。
 
 ## Lesson Provider started/failed 状态持久化增量
 
@@ -70,7 +70,7 @@
 - Retry：重试 failed/cancelled run 时，先追加新的 `started` retry run，再调用 tutor generator；原 failed/cancelled run 保持不变。
 - Success：Provider 返回内容后追加 tutor message，并把同一个 run 更新为 `succeeded`，补 `outputMessageId/finishedAt/providerId/modelName`。
 - Failure：Provider/generator 抛错时保留已保存的 learner message（reply 场景）和 `failed` run，`outputMessageId` 保持 `null`，因此课堂页可显示失败记录并允许后续重试。
-- 当前限制：`cancelled` 状态仍待 lesson 取消 token 接入。
+- Cancelled：用户取消时保留已保存的 learner message（reply 场景）和 started run，并把同一个 run 更新为 `cancelled`，写入 `OPERATION_CANCELLED` 安全错误摘要；后续可通过既有重试入口重新生成。
 
 ## Lesson run 安全错误摘要增量
 
@@ -79,6 +79,14 @@
 - Application：`SubmitLessonReply` 与 `RetryLessonRun` 在 Provider/generator 失败时保存同一个 run 为 `failed`，并写入由稳定 `LessonUseCaseError` 派生的安全摘要；`started/succeeded` run 写入 `null`。
 - Renderer：生成记录下方展示安全 `errorSummary.message`，failed/cancelled run 仍使用既有重试入口。
 - 安全边界：错误摘要只保存稳定 code、用户安全 message 和 retryable 标记；不保存 API Key、Authorization header、原始 Provider 响应、原始 prompt 或请求正文。
+
+## Lesson Provider 取消语义增量
+
+- Application：新增 `LessonRunOperations` 与 `CancelLessonRun`；reply/retry use case 在调用 tutor generator 前注册 `CancellationToken`，完成后清理 registry。
+- Generator：`LessonTutorReplyGeneratorPort.generateFollowUp(input, token)` 贯穿同一个 token；Provider-backed generator 将 token 继续传给 Mock/OpenAI-compatible gateway。
+- Contracts / IPC / Preload：新增 `lessons:cancel-run`、`cancelLessonRunRequestSchema`、`cancelLessonRunResultSchema` 和 `window.deepstorming.lessons.cancelRun(operationId)`；reply/retry 请求显式携带 `operationId`。
+- Renderer：提交回答和重试生成 pending 时展示取消按钮；取消成功时显示“生成已取消。”，并继续允许对持久化的 cancelled run 重试。
+- 恢复边界：取消 registry 只存在于当前主进程；如果应用重启，外部 in-flight 请求不恢复，用户依靠已持久化的 failed/cancelled run 继续重试。
 
 ## 当前非目标
 
@@ -90,12 +98,12 @@
 
 ## 已验证命令
 
-- `pnpm vitest run packages/contracts/src/lesson.test.ts packages/infrastructure/src/database/migrations.test.ts packages/infrastructure/src/database/sqlite-lesson-repository.test.ts packages/application/src/lesson-use-cases.test.ts apps/desktop/src/renderer/src/lesson/LessonWorkspace.test.tsx`：5 个测试文件 / 32 个测试通过。
+- `pnpm vitest run packages/application/src/lesson-use-cases.test.ts packages/contracts/src/lesson.test.ts apps/desktop/src/main/ipc/lesson-handlers.test.ts apps/desktop/src/preload/index.test.ts apps/desktop/src/renderer/src/lesson/LessonWorkspace.test.tsx`：5 个测试文件 / 52 个测试通过。
 - `pnpm test:e2e`：2 通过，1 跳过；覆盖首条 Mock Tutor 提问、生成记录、学习者回复和下一轮追问在创建后与重启后可见。
-- `pnpm check`：Prettier、typecheck、37 个测试文件 / 428 个测试、桌面端构建全部通过。
+- `pnpm check`：Prettier、typecheck、37 个测试文件 / 433 个测试、桌面端构建全部通过。
 
 ## 下一步建议
 
-1. 贯穿 Lesson Provider 取消 token，把取消保存为 `cancelled`。
-2. 增加真实云 Provider 手动验收清单。
-3. 把来源 anchor 从文本 offset 扩展到 PDF page/block/chunk。
+1. 增加真实云 Provider 手动验收清单。
+2. 把来源 anchor 从文本 offset 扩展到 PDF page/block/chunk。
+3. 发布前补签名、图标与公证。

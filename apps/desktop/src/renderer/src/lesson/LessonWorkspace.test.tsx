@@ -206,6 +206,9 @@ beforeEach(() => {
       retryRun: vi
         .fn()
         .mockResolvedValue({ ok: true, data: retriedSession, requestId: crypto.randomUUID() }),
+      cancelRun: vi
+        .fn()
+        .mockResolvedValue({ ok: true, data: { cancelled: true }, requestId: crypto.randomUUID() }),
     },
   })
 })
@@ -245,11 +248,29 @@ describe('LessonWorkspace', () => {
       expect(window.deepstorming.lessons.reply).toHaveBeenCalledWith({
         lessonId: session.id,
         content: '它在说明证据如何支撑判断。',
+        operationId: expect.any(String),
       }),
     )
     expect(await screen.findByText('它在说明证据如何支撑判断。')).toBeTruthy()
     expect(await screen.findByText(/下一步你会如何验证这个判断/)).toBeTruthy()
     expect(screen.getByText('lesson.mockTutor.followUp v1')).toBeTruthy()
+  })
+
+  it('cancels an in-flight learner reply generation', async () => {
+    const user = userEvent.setup()
+    window.deepstorming.lessons.reply = vi.fn().mockReturnValue(new Promise(() => undefined))
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    await screen.findByText(/你觉得它想解决的核心问题是什么/)
+    await user.type(screen.getByLabelText('你的回答'), '它在说明证据如何支撑判断。')
+    await user.click(screen.getByRole('button', { name: '提交回答' }))
+
+    await user.click(await screen.findByRole('button', { name: '取消生成' }))
+
+    const operationId = vi.mocked(window.deepstorming.lessons.reply).mock.calls[0]?.[0].operationId
+    expect(operationId).toEqual(expect.any(String))
+    expect(window.deepstorming.lessons.cancelRun).toHaveBeenCalledWith(operationId)
+    expect(await screen.findByText('生成已取消。')).toBeTruthy()
   })
 
   it('retries failed tutor runs from the run list', async () => {
@@ -270,9 +291,32 @@ describe('LessonWorkspace', () => {
       expect(window.deepstorming.lessons.retryRun).toHaveBeenCalledWith({
         lessonId: session.id,
         modelRunId: '00000000-0000-4000-8000-000000000502',
+        operationId: expect.any(String),
       }),
     )
     expect(await screen.findByText(/下一步你会如何验证这个判断/)).toBeTruthy()
     expect(screen.getAllByText('lesson.mockTutor.followUp v1')).toHaveLength(2)
+  })
+
+  it('cancels an in-flight retry generation', async () => {
+    const user = userEvent.setup()
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [failedSession], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: failedSession, requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.retryRun = vi.fn().mockReturnValue(new Promise(() => undefined))
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    expect(await screen.findByText('mock-local · failed')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '重试生成 lesson.mockTutor.followUp v1' }))
+    await user.click(await screen.findByRole('button', { name: '取消重试' }))
+
+    const operationId = vi.mocked(window.deepstorming.lessons.retryRun).mock.calls[0]?.[0]
+      .operationId
+    expect(operationId).toEqual(expect.any(String))
+    expect(window.deepstorming.lessons.cancelRun).toHaveBeenCalledWith(operationId)
+    expect(await screen.findByText('生成已取消。')).toBeTruthy()
   })
 })

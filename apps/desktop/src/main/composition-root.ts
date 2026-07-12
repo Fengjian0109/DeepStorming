@@ -6,6 +6,7 @@ import {
   DeleteDocument,
   GetDocument,
   ActivateProvider,
+  CancelLessonRun,
   CancelProviderTest,
   CreateProvider,
   GetApplicationInfo,
@@ -14,6 +15,7 @@ import {
   ListLessonSessions,
   DeleteProvider,
   ListProviders,
+  LessonRunOperations,
   ProviderTestOperations,
   ProviderLessonTutorReplyGenerator,
   RetryLessonRun,
@@ -88,6 +90,7 @@ export const createCompositionRoot = async (
 
     const cleanupReporter = new SecretCleanupReporter(logger)
     const operations = new ProviderTestOperations()
+    const lessonOperations = new LessonRunOperations()
     const providerGatewayFactory = new ProviderGatewayFactory()
     const lessonTutorReplyGenerator = new ProviderLessonTutorReplyGenerator(
       repository,
@@ -122,8 +125,16 @@ export const createCompositionRoot = async (
         clock,
         ids,
         lessonTutorReplyGenerator,
+        lessonOperations,
       ),
-      retryLessonRun: new RetryLessonRun(lessonRepository, clock, ids, lessonTutorReplyGenerator),
+      retryLessonRun: new RetryLessonRun(
+        lessonRepository,
+        clock,
+        ids,
+        lessonTutorReplyGenerator,
+        lessonOperations,
+      ),
+      cancelLessonRun: new CancelLessonRun(lessonOperations),
       listProviders: new ListProviders(repository),
       createProvider: new CreateProvider(repository, vault, clock, ids, cleanupReporter),
       updateProvider: new UpdateProvider(repository, vault, cleanupReporter, clock),

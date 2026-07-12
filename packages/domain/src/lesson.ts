@@ -81,11 +81,13 @@ export type LessonModelRun = Readonly<{
 export type LessonReplyDraft = Readonly<{
   lessonId: string
   content: string
+  operationId?: string
 }>
 
 export type LessonRunRetryDraft = Readonly<{
   lessonId: string
   modelRunId: string
+  operationId?: string
 }>
 
 export type LessonStartDraft = Readonly<{

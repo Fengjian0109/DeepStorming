@@ -70,6 +70,7 @@ const dependencies = () => ({
   getLessonSession: { execute: vi.fn().mockResolvedValue(session) },
   submitLessonReply: { execute: vi.fn().mockResolvedValue(session) },
   retryLessonRun: { execute: vi.fn().mockResolvedValue(session) },
+  cancelLessonRun: { execute: vi.fn().mockReturnValue({ cancelled: true }) },
 })
 
 describe('lesson IPC handlers', () => {
@@ -112,12 +113,14 @@ describe('lesson IPC handlers', () => {
       requestId,
       lessonId,
       content: '它在说明证据如何支撑判断。',
+      operationId: '00000000-0000-4000-8000-000000000501',
     })
 
     expect(result).toEqual({ ok: true, data: session, requestId })
     expect(deps.submitLessonReply.execute).toHaveBeenCalledWith({
       lessonId,
       content: '它在说明证据如何支撑判断。',
+      operationId: '00000000-0000-4000-8000-000000000501',
     })
   })
 
@@ -140,6 +143,7 @@ describe('lesson IPC handlers', () => {
         requestId,
         lessonId,
         modelRunId: '00000000-0000-4000-8000-000000000501',
+        operationId: '00000000-0000-4000-8000-000000000502',
       },
     )
 
@@ -147,6 +151,22 @@ describe('lesson IPC handlers', () => {
     expect(deps.retryLessonRun.execute).toHaveBeenCalledWith({
       lessonId,
       modelRunId: '00000000-0000-4000-8000-000000000501',
+      operationId: '00000000-0000-4000-8000-000000000502',
+    })
+  })
+
+  it('cancels a lesson run through one use case', async () => {
+    const deps = dependencies()
+    const result = await createLessonIpcHandlers(
+      deps as unknown as LessonIpcDependencies,
+    ).cancelRun({
+      requestId,
+      operationId: '00000000-0000-4000-8000-000000000501',
+    })
+
+    expect(result).toEqual({ ok: true, data: { cancelled: true }, requestId })
+    expect(deps.cancelLessonRun.execute).toHaveBeenCalledWith({
+      operationId: '00000000-0000-4000-8000-000000000501',
     })
   })
 

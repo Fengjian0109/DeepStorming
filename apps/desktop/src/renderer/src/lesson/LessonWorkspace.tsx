@@ -14,13 +14,13 @@ type LessonDetailState =
 
 type ReplyState =
   | { status: 'idle' }
-  | { status: 'submitting' }
+  | { status: 'submitting'; operationId: string }
   | { status: 'success'; message: string }
   | { status: 'error'; message: string }
 
 type RunRetryState =
   | { status: 'idle' }
-  | { status: 'retrying'; modelRunId: string }
+  | { status: 'retrying'; modelRunId: string; operationId: string }
   | { status: 'success'; message: string }
   | { status: 'error'; message: string }
 
@@ -81,10 +81,12 @@ export const LessonWorkspace = ({
         return
       }
 
-      setReplyState({ status: 'submitting' })
+      const operationId = globalThis.crypto.randomUUID()
+      setReplyState({ status: 'submitting', operationId })
       const result = await window.deepstorming.lessons.reply({
         lessonId: detailState.session.id,
         content,
+        operationId,
       })
 
       if (result.ok) {
@@ -104,19 +106,38 @@ export const LessonWorkspace = ({
         return
       }
 
+      if (result.error.code === 'OPERATION_CANCELLED') {
+        setReplyState({ status: 'success', message: '生成已取消。' })
+        return
+      }
       setReplyState({ status: 'error', message: result.error.message })
     },
     [detailState, replyText],
   )
 
+  const cancelReply = useCallback(async () => {
+    if (replyState.status !== 'submitting') return
+    const result = await window.deepstorming.lessons.cancelRun(replyState.operationId)
+    setReplyState({
+      status: result.ok && result.data.cancelled ? 'success' : 'error',
+      message: result.ok
+        ? result.data.cancelled
+          ? '生成已取消。'
+          : '取消请求未生效。'
+        : result.error.message,
+    })
+  }, [replyState])
+
   const retryRun = useCallback(
     async (modelRunId: string) => {
       if (detailState.status !== 'ready') return
 
-      setRunRetryState({ status: 'retrying', modelRunId })
+      const operationId = globalThis.crypto.randomUUID()
+      setRunRetryState({ status: 'retrying', modelRunId, operationId })
       const result = await window.deepstorming.lessons.retryRun({
         lessonId: detailState.session.id,
         modelRunId,
+        operationId,
       })
 
       if (result.ok) {
@@ -135,10 +156,27 @@ export const LessonWorkspace = ({
         return
       }
 
+      if (result.error.code === 'OPERATION_CANCELLED') {
+        setRunRetryState({ status: 'success', message: '生成已取消。' })
+        return
+      }
       setRunRetryState({ status: 'error', message: result.error.message })
     },
     [detailState],
   )
+
+  const cancelRetry = useCallback(async () => {
+    if (runRetryState.status !== 'retrying') return
+    const result = await window.deepstorming.lessons.cancelRun(runRetryState.operationId)
+    setRunRetryState({
+      status: result.ok && result.data.cancelled ? 'success' : 'error',
+      message: result.ok
+        ? result.data.cancelled
+          ? '生成已取消。'
+          : '取消请求未生效。'
+        : result.error.message,
+    })
+  }, [runRetryState])
 
   useEffect(() => {
     void loadLessons()
@@ -282,6 +320,16 @@ export const LessonWorkspace = ({
                             ? '重试中…'
                             : `重试生成 ${modelRun.promptManifest.key} v${modelRun.promptManifest.version}`}
                         </button>
+                        {runRetryState.status === 'retrying' &&
+                          runRetryState.modelRunId === modelRun.id && (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => void cancelRetry()}
+                            >
+                              取消重试
+                            </button>
+                          )}
                       </div>
                     )}
                   </article>
@@ -316,6 +364,15 @@ export const LessonWorkspace = ({
                   >
                     {replyState.status === 'submitting' ? '提交中…' : '提交回答'}
                   </button>
+                  {replyState.status === 'submitting' && (
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void cancelReply()}
+                    >
+                      取消生成
+                    </button>
+                  )}
                 </div>
                 {replyState.status === 'success' && (
                   <p className="success-state">{replyState.message}</p>
