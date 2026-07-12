@@ -3,11 +3,18 @@ import {
   DOCUMENT_CHANNELS,
   createDocumentFromTextRequestSchema,
   documentDetailSchema,
+  documentImportJobResultSchema,
+  documentImportJobSchema,
+  documentPageSchema,
   documentErrorCodeSchema,
   documentBusinessErrorCodeSchema,
   documentSearchResultSchema,
   documentSummaryResultSchema,
   documentSummarySchema,
+  documentTextBlockSchema,
+  getDocumentPageBlocksRequestSchema,
+  getDocumentPagesRequestSchema,
+  importPdfDocumentRequestSchema,
   listDocumentsRequestSchema,
   searchDocumentsRequestSchema,
   searchDocumentsResultSchema,
@@ -23,6 +30,9 @@ describe('document contracts', () => {
       get: 'documents:get',
       search: 'documents:search',
       remove: 'documents:remove',
+      importPdf: 'documents:import-pdf',
+      getPages: 'documents:get-pages',
+      getPageBlocks: 'documents:get-page-blocks',
     })
   })
 
@@ -108,6 +118,12 @@ describe('document contracts', () => {
       'DOCUMENT_VALIDATION_FAILED',
       'DOCUMENT_DUPLICATE',
       'DOCUMENT_NOT_FOUND',
+      'DOCUMENT_IMPORT_FAILED',
+      'DOCUMENT_FILE_UNSUPPORTED',
+      'DOCUMENT_FILE_TOO_LARGE',
+      'DOCUMENT_PDF_PASSWORD_PROTECTED',
+      'DOCUMENT_PDF_TEXT_MISSING',
+      'DOCUMENT_PDF_PARSE_FAILED',
     ])
   })
 
@@ -204,5 +220,99 @@ describe('document contracts', () => {
         requestId,
       }).success,
     ).toBe(true)
+  })
+
+  it('defines PDF import channels and strict job schemas', () => {
+    expect(
+      importPdfDocumentRequestSchema.safeParse({
+        requestId,
+        filePath: '/tmp/paper.pdf',
+        originalName: 'paper.pdf',
+      }).success,
+    ).toBe(true)
+    expect(
+      importPdfDocumentRequestSchema.safeParse({
+        requestId,
+        filePath: '/tmp/paper.pdf',
+        originalName: 'paper.txt',
+      }).success,
+    ).toBe(false)
+    const importJob = {
+      id: requestId,
+      documentId: null,
+      sourceKind: 'pdf_file',
+      status: 'queued',
+      originalName: 'paper.pdf',
+      fileSizeBytes: 10,
+      contentHash: 'a'.repeat(64),
+      error: null,
+      createdAt: '2026-07-12T00:00:00.000Z',
+      updatedAt: '2026-07-12T00:00:00.000Z',
+      finishedAt: null,
+    }
+
+    expect(documentImportJobSchema.safeParse(importJob).success).toBe(true)
+    expect(documentImportJobSchema.safeParse({ ...importJob, secretRef: 'hidden' }).success).toBe(
+      false,
+    )
+    expect(
+      documentImportJobResultSchema.safeParse({
+        ok: true,
+        data: importJob,
+        requestId,
+      }).success,
+    ).toBe(true)
+  })
+
+  it('strictly validates PDF pages and text blocks without full local paths', () => {
+    expect(
+      getDocumentPagesRequestSchema.safeParse({ requestId, documentId: requestId }).success,
+    ).toBe(true)
+    expect(
+      getDocumentPageBlocksRequestSchema.safeParse({
+        requestId,
+        documentId: requestId,
+        pageNumber: 1,
+      }).success,
+    ).toBe(true)
+    expect(
+      documentPageSchema.safeParse({
+        id: requestId,
+        documentId: requestId,
+        pageNumber: 1,
+        width: 612,
+        height: 792,
+        text: 'Evidence connects a claim.',
+        textHash: 'b'.repeat(64),
+        createdAt: '2026-07-12T00:00:00.000Z',
+      }).success,
+    ).toBe(true)
+    expect(
+      documentTextBlockSchema.safeParse({
+        id: requestId,
+        documentId: requestId,
+        pageId: requestId,
+        pageNumber: 1,
+        blockIndex: 0,
+        text: 'Evidence connects a claim.',
+        x: 72,
+        y: 72,
+        width: 240,
+        height: 18,
+        createdAt: '2026-07-12T00:00:00.000Z',
+      }).success,
+    ).toBe(true)
+    expect(
+      documentTextBlockSchema.safeParse({
+        id: requestId,
+        documentId: requestId,
+        pageId: requestId,
+        pageNumber: 1,
+        blockIndex: 0,
+        text: 'Evidence',
+        localPath: '/tmp/paper.pdf',
+        createdAt: '2026-07-12T00:00:00.000Z',
+      }).success,
+    ).toBe(false)
   })
 })

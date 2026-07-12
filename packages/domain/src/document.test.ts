@@ -5,6 +5,7 @@ import {
   countDocumentCharacters,
   documentHashInput,
   normalizeDocumentDraft,
+  normalizeDocumentImportJob,
 } from './document'
 
 describe('document domain', () => {
@@ -106,5 +107,39 @@ describe('document domain', () => {
         documentType: 'notes' as never,
       }),
     ).toThrow('Document type is invalid')
+  })
+
+  it('normalizes PDF import jobs and rejects unsafe states', () => {
+    expect(
+      normalizeDocumentImportJob({
+        id: '00000000-0000-4000-8000-000000000801',
+        documentId: null,
+        sourceKind: 'pdf_file',
+        status: 'queued',
+        originalName: '/Users/me/private/paper.pdf',
+        fileSizeBytes: 1024,
+        contentHash: 'a'.repeat(64),
+        error: null,
+        createdAt: '2026-07-12T00:00:00.000Z',
+        updatedAt: '2026-07-12T00:00:00.000Z',
+        finishedAt: null,
+      }),
+    ).toMatchObject({ status: 'queued', originalName: 'paper.pdf' })
+
+    expect(() =>
+      normalizeDocumentImportJob({
+        id: 'bad',
+        documentId: null,
+        sourceKind: 'pdf_file',
+        status: 'ready',
+        originalName: 'paper.pdf',
+        fileSizeBytes: -1,
+        contentHash: 'bad',
+        error: null,
+        createdAt: '2026-07-12T00:00:00.000Z',
+        updatedAt: '2026-07-12T00:00:00.000Z',
+        finishedAt: null,
+      }),
+    ).toThrow()
   })
 })

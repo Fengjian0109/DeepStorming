@@ -1,8 +1,17 @@
 export const DOCUMENT_TYPES = ['generic', 'textbook', 'paper'] as const
 export const DOCUMENT_SOURCE_KINDS = ['pasted_text', 'text_file'] as const
+export const DOCUMENT_IMPORT_STATUSES = [
+  'queued',
+  'copying',
+  'parsing',
+  'ready',
+  'failed',
+  'cancelled',
+] as const
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number]
 export type DocumentSourceKind = (typeof DOCUMENT_SOURCE_KINDS)[number]
+export type DocumentImportStatus = (typeof DOCUMENT_IMPORT_STATUSES)[number]
 
 export type DocumentDraft = Readonly<{
   title: string
@@ -38,6 +47,29 @@ export type DocumentTextVersion = Readonly<{
   characterCount: number
   createdAt: string
 }>
+
+export type DocumentImportError = Readonly<{
+  code: string
+  message: string
+  retryable: boolean
+}>
+
+export type DocumentImportJob = Readonly<{
+  id: string
+  documentId: string | null
+  sourceKind: 'pdf_file'
+  status: DocumentImportStatus
+  originalName: string
+  fileSizeBytes: number
+  contentHash: string
+  error: DocumentImportError | null
+  createdAt: string
+  updatedAt: string
+  finishedAt: string | null
+}>
+
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[1-5][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu
+const SHA_256 = /^[\da-f]{64}$/iu
 
 const normalizeNonBlank = (value: string, message: string): string => {
   const normalized = value.trim()
@@ -78,3 +110,28 @@ export const documentHashInput = (draft: NormalizedDocumentDraft): string => dra
 
 export const countDocumentCharacters = (plainText: string): number =>
   [...normalizeLineEndings(plainText)].length
+
+export const normalizeDocumentImportJob = (job: DocumentImportJob): DocumentImportJob => {
+  if (!UUID.test(job.id)) throw new Error('Document import job id is invalid')
+  if (job.documentId !== null && !UUID.test(job.documentId)) {
+    throw new Error('Document import job document id is invalid')
+  }
+  if (job.sourceKind !== 'pdf_file') throw new Error('Document import source kind is invalid')
+  if (!DOCUMENT_IMPORT_STATUSES.includes(job.status)) {
+    throw new Error('Document import status is invalid')
+  }
+  if (!Number.isInteger(job.fileSizeBytes) || job.fileSizeBytes < 0) {
+    throw new Error('Document import file size is invalid')
+  }
+  if (!SHA_256.test(job.contentHash)) throw new Error('Document import content hash is invalid')
+  if (job.status === 'failed' && job.error === null) {
+    throw new Error('Document import failure requires an error summary')
+  }
+  if (job.status !== 'failed' && job.error !== null) {
+    throw new Error('Document import error summary is only allowed for failed jobs')
+  }
+  const originalName = normalizeFileName(job.originalName)
+  if (originalName === undefined) throw new Error('Document import original name is invalid')
+
+  return { ...job, originalName }
+}

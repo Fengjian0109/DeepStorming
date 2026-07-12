@@ -33,7 +33,7 @@
 
 ## Task 1: Domain model
 
-- [ ] **Step 1: Write failing domain tests**
+- [x] **Step 1: Write failing domain tests**
 
 Add tests to `packages/domain/src/document.test.ts`:
 
@@ -73,7 +73,7 @@ it('normalizes PDF import jobs and rejects unsafe states', () => {
 })
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -83,7 +83,7 @@ pnpm vitest run packages/domain/src/document.test.ts
 
 Expected: fails because `normalizeDocumentImportJob` is not defined.
 
-- [ ] **Step 3: Implement minimal domain types and normalizer**
+- [x] **Step 3: Implement minimal domain types and normalizer**
 
 Add to `packages/domain/src/document.ts`:
 
@@ -117,7 +117,7 @@ export type DocumentImportJob = Readonly<{
 
 Implement validation using the existing UUID and non-blank patterns in the file.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run:
 
@@ -129,7 +129,7 @@ Expected: all tests pass.
 
 ## Task 2: Contracts and IPC shape
 
-- [ ] **Step 1: Write failing contract tests**
+- [x] **Step 1: Write failing contract tests**
 
 Add to `packages/contracts/src/document.test.ts`:
 
@@ -161,7 +161,7 @@ it('defines PDF import channels and strict job schemas', () => {
 })
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -171,7 +171,7 @@ pnpm vitest run packages/contracts/src/document.test.ts
 
 Expected: missing channel/schema failures.
 
-- [ ] **Step 3: Implement contracts**
+- [x] **Step 3: Implement contracts**
 
 Add:
 
@@ -183,7 +183,7 @@ Add:
 - `documentTextBlockSchema`
 - result schemas using existing result envelope pattern.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run:
 

@@ -96,6 +96,9 @@
   - `docs/planning/provider-cloud-release-acceptance.md` 已补 DeepSeek / OpenAI-compatible 真实云 Provider 手动验收矩阵、发布前清单、隐私说明和敏感信息扫描建议。
   - `docs/superpowers/specs/2026-07-12-pdf-document-foundation-design.md` 已补 PDF 文档底座设计。
   - `docs/superpowers/plans/2026-07-12-pdf-document-foundation.md` 已补 PDF 文档底座实施计划。
+- Phase 6 PDF 文档底座启动：
+  - Domain：新增 PDF import job 状态枚举、`DocumentImportJob`、安全错误摘要和 `normalizeDocumentImportJob`，拒绝无效 UUID、hash、source kind、file size 与失败状态缺少错误摘要。
+  - Contracts：新增 `documents:import-pdf`、`documents:get-pages`、`documents:get-page-blocks` channel，以及 PDF import job、page、text block 的严格 DTO schema 和结果 envelope。
 
 ## Phase 5 当前范围与非目标
 
@@ -104,7 +107,7 @@
 
 ## 当前门禁
 
-1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 433 个测试，以及桌面端构建全部通过。
+1. `pnpm check`：通过；Prettier、全 workspace typecheck、37 个测试文件 / 436 个测试，以及桌面端构建全部通过。
 2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖正文搜索、从搜索结果启动课堂、首条 Mock Tutor 提问、生成记录、提交学习者回复、下一轮 Mock Tutor 追问，以及重启后课堂来源片段/多轮消息/生成记录仍可读取；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
@@ -125,4 +128,4 @@ pnpm package:dir
 
 ## 下一步
 
-执行真实云 Provider 手动验收，随后按 `docs/superpowers/plans/2026-07-12-pdf-document-foundation.md` 进入 PDF 文档底座实现。发布侧继续处理签名、图标与公证。
+继续执行 `docs/superpowers/plans/2026-07-12-pdf-document-foundation.md` Task 3：SQLite migration 与 PDF import/page/block repository。发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。
