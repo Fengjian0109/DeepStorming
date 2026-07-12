@@ -253,7 +253,7 @@ Expected: all tests pass.
 
 ## Task 4: Application import use case
 
-- [ ] **Step 1: Write failing application tests**
+- [x] **Step 1: Write failing application tests**
 
 In `packages/application/src/document-use-cases.test.ts`, add:
 
@@ -278,7 +278,7 @@ it('imports a text PDF into pages and blocks', async () => {
 
 Also add failure tests for password protected, no text layer, and damaged PDF.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -288,7 +288,7 @@ pnpm vitest run packages/application/src/document-use-cases.test.ts
 
 Expected: missing use case and port failures.
 
-- [ ] **Step 3: Implement ports and use case**
+- [x] **Step 3: Implement ports and use case**
 
 Add ports:
 
@@ -313,7 +313,7 @@ queued -> copying -> parsing -> ready
 queued/copying/parsing -> failed
 ```
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run:
 

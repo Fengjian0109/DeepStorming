@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type {
+  DocumentImportRepositoryPort,
   DocumentRepositoryPort,
+  PdfFileStorePort,
+  PdfTextExtractorPort,
   DocumentTextHasherPort,
+  StoredDocumentFile,
+  StoredDocumentPage,
+  StoredDocumentTextBlock,
   StoredDocument,
   StoredDocumentDetail,
 } from './document-ports'
@@ -10,13 +16,25 @@ import {
   DeleteDocument,
   DocumentUseCaseError,
   GetDocument,
+  ImportPdfDocument,
   ListDocuments,
+  PdfTextExtractionError,
   SearchDocuments,
 } from './document-use-cases'
 import { DuplicateDocumentError } from './document-ports'
+import type { DocumentImportJob } from '@deepstorming/domain'
 
 const now = '2026-07-11T00:00:00.000Z'
-const ids = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002']
+const ids = [
+  '00000000-0000-4000-8000-000000000001',
+  '00000000-0000-4000-8000-000000000002',
+  '00000000-0000-4000-8000-000000000003',
+  '00000000-0000-4000-8000-000000000004',
+  '00000000-0000-4000-8000-000000000005',
+  '00000000-0000-4000-8000-000000000006',
+  '00000000-0000-4000-8000-000000000007',
+  '00000000-0000-4000-8000-000000000008',
+]
 
 class FakeRepository implements DocumentRepositoryPort {
   public records = new Map<string, StoredDocumentDetail>()
@@ -75,15 +93,91 @@ class FakeRepository implements DocumentRepositoryPort {
   }
 }
 
+class FakeDocumentImportRepository implements DocumentImportRepositoryPort {
+  public jobs = new Map<string, DocumentImportJob>()
+  public files = new Map<string, StoredDocumentFile>()
+  public pages = new Map<string, StoredDocumentPage[]>()
+  public blocks = new Map<string, StoredDocumentTextBlock[]>()
+  public statusHistory: DocumentImportJob['status'][] = []
+
+  async saveJob(job: DocumentImportJob): Promise<DocumentImportJob> {
+    this.jobs.set(job.id, job)
+    this.statusHistory.push(job.status)
+    return job
+  }
+
+  async updateJob(job: DocumentImportJob): Promise<DocumentImportJob> {
+    this.jobs.set(job.id, job)
+    this.statusHistory.push(job.status)
+    return job
+  }
+
+  async listJobsForDocument(documentId: string): Promise<readonly DocumentImportJob[]> {
+    return [...this.jobs.values()].filter((job) => job.documentId === documentId)
+  }
+
+  async saveFile(file: StoredDocumentFile): Promise<StoredDocumentFile> {
+    this.files.set(file.documentId, file)
+    return file
+  }
+
+  async replacePagesAndBlocks(
+    pages: readonly StoredDocumentPage[],
+    blocks: readonly StoredDocumentTextBlock[],
+  ): Promise<void> {
+    for (const page of pages) {
+      this.pages.set(page.documentId, [...(this.pages.get(page.documentId) ?? []), page])
+    }
+    for (const block of blocks) {
+      this.blocks.set(block.documentId, [...(this.blocks.get(block.documentId) ?? []), block])
+    }
+  }
+
+  async listPages(documentId: string): Promise<readonly StoredDocumentPage[]> {
+    return this.pagesFor(documentId)
+  }
+
+  async listPageBlocks(
+    documentId: string,
+    pageNumber: number,
+  ): Promise<readonly StoredDocumentTextBlock[]> {
+    return (this.blocks.get(documentId) ?? []).filter((block) => block.pageNumber === pageNumber)
+  }
+
+  pagesFor(documentId: string): readonly StoredDocumentPage[] {
+    return this.pages.get(documentId) ?? []
+  }
+}
+
 describe('document use cases', () => {
   let repo: FakeRepository
+  let importRepo: FakeDocumentImportRepository
   let idIndex: number
   const hasher: DocumentTextHasherPort = { hash: async (input) => `hash:${input}` }
+  const fileStore: PdfFileStorePort = {
+    describe: async () => ({ fileSizeBytes: 4096, contentHash: 'a'.repeat(64) }),
+    copyIntoLibrary: async () => ({ storedPath: 'documents/00/paper.pdf' }),
+  }
+  let extractor: PdfTextExtractorPort
   const clock = { now: () => now }
   const idGenerator = { generate: () => ids[idIndex++]! }
 
   beforeEach(() => {
     repo = new FakeRepository()
+    importRepo = new FakeDocumentImportRepository()
+    extractor = {
+      extract: async () => ({
+        pages: [
+          {
+            pageNumber: 1,
+            width: 612,
+            height: 792,
+            text: 'Paper text.',
+            blocks: [{ text: 'Paper text.', x: 10, y: 20, width: 100, height: 16 }],
+          },
+        ],
+      }),
+    }
     idIndex = 0
   })
 
@@ -276,5 +370,111 @@ describe('document use cases', () => {
     expect(error.code).toBe('DOCUMENT_NOT_FOUND')
     expect(error.message).toBe('Missing.')
     expect(error.retryable).toBe(false)
+  })
+
+  it('imports a text PDF into pages and blocks', async () => {
+    const result = await new ImportPdfDocument(
+      repo,
+      importRepo,
+      fileStore,
+      extractor,
+      hasher,
+      clock,
+      idGenerator,
+    ).execute({
+      filePath: '/tmp/paper.pdf',
+      originalName: 'paper.pdf',
+    })
+
+    expect(result.status).toBe('ready')
+    expect(importRepo.statusHistory).toEqual(['queued', 'copying', 'parsing', 'ready'])
+    expect(result.documentId).toBe(ids[1])
+    expect(importRepo.pagesFor(result.documentId!)).toHaveLength(1)
+    await expect(importRepo.listPageBlocks(result.documentId!, 1)).resolves.toHaveLength(1)
+    await expect(new GetDocument(repo).execute(result.documentId!)).resolves.toMatchObject({
+      title: 'paper',
+      plainText: 'Paper text.',
+      sourceKind: 'text_file',
+      originalFileName: 'paper.pdf',
+    })
+  })
+
+  it('fails PDF import when the PDF is password protected', async () => {
+    extractor = {
+      extract: async () => {
+        throw new PdfTextExtractionError(
+          'DOCUMENT_PDF_PASSWORD_PROTECTED',
+          'The PDF is password protected.',
+          false,
+        )
+      },
+    }
+
+    const result = await new ImportPdfDocument(
+      repo,
+      importRepo,
+      fileStore,
+      extractor,
+      hasher,
+      clock,
+      idGenerator,
+    ).execute({ filePath: '/tmp/locked.pdf', originalName: 'locked.pdf' })
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      documentId: null,
+      error: { code: 'DOCUMENT_PDF_PASSWORD_PROTECTED', retryable: false },
+    })
+    expect(importRepo.statusHistory).toEqual(['queued', 'copying', 'parsing', 'failed'])
+  })
+
+  it('fails PDF import when no text layer can be extracted', async () => {
+    extractor = {
+      extract: async () => ({
+        pages: [{ pageNumber: 1, width: 1, height: 1, text: ' ', blocks: [] }],
+      }),
+    }
+
+    const result = await new ImportPdfDocument(
+      repo,
+      importRepo,
+      fileStore,
+      extractor,
+      hasher,
+      clock,
+      idGenerator,
+    ).execute({ filePath: '/tmp/scan.pdf', originalName: 'scan.pdf' })
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: { code: 'DOCUMENT_PDF_TEXT_MISSING', retryable: false },
+    })
+  })
+
+  it('fails PDF import when the PDF parser reports a damaged file', async () => {
+    extractor = {
+      extract: async () => {
+        throw new PdfTextExtractionError(
+          'DOCUMENT_PDF_PARSE_FAILED',
+          'The PDF could not be parsed.',
+          false,
+        )
+      },
+    }
+
+    const result = await new ImportPdfDocument(
+      repo,
+      importRepo,
+      fileStore,
+      extractor,
+      hasher,
+      clock,
+      idGenerator,
+    ).execute({ filePath: '/tmp/damaged.pdf', originalName: 'damaged.pdf' })
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: { code: 'DOCUMENT_PDF_PARSE_FAILED', retryable: false },
+    })
   })
 })

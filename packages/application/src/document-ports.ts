@@ -82,6 +82,40 @@ export interface DocumentImportRepositoryPort {
   ): Promise<readonly StoredDocumentTextBlock[]>
 }
 
+export type PdfFileDescription = Readonly<{
+  fileSizeBytes: number
+  contentHash: string
+}>
+
+export type StoredPdfFile = Readonly<{ storedPath: string }>
+
+export interface PdfFileStorePort {
+  describe(filePath: string): Promise<PdfFileDescription>
+  copyIntoLibrary(
+    input: Readonly<{ filePath: string; contentHash: string }>,
+  ): Promise<StoredPdfFile>
+}
+
+export type ExtractedPdfTextBlock = Readonly<{
+  text: string
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+}>
+
+export type ExtractedPdfPage = Readonly<{
+  pageNumber: number
+  width: number
+  height: number
+  text: string
+  blocks: readonly ExtractedPdfTextBlock[]
+}>
+
+export interface PdfTextExtractorPort {
+  extract(filePath: string): Promise<Readonly<{ pages: readonly ExtractedPdfPage[] }>>
+}
+
 export interface DocumentTextHasherPort {
   hash(input: string): Promise<string>
 }

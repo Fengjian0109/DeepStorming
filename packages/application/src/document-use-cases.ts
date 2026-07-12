@@ -2,16 +2,26 @@ import {
   countDocumentCharacters,
   documentHashInput,
   normalizeDocumentDraft,
+  normalizeDocumentImportJob,
   type DocumentDraft,
+  type DocumentImportError,
+  type DocumentImportJob,
+  type DocumentImportStatus,
   type LearningDocument,
 } from '@deepstorming/domain'
 import type {
   ClockPort,
+  DocumentImportRepositoryPort,
   DocumentRepositoryPort,
   DocumentTextHasherPort,
+  ExtractedPdfPage,
   IdGeneratorPort,
+  PdfFileStorePort,
+  PdfTextExtractorPort,
   StoredDocument,
   StoredDocumentDetail,
+  StoredDocumentPage,
+  StoredDocumentTextBlock,
 } from './document-ports'
 import { DuplicateDocumentError } from './document-ports'
 
@@ -19,6 +29,12 @@ export type DocumentUseCaseErrorCode =
   | 'DOCUMENT_VALIDATION_FAILED'
   | 'DOCUMENT_DUPLICATE'
   | 'DOCUMENT_NOT_FOUND'
+  | 'DOCUMENT_IMPORT_FAILED'
+  | 'DOCUMENT_FILE_UNSUPPORTED'
+  | 'DOCUMENT_FILE_TOO_LARGE'
+  | 'DOCUMENT_PDF_PASSWORD_PROTECTED'
+  | 'DOCUMENT_PDF_TEXT_MISSING'
+  | 'DOCUMENT_PDF_PARSE_FAILED'
   | 'DATABASE_UNAVAILABLE'
   | 'INTERNAL_ERROR'
 
@@ -33,8 +49,20 @@ export class DocumentUseCaseError extends Error {
   }
 }
 
+export class PdfTextExtractionError extends DocumentUseCaseError {
+  public constructor(
+    code:
+      'DOCUMENT_PDF_PASSWORD_PROTECTED' | 'DOCUMENT_PDF_TEXT_MISSING' | 'DOCUMENT_PDF_PARSE_FAILED',
+    message: string,
+    retryable: boolean,
+  ) {
+    super(code, message, retryable)
+  }
+}
+
 export type DocumentDetail = LearningDocument & Readonly<{ plainText: string }>
 export type DocumentSearchInput = Readonly<{ query: string }>
+export type ImportPdfDocumentInput = Readonly<{ filePath: string; originalName: string }>
 export type DocumentSearchResult = Omit<LearningDocument, 'id'> &
   Readonly<{
     documentId: string
@@ -87,6 +115,16 @@ const duplicateError = (): DocumentUseCaseError =>
     false,
   )
 
+const pdfTextMissingError = (): PdfTextExtractionError =>
+  new PdfTextExtractionError(
+    'DOCUMENT_PDF_TEXT_MISSING',
+    'The PDF does not contain an extractable text layer.',
+    false,
+  )
+
+const importFailedError = (): DocumentUseCaseError =>
+  new DocumentUseCaseError('DOCUMENT_IMPORT_FAILED', 'The PDF import could not be completed.', true)
+
 const normalizeSearchQuery = (query: string): string => {
   const normalized = query.trim()
   if (normalized.length === 0) throw new Error('Search query must not be blank')
@@ -113,6 +151,34 @@ const asCreateError = (error: unknown): DocumentUseCaseError => {
   if (isDuplicateStorageError(error)) return duplicateError()
   return databaseError()
 }
+
+const asImportFailure = (error: unknown): DocumentUseCaseError => {
+  if (isDocumentUseCaseError(error)) return error
+  return importFailedError()
+}
+
+const toImportErrorSummary = (error: DocumentUseCaseError): DocumentImportError => ({
+  code: error.code,
+  message: error.message,
+  retryable: error.retryable,
+})
+
+const normalizePdfOriginalName = (originalName: string): string => {
+  const normalized = originalName.trim().split(/[\\/]/u).filter(Boolean).at(-1)
+  if (normalized === undefined || !/\.pdf$/iu.test(normalized)) {
+    throw new Error('PDF file name must end with .pdf')
+  }
+  return normalized
+}
+
+const titleFromPdfName = (originalName: string): string =>
+  originalName.replace(/\.pdf$/iu, '').trim() || originalName
+
+const pdfPlainText = (pages: readonly ExtractedPdfPage[]): string =>
+  pages
+    .map((page) => page.text.trim())
+    .filter((text) => text.length > 0)
+    .join('\n\n')
 
 const findMatchRange = (
   plainText: string,
@@ -254,6 +320,186 @@ export class CreateDocumentFromText {
     } catch (error) {
       throw asCreateError(error)
     }
+  }
+}
+
+export class ImportPdfDocument {
+  public constructor(
+    private readonly documentRepository: DocumentRepositoryPort,
+    private readonly importRepository: DocumentImportRepositoryPort,
+    private readonly fileStore: PdfFileStorePort,
+    private readonly extractor: PdfTextExtractorPort,
+    private readonly hasher: DocumentTextHasherPort,
+    private readonly clock: ClockPort,
+    private readonly ids: IdGeneratorPort,
+  ) {}
+
+  public async execute(input: ImportPdfDocumentInput): Promise<DocumentImportJob> {
+    let originalName: string
+    try {
+      originalName = normalizePdfOriginalName(input.originalName)
+    } catch (error) {
+      throw validationError(error)
+    }
+
+    const fileDescription = await this.fileStore
+      .describe(input.filePath)
+      .catch((error: unknown) => {
+        throw asImportFailure(error)
+      })
+    const jobId = this.ids.generate()
+    const jobCreatedAt = this.clock.now()
+    const baseJob = (status: DocumentImportStatus): DocumentImportJob =>
+      normalizeDocumentImportJob({
+        id: jobId,
+        documentId: null,
+        sourceKind: 'pdf_file',
+        status,
+        originalName,
+        fileSizeBytes: fileDescription.fileSizeBytes,
+        contentHash: fileDescription.contentHash,
+        error: null,
+        createdAt: jobCreatedAt,
+        updatedAt: this.clock.now(),
+        finishedAt: null,
+      })
+
+    await this.importRepository.saveJob(baseJob('queued')).catch((error: unknown) => {
+      throw asDatabaseError(error)
+    })
+    await this.importRepository.updateJob(baseJob('copying')).catch((error: unknown) => {
+      throw asDatabaseError(error)
+    })
+
+    let storedFile
+    try {
+      storedFile = await this.fileStore.copyIntoLibrary({
+        filePath: input.filePath,
+        contentHash: fileDescription.contentHash,
+      })
+    } catch (error) {
+      return this.failJob(baseJob('copying'), asImportFailure(error))
+    }
+
+    await this.importRepository.updateJob(baseJob('parsing')).catch((error: unknown) => {
+      throw asDatabaseError(error)
+    })
+
+    try {
+      const extracted = await this.extractor.extract(input.filePath)
+      const plainText = pdfPlainText(extracted.pages)
+      if (plainText.length === 0) throw pdfTextMissingError()
+
+      const documentId = this.ids.generate()
+      const textVersionId = this.ids.generate()
+      const createdAt = this.clock.now()
+      const draft = normalizeDocumentDraft({
+        title: titleFromPdfName(originalName),
+        plainText,
+        sourceKind: 'text_file',
+        documentType: 'paper',
+        originalFileName: originalName,
+      })
+      const document = await this.documentRepository.create({
+        id: documentId,
+        textVersionId,
+        documentType: draft.documentType,
+        title: draft.title,
+        plainText: draft.plainText,
+        sourceKind: draft.sourceKind,
+        ...(draft.originalFileName !== undefined
+          ? { originalFileName: draft.originalFileName }
+          : {}),
+        contentHash: await this.hasher.hash(documentHashInput(draft)),
+        characterCount: countDocumentCharacters(draft.plainText),
+        createdAt,
+        updatedAt: createdAt,
+      })
+
+      await this.importRepository.saveFile({
+        documentId,
+        importJobId: jobId,
+        originalName,
+        storedPath: storedFile.storedPath,
+        contentHash: fileDescription.contentHash,
+        fileSizeBytes: fileDescription.fileSizeBytes,
+        createdAt,
+      })
+      const pages = await this.toStoredPages(documentId, extracted.pages, createdAt)
+      await this.importRepository.replacePagesAndBlocks(
+        pages,
+        this.toStoredBlocks(documentId, extracted.pages, pages, createdAt),
+      )
+      return await this.importRepository.updateJob({
+        ...baseJob('ready'),
+        documentId: document.id,
+        updatedAt: this.clock.now(),
+        finishedAt: this.clock.now(),
+      })
+    } catch (error) {
+      return this.failJob(baseJob('parsing'), asImportFailure(error))
+    }
+  }
+
+  private async failJob(
+    job: DocumentImportJob,
+    error: DocumentUseCaseError,
+  ): Promise<DocumentImportJob> {
+    return this.importRepository
+      .updateJob({
+        ...job,
+        status: 'failed',
+        error: toImportErrorSummary(error),
+        updatedAt: this.clock.now(),
+        finishedAt: this.clock.now(),
+      })
+      .catch((updateError: unknown) => {
+        throw asDatabaseError(updateError)
+      })
+  }
+
+  private async toStoredPages(
+    documentId: string,
+    pages: readonly ExtractedPdfPage[],
+    createdAt: string,
+  ): Promise<readonly StoredDocumentPage[]> {
+    return Promise.all(
+      pages.map(async (page) => ({
+        id: this.ids.generate(),
+        documentId,
+        pageNumber: page.pageNumber,
+        width: page.width,
+        height: page.height,
+        text: page.text,
+        textHash: await this.hasher.hash(page.text),
+        createdAt,
+      })),
+    )
+  }
+
+  private toStoredBlocks(
+    documentId: string,
+    pages: readonly ExtractedPdfPage[],
+    storedPages: readonly StoredDocumentPage[],
+    createdAt: string,
+  ): readonly StoredDocumentTextBlock[] {
+    return pages.flatMap((page) => {
+      const storedPage = storedPages.find((item) => item.pageNumber === page.pageNumber)
+      if (storedPage === undefined) throw new Error('PDF page block has no matching page')
+      return page.blocks.map((block, blockIndex) => ({
+        id: this.ids.generate(),
+        documentId,
+        pageId: storedPage.id,
+        pageNumber: page.pageNumber,
+        blockIndex,
+        text: block.text,
+        ...(block.x === undefined ? {} : { x: block.x }),
+        ...(block.y === undefined ? {} : { y: block.y }),
+        ...(block.width === undefined ? {} : { width: block.width }),
+        ...(block.height === undefined ? {} : { height: block.height }),
+        createdAt,
+      }))
+    })
   }
 }
 
