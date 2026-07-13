@@ -197,7 +197,9 @@ CREATE VIRTUAL TABLE document_chunks_fts USING fts5(
  chunk_id UNINDEXED,
  document_id UNINDEXED,
  body
-);
+);`
+
+const DOCUMENT_CHUNK_FTS_SYNC_SQL = `
 CREATE TRIGGER document_chunks_fts_insert AFTER INSERT ON document_chunks BEGIN
   INSERT INTO document_chunks_fts(rowid,chunk_id,document_id,body)
   VALUES (new.rowid,new.id,new.document_id,new.text);
@@ -222,6 +224,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 8, name: 'pdf_document_foundation', sql: PDF_DOCUMENT_SQL },
   { version: 9, name: 'lesson_source_target', sql: LESSON_SOURCE_TARGET_SQL },
   { version: 10, name: 'document_chunk_storage', sql: DOCUMENT_CHUNK_SQL },
+  { version: 11, name: 'document_chunk_fts_sync', sql: DOCUMENT_CHUNK_FTS_SYNC_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

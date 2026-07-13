@@ -65,6 +65,7 @@ test('applies migration two and creates document tables', async () => {
     { version: 8, name: 'pdf_document_foundation' },
     { version: 9, name: 'lesson_source_target' },
     { version: 10, name: 'document_chunk_storage' },
+    { version: 11, name: 'document_chunk_fts_sync' },
   ])
 
   db.close()
@@ -95,6 +96,7 @@ test('applies migrations three and four and creates lesson tables', async () => 
     { version: 8, name: 'pdf_document_foundation' },
     { version: 9, name: 'lesson_source_target' },
     { version: 10, name: 'document_chunk_storage' },
+    { version: 11, name: 'document_chunk_fts_sync' },
   ])
   const columns = db.prepare('PRAGMA table_info(lesson_model_runs)').all() as Array<{
     name: string
@@ -110,6 +112,16 @@ test('applies migrations three and four and creates lesson tables', async () => 
   expect(
     db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='document_chunks_fts'").get(),
   ).toEqual({ name: 'document_chunks_fts' })
+  const triggers = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='document_chunks'")
+    .all() as Array<{ name: string }>
+  expect(triggers.map((trigger) => trigger.name)).toEqual(
+    expect.arrayContaining([
+      'document_chunks_fts_insert',
+      'document_chunks_fts_delete',
+      'document_chunks_fts_update',
+    ]),
+  )
 
   db.close()
   rmSync(dir, { recursive: true, force: true })
@@ -138,7 +150,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 11, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 12, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })
@@ -210,3 +222,32 @@ test.each([
     db.close()
   },
 )
+
+test('upgrades a database with published v10 chunks to add v11 fts sync triggers', async () => {
+  const dir = await setup()
+  const path = join(dir, 'app.db')
+  const db = openDatabase(path)
+  await migrateDatabase(db, {
+    databasePath: path,
+    userDataPath: dir,
+    migrations: MIGRATIONS.filter((migration) => migration.version <= 10),
+  })
+
+  await migrateDatabase(db, { databasePath: path, userDataPath: dir })
+
+  expect(db.prepare('SELECT version,name FROM schema_migrations ORDER BY version DESC LIMIT 1').get()).toEqual(
+    { version: 11, name: 'document_chunk_fts_sync' },
+  )
+  const triggers = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='document_chunks'")
+    .all() as Array<{ name: string }>
+  expect(triggers.map((trigger) => trigger.name)).toEqual(
+    expect.arrayContaining([
+      'document_chunks_fts_insert',
+      'document_chunks_fts_delete',
+      'document_chunks_fts_update',
+    ]),
+  )
+
+  db.close()
+})
