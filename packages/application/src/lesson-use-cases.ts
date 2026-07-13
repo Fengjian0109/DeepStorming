@@ -1020,9 +1020,20 @@ export class RetryLessonRun {
       contextCharacterCount: contextSummary.contextCharacterCount,
       startedAt: createdAt,
     })
+    const classifiedAction = classifyTutorAction(session.currentState, learnerMessage.content)
+    const startedStep = startedLessonStep({
+      modelRunId,
+      lessonId: session.id,
+      sequenceNo: nextStepSequence(session),
+      stateBefore: session.currentState,
+      stateAfter: classifiedAction.stateAfter,
+      actionType: classifiedAction.actionType,
+      createdAt,
+    })
     const pending: StoredLessonSession = {
       ...session,
       modelRuns: [...session.modelRuns, startedRun],
+      steps: [...session.steps, startedStep],
       updatedAt: createdAt,
     }
     await saveLesson(this.lessons, pending)
@@ -1047,12 +1058,23 @@ export class RetryLessonRun {
         modelRuns: pending.modelRuns.map((run) =>
           run.id === modelRunId ? failModelRun(run, lessonError, createdAt) : run,
         ),
+        steps: pending.steps.map((step) =>
+          step.id === modelRunId ? failLessonStep(step, lessonError, createdAt) : step,
+        ),
       })
       throw lessonError
     } finally {
       completeOperation(this.operations, draft.operationId)
     }
 
+    const action = normalizeTutorAction({
+      actionType: tutorReply.actionType ?? classifiedAction.actionType,
+      stateBefore: startedStep.stateBefore,
+      stateAfter: tutorReply.stateAfter ?? classifiedAction.stateAfter,
+      utterance: tutorReply.content,
+      citedChunkIds: contextSummary.contextChunks.map((chunk) => chunk.chunkId),
+      rationale: tutorReply.rationale ?? classifiedAction.rationale,
+    })
     const updated: StoredLessonSession = {
       ...pending,
       messages: [
@@ -1070,6 +1092,18 @@ export class RetryLessonRun {
       ],
       modelRuns: pending.modelRuns.map((run) =>
         run.id === modelRunId ? finishModelRun(run, tutorReply, tutorMessageId, createdAt) : run,
+      ),
+      currentState: action.stateAfter,
+      steps: pending.steps.map((step) =>
+        step.id === modelRunId
+          ? succeedLessonStep(step, {
+              messageId: tutorMessageId,
+              actionType: action.actionType,
+              stateAfter: action.stateAfter,
+              rationale: action.rationale,
+              finishedAt: createdAt,
+            })
+          : step,
       ),
       updatedAt: createdAt,
     }

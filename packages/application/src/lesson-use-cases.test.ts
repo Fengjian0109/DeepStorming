@@ -1172,6 +1172,22 @@ describe('lesson use cases', () => {
       },
       finishedAt: now,
     })
+    expect(cancelled?.currentState).toBe('probing')
+    expect(cancelled?.steps.at(-1)).toMatchObject({
+      id: followUpRunId,
+      stateBefore: 'probing',
+      stateAfter: 'probing',
+      actionType: 'ask',
+      status: 'cancelled',
+      modelRunId: followUpRunId,
+      messageId: null,
+      errorSummary: {
+        code: 'OPERATION_CANCELLED',
+        message: 'The lesson generation was cancelled.',
+        retryable: false,
+      },
+      finishedAt: now,
+    })
   })
 
   it('generates tutor replies through the active provider gateway', async () => {
@@ -1249,8 +1265,23 @@ describe('lesson use cases', () => {
     })
     lessons.records.set(lessonId, {
       ...replied,
-      currentState: 'opening',
-      steps: [],
+      currentState: 'probing',
+      steps: replied.steps.map((step) =>
+        step.modelRunId === followUpRunId
+          ? {
+              ...step,
+              status: 'failed' as const,
+              messageId: null,
+              rationale: null,
+              errorSummary: {
+                code: 'INTERNAL_ERROR',
+                message: 'The lesson operation could not be completed.',
+                retryable: true,
+              },
+              finishedAt: now,
+            }
+          : step,
+      ),
       modelRuns: replied.modelRuns.map((run) =>
         run.id === followUpRunId
           ? { ...run, status: 'failed' as const, outputMessageId: null, finishedAt: now }
@@ -1289,6 +1320,21 @@ describe('lesson use cases', () => {
     expect(retried.modelRuns.find((run) => run.id === followUpRunId)).toMatchObject({
       status: 'failed',
       outputMessageId: null,
+    })
+    expect(retried.currentState).toBe('probing')
+    expect(retried.steps.find((step) => step.modelRunId === followUpRunId)).toMatchObject({
+      status: 'failed',
+      messageId: null,
+    })
+    expect(retried.steps.at(-1)).toMatchObject({
+      id: retryRunId,
+      sequenceNo: replied.steps.length,
+      stateBefore: 'probing',
+      stateAfter: 'probing',
+      actionType: 'ask',
+      status: 'succeeded',
+      modelRunId: retryRunId,
+      messageId: retryMessageId,
     })
   })
 
