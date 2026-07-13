@@ -34,7 +34,7 @@ const launchDevApp = async (userDataDir: string): Promise<ElectronApplication> =
 const clearPersistedContextChunks = (userDataDir: string): void => {
   execFileSync(process.env['SQLITE3_BINARY'] ?? 'sqlite3', [
     path.join(userDataDir, 'runtime', 'deepstorming.sqlite3'),
-    'DELETE FROM document_chunks;',
+    'PRAGMA trusted_schema=ON; DELETE FROM document_chunks;',
   ])
 }
 
@@ -205,6 +205,12 @@ test('creates text documents and persists them across restart', async () => {
       await expect(page.getByText('回答已提交。')).toBeVisible()
       await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
       await expect(
+        page.locator('.lesson-mastery-diagnosis').getByText('学习诊断').first(),
+      ).toBeVisible()
+      await expect(
+        page.locator('.lesson-mastery-diagnosis').getByText('部分理解 · 55%').first(),
+      ).toBeVisible()
+      await expect(
         page
           .locator('.lesson-step-meta')
           .filter({ hasText: '动作：ask · probing → probing' })
@@ -253,6 +259,9 @@ test('creates text documents and persists them across restart', async () => {
       ).toBeVisible()
       await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
       await expect(page.getByText('lesson.mockTutor.followUp v2')).toBeVisible()
+      await expect(
+        page.locator('.lesson-mastery-diagnosis').getByText('部分理解 · 55%').first(),
+      ).toBeVisible()
       await expect(
         page
           .locator('.lesson-step-meta')
@@ -315,6 +324,9 @@ test('creates text documents and persists them across restart', async () => {
       await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
       await expect(page.getByText('lesson.mockTutor.followUp v2')).toBeVisible()
       await expect(
+        page.locator('.lesson-mastery-diagnosis').getByText('部分理解 · 55%').first(),
+      ).toBeVisible()
+      await expect(
         page
           .locator('.lesson-step-meta')
           .filter({ hasText: '动作：ask · probing → probing' })
@@ -330,6 +342,9 @@ test('creates text documents and persists them across restart', async () => {
       await page.getByLabel('你的回答').fill('我会继续检查缺少 chunk 时还能否只靠 snippet 追问。')
       await page.getByRole('button', { name: '提交回答' }).click()
       await expect(page.getByText('课堂仍可继续（已降级为 snippet）')).toBeVisible()
+      await expect(
+        page.locator('.lesson-mastery-diagnosis').getByText('部分理解 · 55%').first(),
+      ).toBeVisible()
       await expect(
         page
           .locator('.lesson-step-meta')

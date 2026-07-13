@@ -2,8 +2,8 @@
 
 - 更新时间：2026-07-13
 - 当前分支：`main`
-- 当前阶段：Phase 6 D5 TutorAction / LessonState 状态机
-- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环，以及 D5 课堂状态机审计链路已完成
+- 当前阶段：Phase 6 D6 Mastery Evidence / Misconception MVP
+- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环、D5 课堂状态机审计链路，以及 D6-MVP 学习诊断证据闭环已完成
 
 ## 已完成
 
@@ -116,16 +116,22 @@
   - Application：Start / Reply / Retry / Cancel 都会先写入或更新对应 step；成功路径推进到下一状态，失败和取消保留可恢复记录，重试追加新 step 而不覆盖原失败 step。
   - Renderer：课堂详情展示当前阶段中文标签；每条生成记录展示对应教学动作与状态转移，历史会话缺少 step 时显示“状态机记录尚未生成”。
   - E2E：桌面主流程覆盖 PDF block 与搜索片段课堂的 `opening -> probing` 首问、`probing -> probing` follow-up、重启恢复后的状态显示，以及 chunk 缺失降级时状态机记录仍存在。
+- Phase 6 D6 Mastery Evidence / Misconception MVP：
+  - Domain / Contracts：新增 MasteryEvidence、MisconceptionSignal 领域模型与严格 DTO，课堂会话 DTO 随 session 返回 `masteryEvidence` 与 `misconceptionSignals`。
+  - Infrastructure：Migration 13 新增 `lesson_mastery_evidence` 与 `lesson_misconception_signals`，按课堂、step、learner/tutor message 保存诊断证据，并用 `UNIQUE(tutor_message_id)` 防止同一成功追问重复生成证据。
+  - Application：`SubmitLessonReply` 和成功 `RetryLessonRun` 通过 deterministic 规则生成学习诊断；普通 teach-back 记录 `partial_understanding` / `55%`，卡住表达记录 `needs_review` 与误区信号，失败或取消不生成诊断。
+  - Renderer：课堂详情在生成记录后展示“学习诊断”，包含掌握判断、置信度、安全 rationale、复习建议，以及关联误区信号。
+  - E2E：桌面主流程覆盖提交普通回答后的学习诊断展示、重启后诊断持久可见，以及 chunk 缺失降级继续课堂时诊断仍可见。
 
 ## 当前范围与非目标
 
-- 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化、安全错误摘要持久化与展示，以及 LessonState / LessonStep 状态机审计。
-- 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、embeddings、语义检索、流式课堂、掌握度评分、复习调度、论文工作区、后台导入任务。
+- 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化、安全错误摘要持久化与展示、LessonState / LessonStep 状态机审计，以及 deterministic 学习诊断证据与误区信号展示。
+- 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、embeddings、语义检索、流式课堂、完整评分 rubric、ReviewItem / ReviewEvent / 复习调度、论文工作区、后台导入任务。
 
 ## 当前门禁
 
 1. `pnpm check`：通过；Prettier、全 workspace typecheck、测试与桌面端构建全部通过。
-2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 现覆盖 `.md` 导入、PDF 导入、PDF 页面/Block 预览、从 PDF block 启动课堂后的上下文证据与状态机展示、学习者回复后的 follow-up 上下文证据与 `probing -> probing` step、正文搜索、从搜索结果启动课堂，以及重启后 chunk 索引缺失时的 snippet-only 降级继续课堂；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
+2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 现覆盖 `.md` 导入、PDF 导入、PDF 页面/Block 预览、从 PDF block 启动课堂后的上下文证据与状态机展示、学习者回复后的 follow-up 上下文证据、`probing -> probing` step 与学习诊断、正文搜索、从搜索结果启动课堂、重启后学习诊断持久可见，以及 chunk 索引缺失时的 snippet-only 降级继续课堂；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
 5. 原生模块证据：`Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node` 为 Mach-O 64-bit arm64 bundle；使用该目录包的 Electron runtime 从 `app.asar` 加载模块并完成临时 SQLite 的 create/insert/select，输出 `{"value":"ok"}`。
@@ -145,4 +151,4 @@ pnpm package:dir
 
 ## 下一步
 
-D5 已完成：课堂状态、教学动作与每次生成的状态转移已经进入 Domain / Contracts / SQLite / Application / Renderer / E2E 闭环。下一步进入 D6 费曼评价、误区与复习；发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。
+D6-MVP 已完成：课堂回答已经能生成、持久化并展示 deterministic 学习诊断与误区信号。下一步进入 ReviewItem / ReviewEvent / scheduler，把诊断结果转化为可执行的复习任务；发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。

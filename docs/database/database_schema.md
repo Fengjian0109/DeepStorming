@@ -312,6 +312,52 @@ Migration 12 (`lesson_state_machine`) 为课堂会话增加可恢复、可解释
 - Reply 和 Retry 先写入 `started` step；成功后更新为 `succeeded` 并推进 `current_state`，失败或取消时更新为 `failed/cancelled` 并保留可恢复历史。
 - Retry 追加新的 step，不覆盖原失败或取消 step。
 
+### 5.0.13 Mastery Evidence / Misconception MVP（Migration 13）
+
+Migration 13 (`lesson_mastery_evidence`) 为 D6-MVP 增加课堂学习诊断持久化。当前实现不写入完整评分 rubric 或复习调度任务；它只保存成功课堂回答产生的 deterministic 掌握证据和可选误区信号。Provider/generator 失败或取消时不生成诊断记录。
+
+#### `lesson_mastery_evidence`
+
+| 字段               | 类型    | 约束                                                    | 说明                                              |
+| ------------------ | ------- | ------------------------------------------------------- | ------------------------------------------------- |
+| id                 | TEXT    | PK                                                      | Mastery Evidence ID                               |
+| lesson_id          | TEXT    | FK `lesson_sessions(id)` ON DELETE CASCADE              | 所属课堂会话                                      |
+| step_id            | TEXT    | FK `lesson_steps(id)` ON DELETE CASCADE                 | 产生诊断的成功教学 step                           |
+| learner_message_id | TEXT    | FK `lesson_messages(id)` ON DELETE CASCADE              | 被评价的学习者回答                                |
+| tutor_message_id   | TEXT    | FK `lesson_messages(id)` ON DELETE CASCADE              | 成功生成的导师追问；同一条 tutor message 唯一     |
+| kind               | TEXT    | NOT NULL                                                | `teach_back/stuck_signal/self_report`             |
+| judgement          | TEXT    | NOT NULL                                                | `insufficient/partial_understanding/needs_review` |
+| confidence         | REAL    | NOT NULL, `CHECK (confidence >= 0 AND confidence <= 1)` | 诊断置信度                                        |
+| rationale          | TEXT    | NOT NULL                                                | 用户安全的简短诊断理由                            |
+| suggested_review   | INTEGER | NOT NULL, `CHECK (suggested_review IN (0,1))`           | 是否建议进入后续复习                              |
+| created_at         | TEXT    | NOT NULL                                                | 创建时间                                          |
+
+索引与约束：
+
+- `UNIQUE(tutor_message_id)`：同一条成功 tutor message 只生成一条掌握证据，避免 retry 或重复保存时重复诊断。
+- `lesson_mastery_evidence_lesson_created`：`(lesson_id, created_at)`，用于按课堂读取诊断历史。
+- `lesson_mastery_evidence_step`：`step_id`，用于把诊断与状态机 step 对齐。
+- `kind`、`judgement` 和 `suggested_review` 都通过 `CHECK` 约束限制枚举或布尔值。
+
+#### `lesson_misconception_signals`
+
+| 字段        | 类型 | 约束                                               | 说明                                 |
+| ----------- | ---- | -------------------------------------------------- | ------------------------------------ |
+| id          | TEXT | PK                                                 | Misconception Signal ID              |
+| evidence_id | TEXT | FK `lesson_mastery_evidence(id)` ON DELETE CASCADE | 所属掌握证据                         |
+| lesson_id   | TEXT | FK `lesson_sessions(id)` ON DELETE CASCADE         | 所属课堂会话，冗余保存便于按课堂读取 |
+| label       | TEXT | NOT NULL                                           | 误区或卡住信号标签                   |
+| severity    | TEXT | NOT NULL                                           | `low/medium/high`                    |
+| rationale   | TEXT | NOT NULL                                           | 用户安全的简短理由                   |
+| created_at  | TEXT | NOT NULL                                           | 创建时间                             |
+
+索引与约束：
+
+- `UNIQUE(evidence_id, label)`：同一条证据下同一误区标签只保存一次。
+- `lesson_misconception_signals_lesson_created`：`(lesson_id, created_at)`，用于课堂详情读取误区历史。
+- `severity` 通过 `CHECK` 约束限制为 `low/medium/high`。
+- 删除课堂或对应 mastery evidence 时，误区信号随外键级联删除。
+
 ### 5.0.9 PDF 文档底座（Migration 8）
 
 Migration 8 (`pdf_document_foundation`) 在现有 `learning_documents` 上追加 PDF 导入状态、文件、页面和文本块持久化。该切片仍复用 Phase 3 的 `learning_documents` 聚合根，不启用下述 5.1 的完整 `documents` 蓝图表。
