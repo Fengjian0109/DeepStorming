@@ -99,6 +99,50 @@ const session = (overrides: Partial<StoredLessonSession> = {}): StoredLessonSess
   ...overrides,
 })
 
+const sessionWithMasteryEvidence = (): StoredLessonSession =>
+  session({
+    messages: [
+      ...session().messages,
+      {
+        id: '00000000-0000-4000-8000-000000000403',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        modelRunId: null,
+        role: 'learner',
+        content: '我还是卡住了。',
+        sourceAnchorIds: [],
+        promptVersion: 'learner-input-v1',
+        createdAt: '2026-07-11T00:01:00.000Z',
+      },
+    ],
+    masteryEvidence: [
+      {
+        id: '00000000-0000-4000-8000-000000000801',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        stepId: '00000000-0000-4000-8000-000000000701',
+        learnerMessageId: '00000000-0000-4000-8000-000000000403',
+        tutorMessageId: '00000000-0000-4000-8000-000000000401',
+        kind: 'stuck_signal',
+        judgement: 'needs_review',
+        confidence: 0.82,
+        rationale: 'Learner explicitly said they were stuck after the prompt.',
+        suggestedReview: true,
+        createdAt: '2026-07-11T00:01:00.000Z',
+      },
+    ],
+    misconceptionSignals: [
+      {
+        id: '00000000-0000-4000-8000-000000000901',
+        evidenceId: '00000000-0000-4000-8000-000000000801',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        label: '学习者表达卡住',
+        severity: 'medium',
+        rationale: 'The learner cannot proceed without review.',
+        createdAt: '2026-07-11T00:01:00.000Z',
+      },
+    ],
+    updatedAt: '2026-07-11T00:01:00.000Z',
+  })
+
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'deepstorming-lesson-repo-'))
   db = openDatabase(join(dir, 'app.db'))
@@ -127,6 +171,31 @@ describe('SqliteLessonRepository', () => {
 
     await expect(repo.list()).resolves.toEqual([session()])
     await expect(repo.findById(session().id)).resolves.toEqual(session())
+  })
+
+  it('persists mastery evidence and misconception signals', async () => {
+    const created = await repo.create(sessionWithMasteryEvidence())
+
+    expect(created.masteryEvidence).toHaveLength(1)
+    expect(created.misconceptionSignals).toHaveLength(1)
+    const reloaded = await repo.findById(session().id)
+    expect(reloaded?.masteryEvidence[0]?.judgement).toBe('needs_review')
+    expect(reloaded?.misconceptionSignals[0]?.label).toBe('学习者表达卡住')
+  })
+
+  it('rewrites mastery evidence and misconception signals on save', async () => {
+    await repo.create(sessionWithMasteryEvidence())
+
+    await repo.save({
+      ...sessionWithMasteryEvidence(),
+      masteryEvidence: [],
+      misconceptionSignals: [],
+      updatedAt: '2026-07-11T00:02:00.000Z',
+    })
+
+    const reloaded = await repo.findById(session().id)
+    expect(reloaded?.masteryEvidence).toEqual([])
+    expect(reloaded?.misconceptionSignals).toEqual([])
   })
 
   it('round-trips a pdf block target while keeping legacy anchors readable', async () => {

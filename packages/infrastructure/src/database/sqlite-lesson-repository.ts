@@ -3,6 +3,8 @@ import type {
   StoredLessonModelRun,
   StoredLessonStep,
   LessonRepositoryPort,
+  StoredMasteryEvidence,
+  StoredMisconceptionSignal,
   StoredLessonSession,
   StoredLessonSourceAnchor,
 } from '@deepstorming/application'
@@ -72,6 +74,30 @@ type StepRow = {
   error_summary_json: string | null
   created_at: string
   finished_at: string | null
+}
+
+type MasteryEvidenceRow = {
+  id: string
+  lesson_id: string
+  step_id: string
+  learner_message_id: string
+  tutor_message_id: string
+  kind: StoredMasteryEvidence['kind']
+  judgement: StoredMasteryEvidence['judgement']
+  confidence: number
+  rationale: string
+  suggested_review: number
+  created_at: string
+}
+
+type MisconceptionSignalRow = {
+  id: string
+  evidence_id: string
+  lesson_id: string
+  label: string
+  severity: StoredMisconceptionSignal['severity']
+  rationale: string
+  created_at: string
 }
 
 const mapAnchor = (row: AnchorRow): StoredLessonSourceAnchor => ({
@@ -144,12 +170,38 @@ const mapStep = (row: StepRow): StoredLessonStep => ({
   finishedAt: row.finished_at,
 })
 
+const mapMasteryEvidence = (row: MasteryEvidenceRow): StoredMasteryEvidence => ({
+  id: row.id,
+  lessonId: row.lesson_id,
+  stepId: row.step_id,
+  learnerMessageId: row.learner_message_id,
+  tutorMessageId: row.tutor_message_id,
+  kind: row.kind,
+  judgement: row.judgement,
+  confidence: row.confidence,
+  rationale: row.rationale,
+  suggestedReview: row.suggested_review === 1,
+  createdAt: row.created_at,
+})
+
+const mapMisconceptionSignal = (row: MisconceptionSignalRow): StoredMisconceptionSignal => ({
+  id: row.id,
+  evidenceId: row.evidence_id,
+  lessonId: row.lesson_id,
+  label: row.label,
+  severity: row.severity,
+  rationale: row.rationale,
+  createdAt: row.created_at,
+})
+
 const mapSession = (
   row: LessonRow,
   sourceAnchors: readonly StoredLessonSourceAnchor[],
   messages: readonly StoredLessonMessage[],
   modelRuns: readonly StoredLessonModelRun[],
   steps: readonly StoredLessonStep[],
+  masteryEvidence: readonly StoredMasteryEvidence[],
+  misconceptionSignals: readonly StoredMisconceptionSignal[],
 ): StoredLessonSession => ({
   id: row.id,
   title: row.title,
@@ -161,8 +213,8 @@ const mapSession = (
   messages,
   modelRuns,
   steps,
-  masteryEvidence: [],
-  misconceptionSignals: [],
+  masteryEvidence,
+  misconceptionSignals,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -254,6 +306,86 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
     return steps
   }
 
+  private masteryEvidenceFor(lessonIds: readonly string[]): Map<string, StoredMasteryEvidence[]> {
+    const evidence = new Map<string, StoredMasteryEvidence[]>()
+    if (lessonIds.length === 0) return evidence
+    const placeholders = lessonIds.map(() => '?').join(',')
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM lesson_mastery_evidence
+         WHERE lesson_id IN (${placeholders})
+         ORDER BY lesson_id,created_at,id`,
+      )
+      .all(...lessonIds) as MasteryEvidenceRow[]
+    for (const row of rows) {
+      const existing = evidence.get(row.lesson_id) ?? []
+      existing.push(mapMasteryEvidence(row))
+      evidence.set(row.lesson_id, existing)
+    }
+    return evidence
+  }
+
+  private misconceptionSignalsFor(
+    lessonIds: readonly string[],
+  ): Map<string, StoredMisconceptionSignal[]> {
+    const signals = new Map<string, StoredMisconceptionSignal[]>()
+    if (lessonIds.length === 0) return signals
+    const placeholders = lessonIds.map(() => '?').join(',')
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM lesson_misconception_signals
+         WHERE lesson_id IN (${placeholders})
+         ORDER BY lesson_id,created_at,id`,
+      )
+      .all(...lessonIds) as MisconceptionSignalRow[]
+    for (const row of rows) {
+      const existing = signals.get(row.lesson_id) ?? []
+      existing.push(mapMisconceptionSignal(row))
+      signals.set(row.lesson_id, existing)
+    }
+    return signals
+  }
+
+  private insertMasteryEvidence(session: StoredLessonSession): void {
+    const insertEvidence = this.db.prepare(
+      `INSERT INTO lesson_mastery_evidence
+       (id,lesson_id,step_id,learner_message_id,tutor_message_id,kind,judgement,confidence,rationale,suggested_review,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    )
+    for (const evidence of session.masteryEvidence) {
+      insertEvidence.run(
+        evidence.id,
+        session.id,
+        evidence.stepId,
+        evidence.learnerMessageId,
+        evidence.tutorMessageId,
+        evidence.kind,
+        evidence.judgement,
+        evidence.confidence,
+        evidence.rationale,
+        evidence.suggestedReview ? 1 : 0,
+        evidence.createdAt,
+      )
+    }
+
+    const insertSignal = this.db.prepare(
+      `INSERT INTO lesson_misconception_signals
+       (id,evidence_id,lesson_id,label,severity,rationale,created_at)
+       VALUES (?,?,?,?,?,?,?)`,
+    )
+    for (const signal of session.misconceptionSignals) {
+      insertSignal.run(
+        signal.id,
+        signal.evidenceId,
+        session.id,
+        signal.label,
+        signal.severity,
+        signal.rationale,
+        signal.createdAt,
+      )
+    }
+  }
+
   public async list(): Promise<readonly StoredLessonSession[]> {
     return this.safe(() => {
       const rows = this.db
@@ -264,6 +396,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
       const messages = this.messagesFor(lessonIds)
       const modelRuns = this.modelRunsFor(lessonIds)
       const steps = this.stepsFor(lessonIds)
+      const masteryEvidence = this.masteryEvidenceFor(lessonIds)
+      const misconceptionSignals = this.misconceptionSignalsFor(lessonIds)
       return rows.map((row) =>
         mapSession(
           row,
@@ -271,6 +405,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
           messages.get(row.id) ?? [],
           modelRuns.get(row.id) ?? [],
           steps.get(row.id) ?? [],
+          masteryEvidence.get(row.id) ?? [],
+          misconceptionSignals.get(row.id) ?? [],
         ),
       )
     })
@@ -285,12 +421,16 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
       const messages = this.messagesFor([id])
       const modelRuns = this.modelRunsFor([id])
       const steps = this.stepsFor([id])
+      const masteryEvidence = this.masteryEvidenceFor([id])
+      const misconceptionSignals = this.misconceptionSignalsFor([id])
       return mapSession(
         row,
         anchors.get(id) ?? [],
         messages.get(id) ?? [],
         modelRuns.get(id) ?? [],
         steps.get(id) ?? [],
+        masteryEvidence.get(id) ?? [],
+        misconceptionSignals.get(id) ?? [],
       )
     })
   }
@@ -390,6 +530,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             step.finishedAt,
           )
         }
+        this.insertMasteryEvidence(session)
         return session
       })(),
     )
@@ -403,6 +544,10 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             'UPDATE lesson_sessions SET title=?,status=?,current_state=?,updated_at=? WHERE id=?',
           )
           .run(session.title, session.status, session.currentState, session.updatedAt, session.id)
+        this.db
+          .prepare('DELETE FROM lesson_misconception_signals WHERE lesson_id=?')
+          .run(session.id)
+        this.db.prepare('DELETE FROM lesson_mastery_evidence WHERE lesson_id=?').run(session.id)
         this.db.prepare('DELETE FROM lesson_steps WHERE lesson_id=?').run(session.id)
         this.db.prepare('DELETE FROM lesson_model_runs WHERE lesson_id=?').run(session.id)
         this.db.prepare('DELETE FROM lesson_messages WHERE lesson_id=?').run(session.id)
@@ -469,6 +614,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             step.finishedAt,
           )
         }
+        this.insertMasteryEvidence(session)
 
         return session
       })(),

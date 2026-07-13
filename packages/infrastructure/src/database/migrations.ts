@@ -243,6 +243,35 @@ CREATE TABLE lesson_steps (
 CREATE INDEX lesson_steps_lesson_sequence ON lesson_steps(lesson_id, sequence_no);
 CREATE INDEX lesson_steps_model_run ON lesson_steps(model_run_id);`
 
+const LESSON_MASTERY_EVIDENCE_SQL = `
+CREATE TABLE lesson_mastery_evidence (
+ id TEXT PRIMARY KEY,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ step_id TEXT NOT NULL REFERENCES lesson_steps(id) ON DELETE CASCADE,
+ learner_message_id TEXT NOT NULL REFERENCES lesson_messages(id) ON DELETE CASCADE,
+ tutor_message_id TEXT NOT NULL REFERENCES lesson_messages(id) ON DELETE CASCADE,
+ kind TEXT NOT NULL CHECK (kind IN ('teach_back','stuck_signal','self_report')),
+ judgement TEXT NOT NULL CHECK (judgement IN ('insufficient','partial_understanding','needs_review')),
+ confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+ rationale TEXT NOT NULL,
+ suggested_review INTEGER NOT NULL CHECK (suggested_review IN (0,1)),
+ created_at TEXT NOT NULL,
+ UNIQUE(tutor_message_id)
+);
+CREATE INDEX lesson_mastery_evidence_lesson_created ON lesson_mastery_evidence(lesson_id, created_at);
+CREATE INDEX lesson_mastery_evidence_step ON lesson_mastery_evidence(step_id);
+CREATE TABLE lesson_misconception_signals (
+ id TEXT PRIMARY KEY,
+ evidence_id TEXT NOT NULL REFERENCES lesson_mastery_evidence(id) ON DELETE CASCADE,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ label TEXT NOT NULL,
+ severity TEXT NOT NULL CHECK (severity IN ('low','medium','high')),
+ rationale TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(evidence_id, label)
+);
+CREATE INDEX lesson_misconception_signals_lesson_created ON lesson_misconception_signals(lesson_id, created_at);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -256,6 +285,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 10, name: 'document_chunk_storage', sql: DOCUMENT_CHUNK_SQL },
   { version: 11, name: 'document_chunk_fts_sync', sql: DOCUMENT_CHUNK_FTS_SYNC_SQL },
   { version: 12, name: 'lesson_state_machine', sql: LESSON_STATE_MACHINE_SQL },
+  { version: 13, name: 'lesson_mastery_evidence', sql: LESSON_MASTERY_EVIDENCE_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')
