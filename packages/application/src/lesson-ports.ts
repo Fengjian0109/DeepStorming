@@ -8,6 +8,8 @@ import type {
   LessonSessionStatus,
   MasteryEvidence,
   MisconceptionSignal,
+  ReviewEvent,
+  ReviewItem,
   TutorActionType,
 } from '@deepstorming/domain'
 import type { StoredDocumentTextBlock } from './document-ports'
@@ -19,6 +21,8 @@ export type StoredLessonModelRun = LessonModelRun
 export type StoredLessonStep = LessonStep
 export type StoredMasteryEvidence = MasteryEvidence
 export type StoredMisconceptionSignal = MisconceptionSignal
+export type StoredReviewItem = ReviewItem
+export type StoredReviewEvent = ReviewEvent
 
 export interface DocumentSourceLocatorPort {
   findTextBlock(
@@ -41,6 +45,8 @@ export type StoredLessonSession = Readonly<{
   steps: readonly StoredLessonStep[]
   masteryEvidence: readonly StoredMasteryEvidence[]
   misconceptionSignals: readonly StoredMisconceptionSignal[]
+  reviewItems: readonly StoredReviewItem[]
+  reviewEvents: readonly StoredReviewEvent[]
   createdAt: string
   updatedAt: string
 }>

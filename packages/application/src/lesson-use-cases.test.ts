@@ -15,6 +15,7 @@ import {
   LessonRunOperations,
   ListLessonSessions,
   ProviderLessonTutorReplyGenerator,
+  RecordReviewEvent,
   RetryLessonRun,
   StartLessonFromDocument,
   SubmitLessonReply,
@@ -42,6 +43,8 @@ const retryMessageId = '00000000-0000-4000-8000-000000000109'
 const evidenceId = '00000000-0000-4000-8000-000000000110'
 const signalId = '00000000-0000-4000-8000-000000000111'
 const retryEvidenceId = '00000000-0000-4000-8000-000000000112'
+const reviewItemId = '00000000-0000-4000-8000-000000000113'
+const reviewEventId = '00000000-0000-4000-8000-000000000114'
 const documentId = '00000000-0000-4000-8000-000000000001'
 const operationId = '00000000-0000-4000-8000-000000000701'
 
@@ -524,6 +527,8 @@ describe('lesson use cases', () => {
       ],
       masteryEvidence: [],
       misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
       createdAt: now,
       updatedAt: now,
     })
@@ -738,12 +743,14 @@ describe('lesson use cases', () => {
       },
     ])
     expect(updated.misconceptionSignals).toEqual([])
+    expect(updated.reviewItems).toEqual([])
+    expect(updated.reviewEvents).toEqual([])
     expect(JSON.stringify(updated)).not.toContain('plainText')
   })
 
   it('records insufficient evidence for a short non-stuck reply without misconception signals', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
-    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId, reviewItemId]
     let startIndex = 0
     const created = await new StartLessonFromDocument(
       documents,
@@ -785,11 +792,33 @@ describe('lesson use cases', () => {
       },
     ])
     expect(updated.misconceptionSignals).toEqual([])
+    expect(updated.reviewItems).toEqual([
+      {
+        id: reviewItemId,
+        lessonId,
+        masteryEvidenceId: evidenceId,
+        misconceptionSignalId: null,
+        prompt: '复习：请重新解释这段课堂证据，并说明你的判断依据。',
+        answerOutline: ['Learner reply was too short to show stable understanding.'],
+        status: 'active',
+        dueAt: '2026-07-12T00:00:00.000Z',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ])
+    expect(updated.reviewEvents).toEqual([])
   })
 
   it('routes stuck learner replies into the hinting state', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
-    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId, signalId]
+    const replyIds = [
+      learnerMessageId,
+      followUpRunId,
+      followUpMessageId,
+      evidenceId,
+      signalId,
+      reviewItemId,
+    ]
     let startIndex = 0
     const created = await new StartLessonFromDocument(
       documents,
@@ -847,6 +876,107 @@ describe('lesson use cases', () => {
         severity: 'medium',
         rationale: 'Learner used language that indicates confusion or being stuck.',
         createdAt: now,
+      },
+    ])
+    expect(hinting.reviewItems).toEqual([
+      {
+        id: reviewItemId,
+        lessonId,
+        masteryEvidenceId: evidenceId,
+        misconceptionSignalId: signalId,
+        prompt: '复习：学习者表达卡住。请重新解释这段证据想说明什么。',
+        answerOutline: [
+          'Learner explicitly signaled they are stuck or unsure.',
+          'Learner used language that indicates confusion or being stuck.',
+        ],
+        status: 'active',
+        dueAt: '2026-07-12T00:00:00.000Z',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ])
+    expect(hinting.reviewEvents).toEqual([])
+  })
+
+  it('records remembered reviews with a three-day next due date', async () => {
+    lessons.records.set(lessonId, {
+      id: lessonId,
+      title: 'Paper Map 课堂',
+      status: 'active',
+      documentId,
+      documentTitle: 'Paper Map',
+      sourceAnchors: [],
+      messages: [],
+      modelRuns: [],
+      currentState: 'probing',
+      steps: [],
+      masteryEvidence: [
+        {
+          id: evidenceId,
+          lessonId,
+          stepId: followUpRunId,
+          learnerMessageId,
+          tutorMessageId: followUpMessageId,
+          kind: 'teach_back',
+          judgement: 'insufficient',
+          confidence: 0.65,
+          rationale: 'Learner reply was too short to show stable understanding.',
+          suggestedReview: true,
+          createdAt: now,
+        },
+      ],
+      misconceptionSignals: [],
+      reviewItems: [
+        {
+          id: reviewItemId,
+          lessonId,
+          masteryEvidenceId: evidenceId,
+          misconceptionSignalId: null,
+          prompt: '复习：请重新解释这段课堂证据，并说明你的判断依据。',
+          answerOutline: ['Learner reply was too short to show stable understanding.'],
+          status: 'active',
+          dueAt: '2026-07-12T00:00:00.000Z',
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+      reviewEvents: [],
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    const result = await new RecordReviewEvent(lessons, clock, {
+      generate: () => reviewEventId,
+    }).execute({
+      lessonId,
+      reviewItemId,
+      rating: 'remembered',
+      response: 'I can explain the evidence and the rationale clearly now.',
+    })
+
+    expect(result.reviewEvents.at(-1)).toEqual({
+      id: reviewEventId,
+      reviewItemId,
+      lessonId,
+      rating: 'remembered',
+      response: 'I can explain the evidence and the rationale clearly now.',
+      previousDueAt: '2026-07-12T00:00:00.000Z',
+      nextDueAt: '2026-07-14T00:00:00.000Z',
+      reviewedAt: now,
+      createdAt: now,
+    })
+    expect(result.reviewItems).toEqual([
+      {
+        id: reviewItemId,
+        lessonId,
+        masteryEvidenceId: evidenceId,
+        misconceptionSignalId: null,
+        prompt: '复习：请重新解释这段课堂证据，并说明你的判断依据。',
+        answerOutline: ['Learner reply was too short to show stable understanding.'],
+        status: 'active',
+        dueAt: '2026-07-14T00:00:00.000Z',
+        createdAt: now,
+        updatedAt: now,
       },
     ])
   })

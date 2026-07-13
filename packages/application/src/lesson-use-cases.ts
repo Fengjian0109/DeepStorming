@@ -1,6 +1,8 @@
 import {
   normalizeMasteryEvidence,
   normalizeMisconceptionSignal,
+  normalizeReviewEvent,
+  normalizeReviewItem,
   normalizeLessonStep,
   normalizeLessonStartDraft,
   normalizeTutorAction,
@@ -10,6 +12,7 @@ import {
   type LessonRunRetryDraft,
   type LessonModelRun,
   type LessonModelRunErrorSummary,
+  type ReviewRating,
   type LessonState,
   type LessonSession,
   type LessonStartDraft,
@@ -25,6 +28,7 @@ import type {
   LessonTutorReplyResult,
   StoredMasteryEvidence,
   StoredMisconceptionSignal,
+  StoredReviewItem,
   StoredLessonSession,
   DocumentSourceLocatorPort,
 } from './lesson-ports'
@@ -69,6 +73,8 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   steps: session.steps,
   masteryEvidence: session.masteryEvidence,
   misconceptionSignals: session.misconceptionSignals,
+  reviewItems: session.reviewItems,
+  reviewEvents: session.reviewEvents,
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })
@@ -566,6 +572,50 @@ const createMasteryDiagnosis = (
   return classifyMasteryEvidence({ ...input, evidenceId, signalId })
 }
 
+const plusDaysIso = (iso: string, days: number): string => {
+  const next = new Date(iso)
+  next.setUTCDate(next.getUTCDate() + days)
+  return next.toISOString()
+}
+
+const createReviewPrompt = (signal: StoredMisconceptionSignal | undefined): string =>
+  signal === undefined
+    ? '复习：请重新解释这段课堂证据，并说明你的判断依据。'
+    : `复习：${signal.label}。请重新解释这段证据想说明什么。`
+
+const createReviewAnswerOutline = (
+  evidence: StoredMasteryEvidence,
+  signal: StoredMisconceptionSignal | undefined,
+): readonly string[] =>
+  signal === undefined ? [evidence.rationale] : [evidence.rationale, signal.rationale]
+
+const createReviewItemForDiagnosis = (
+  ids: IdGeneratorPort,
+  session: StoredLessonSession,
+  evidence: StoredMasteryEvidence,
+  signal: StoredMisconceptionSignal | undefined,
+): StoredReviewItem | undefined => {
+  if (!evidence.suggestedReview) return undefined
+  if (evidence.judgement === 'partial_understanding') return undefined
+  if (session.reviewItems.some((item) => item.masteryEvidenceId === evidence.id)) return undefined
+
+  return normalizeReviewItem({
+    id: ids.generate(),
+    lessonId: session.id,
+    masteryEvidenceId: evidence.id,
+    misconceptionSignalId: signal?.id ?? null,
+    prompt: createReviewPrompt(signal),
+    answerOutline: createReviewAnswerOutline(evidence, signal),
+    status: 'active',
+    dueAt: plusDaysIso(evidence.createdAt, 1),
+    createdAt: evidence.createdAt,
+    updatedAt: evidence.createdAt,
+  })
+}
+
+const nextDueAtForRating = (reviewedAt: string, rating: ReviewRating): string =>
+  plusDaysIso(reviewedAt, rating === 'remembered' ? 3 : 1)
+
 const classifyTutorAction = (
   currentState: LessonState,
   learnerReply: string,
@@ -882,6 +932,8 @@ export class StartLessonFromDocument {
       ],
       masteryEvidence: [],
       misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
       createdAt,
       updatedAt: createdAt,
     }
@@ -1036,6 +1088,12 @@ export class SubmitLessonReply {
     } catch (error) {
       throw asInternalError(error)
     }
+    const reviewItem = createReviewItemForDiagnosis(
+      this.ids,
+      pending,
+      diagnosis.evidence,
+      diagnosis.signals[0],
+    )
     const updated: StoredLessonSession = {
       ...pending,
       messages: [
@@ -1068,6 +1126,9 @@ export class SubmitLessonReply {
       ),
       masteryEvidence: [...pending.masteryEvidence, diagnosis.evidence],
       misconceptionSignals: [...pending.misconceptionSignals, ...diagnosis.signals],
+      reviewItems:
+        reviewItem === undefined ? pending.reviewItems : [...pending.reviewItems, reviewItem],
+      reviewEvents: pending.reviewEvents,
       updatedAt: createdAt,
     }
 
@@ -1221,6 +1282,10 @@ export class RetryLessonRun {
         throw asInternalError(error)
       }
     }
+    const reviewItem =
+      diagnosis === undefined
+        ? undefined
+        : createReviewItemForDiagnosis(this.ids, pending, diagnosis.evidence, diagnosis.signals[0])
     const updated: StoredLessonSession = {
       ...pending,
       messages: [
@@ -1259,10 +1324,98 @@ export class RetryLessonRun {
         diagnosis === undefined
           ? pending.misconceptionSignals
           : [...pending.misconceptionSignals, ...diagnosis.signals],
+      reviewItems:
+        reviewItem === undefined ? pending.reviewItems : [...pending.reviewItems, reviewItem],
+      reviewEvents: pending.reviewEvents,
       updatedAt: createdAt,
     }
 
     return toView(await saveLesson(this.lessons, updated))
+  }
+}
+
+export type RecordReviewEventInput = Readonly<{
+  lessonId: string
+  reviewItemId: string
+  rating: ReviewRating
+  response: string
+}>
+
+const normalizeRecordReviewEventInput = (input: RecordReviewEventInput): RecordReviewEventInput => {
+  if (!UUID.test(input.lessonId)) throw new Error('Lesson id is invalid')
+  if (!UUID.test(input.reviewItemId)) throw new Error('Review item id is invalid')
+  const response = input.response.trim()
+  if (response.length === 0) throw new Error('Review response is required')
+  if (response.length > 1_000) throw new Error('Review response is too long')
+  return { ...input, response }
+}
+
+export class RecordReviewEvent {
+  public constructor(
+    private readonly repository: LessonRepositoryPort,
+    private readonly clock: ClockPort,
+    private readonly ids: IdGeneratorPort,
+  ) {}
+
+  public async execute(input: RecordReviewEventInput): Promise<LessonSessionView> {
+    let normalized: RecordReviewEventInput
+    try {
+      normalized = normalizeRecordReviewEventInput(input)
+    } catch (error) {
+      throw validationError(error)
+    }
+
+    let session: StoredLessonSession | undefined
+    try {
+      session = await this.repository.findById(normalized.lessonId)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (session === undefined) {
+      throw new LessonUseCaseError('LESSON_NOT_FOUND', 'The lesson was not found.', false)
+    }
+
+    const reviewItem = session.reviewItems.find((item) => item.id === normalized.reviewItemId)
+    if (reviewItem === undefined) {
+      throw new LessonUseCaseError('LESSON_NOT_FOUND', 'The lesson was not found.', false)
+    }
+
+    const reviewedAt = this.clock.now()
+    const nextDueAt = nextDueAtForRating(reviewedAt, normalized.rating)
+    let event
+    try {
+      event = normalizeReviewEvent({
+        id: this.ids.generate(),
+        reviewItemId: reviewItem.id,
+        lessonId: session.id,
+        rating: normalized.rating,
+        response: normalized.response,
+        previousDueAt: reviewItem.dueAt,
+        nextDueAt,
+        reviewedAt,
+        createdAt: reviewedAt,
+      })
+    } catch (error) {
+      throw asInternalError(error)
+    }
+
+    const updated: StoredLessonSession = {
+      ...session,
+      reviewItems: session.reviewItems.map((item) =>
+        item.id === reviewItem.id
+          ? {
+              ...item,
+              dueAt: nextDueAt,
+              status: 'active',
+              updatedAt: reviewedAt,
+            }
+          : item,
+      ),
+      reviewEvents: [...session.reviewEvents, event],
+      updatedAt: reviewedAt,
+    }
+
+    return toView(await saveLesson(this.repository, updated))
   }
 }
 
