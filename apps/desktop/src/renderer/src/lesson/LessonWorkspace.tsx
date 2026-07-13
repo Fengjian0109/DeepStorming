@@ -77,6 +77,10 @@ export const LessonWorkspace = ({
   const [replyText, setReplyText] = useState('')
   const [replyState, setReplyState] = useState<ReplyState>({ status: 'idle' })
   const [runRetryState, setRunRetryState] = useState<RunRetryState>({ status: 'idle' })
+  const [reviewResponses, setReviewResponses] = useState<Record<string, string>>({})
+  const [reviewSavingId, setReviewSavingId] = useState<string | null>(null)
+  const [reviewFeedback, setReviewFeedback] = useState<string | null>(null)
+  const [reviewError, setReviewError] = useState<string | null>(null)
   const listRequestSequence = useRef(0)
   const detailRequestSequence = useRef(0)
 
@@ -91,6 +95,8 @@ export const LessonWorkspace = ({
       setDetailState({ status: 'ready', session: result.data })
       setReplyState({ status: 'idle' })
       setRunRetryState({ status: 'idle' })
+      setReviewFeedback(null)
+      setReviewError(null)
       return
     }
 
@@ -220,6 +226,49 @@ export const LessonWorkspace = ({
         : result.error.message,
     })
   }, [runRetryState])
+
+  const recordReview = useCallback(
+    async (reviewItemId: string, rating: 'remembered' | 'forgot') => {
+      if (detailState.status !== 'ready') return
+      const response = (reviewResponses[reviewItemId] ?? '').trim()
+      if (response.length === 0) {
+        setReviewError('请输入复习回答。')
+        return
+      }
+
+      setReviewSavingId(reviewItemId)
+      setReviewFeedback(null)
+      setReviewError(null)
+      const result = await window.deepstorming.lessons.recordReview({
+        lessonId: detailState.session.id,
+        reviewItemId,
+        rating,
+        response,
+      })
+
+      if (result.ok) {
+        setDetailState({ status: 'ready', session: result.data })
+        setListState((current) =>
+          current.status === 'ready'
+            ? {
+                status: 'ready',
+                sessions: current.sessions.map((session) =>
+                  session.id === result.data.id ? result.data : session,
+                ),
+              }
+            : current,
+        )
+        setReviewResponses((current) => ({ ...current, [reviewItemId]: '' }))
+        setReviewFeedback('复习记录已保存。')
+        setReviewSavingId(null)
+        return
+      }
+
+      setReviewError(result.error.message)
+      setReviewSavingId(null)
+    },
+    [detailState, reviewResponses],
+  )
 
   useEffect(() => {
     void loadLessons()
@@ -478,6 +527,75 @@ export const LessonWorkspace = ({
                           </ul>
                         )}
                       </article>
+                    )}
+                  </section>
+                )
+              })()}
+              {(() => {
+                const activeReviewItems = [...detailState.session.reviewItems]
+                  .filter((item) => item.status === 'active')
+                  .sort((left, right) => left.dueAt.localeCompare(right.dueAt))
+
+                return (
+                  <section
+                    className="lesson-mastery-diagnosis"
+                    aria-labelledby="lesson-review-title"
+                  >
+                    <h3 id="lesson-review-title">复习任务</h3>
+                    {activeReviewItems.length === 0 ? (
+                      <p className="muted-state">还没有复习任务。</p>
+                    ) : (
+                      activeReviewItems.map((item) => (
+                        <article key={item.id} className="lesson-mastery-card">
+                          <p className="lesson-mastery-summary">{item.prompt}</p>
+                          <p>下次复习：{item.dueAt.slice(0, 10)}</p>
+                          <ul className="lesson-misconception-list">
+                            {item.answerOutline.map((point) => (
+                              <li key={point}>
+                                <span>{point}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <label htmlFor={`review-response-${item.id}`}>这次复习回答</label>
+                          <textarea
+                            id={`review-response-${item.id}`}
+                            value={reviewResponses[item.id] ?? ''}
+                            onChange={(event) =>
+                              setReviewResponses((current) => ({
+                                ...current,
+                                [item.id]: event.target.value,
+                              }))
+                            }
+                            rows={3}
+                            maxLength={1000}
+                            disabled={reviewSavingId === item.id}
+                          />
+                          <div className="card-actions">
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              disabled={reviewSavingId === item.id}
+                              onClick={() => void recordReview(item.id, 'remembered')}
+                            >
+                              {reviewSavingId === item.id ? '保存中…' : '记住了'}
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              disabled={reviewSavingId === item.id}
+                              onClick={() => void recordReview(item.id, 'forgot')}
+                            >
+                              还不稳
+                            </button>
+                          </div>
+                        </article>
+                      ))
+                    )}
+                    {reviewFeedback !== null && <p className="success-state">{reviewFeedback}</p>}
+                    {reviewError !== null && (
+                      <p role="alert" className="error-state">
+                        {reviewError}
+                      </p>
                     )}
                   </section>
                 )

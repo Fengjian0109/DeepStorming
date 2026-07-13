@@ -29,6 +29,7 @@ import {
   type DocumentTextBlocksResult,
   type ListDocumentsResult,
   type LessonReplyDraftDto,
+  type LessonRecordReviewDraftDto,
   type LessonRunRetryDraftDto,
   type LessonSessionResult,
   type LessonSessionsResult,
@@ -200,6 +201,14 @@ const api: DeepStormingBootstrapApi = {
         LESSON_CHANNELS.cancelRun,
         { requestId, operationId },
         cancelLessonRunResultSchema,
+      )
+    },
+    recordReview: async (review: LessonRecordReviewDraftDto): Promise<LessonSessionResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LESSON_CHANNELS.recordReview,
+        { requestId, ...review },
+        lessonSessionResultSchema,
       )
     },
   },

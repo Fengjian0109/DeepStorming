@@ -3,6 +3,7 @@ import type {
   CancelLessonRun,
   GetLessonSession,
   ListLessonSessions,
+  RecordReviewEvent,
   RetryLessonRun,
   StartLessonFromDocument,
   SubmitLessonReply,
@@ -15,6 +16,7 @@ import {
   lessonSessionResultSchema,
   lessonSessionsResultSchema,
   listLessonsRequestSchema,
+  recordReviewRequestSchema,
   replyToLessonRequestSchema,
   retryLessonRunRequestSchema,
   startLessonFromDocumentRequestSchema,
@@ -22,6 +24,7 @@ import {
   type LessonSessionsResult,
   type CancelLessonRunRequest,
   type CancelLessonRunResult,
+  type RecordReviewRequest,
   type ReplyToLessonRequest,
   type RetryLessonRunRequest,
   type StartLessonFromDocumentRequest,
@@ -47,6 +50,7 @@ export type LessonIpcHandlers = Readonly<{
   reply(input: unknown): Promise<LessonSessionResult>
   retryRun(input: unknown): Promise<LessonSessionResult>
   cancelRun(input: unknown): Promise<CancelLessonRunResult>
+  recordReview(input: unknown): Promise<LessonSessionResult>
 }>
 
 export type LessonIpcDependencies = Readonly<{
@@ -56,6 +60,7 @@ export type LessonIpcDependencies = Readonly<{
   submitLessonReply: SubmitLessonReply
   retryLessonRun: RetryLessonRun
   cancelLessonRun: CancelLessonRun
+  recordReviewEvent: RecordReviewEvent
 }>
 
 const requestIdFrom = (input: unknown): string => {
@@ -192,5 +197,18 @@ export const createLessonIpcHandlers = (
       cancelLessonRunResultSchema,
       (request: CancelLessonRunRequest) =>
         dependencies.cancelLessonRun.execute({ operationId: request.operationId }),
+    ),
+  recordReview: (input) =>
+    handle(
+      input,
+      recordReviewRequestSchema,
+      lessonSessionResultSchema,
+      (request: RecordReviewRequest) =>
+        dependencies.recordReviewEvent.execute({
+          lessonId: request.lessonId,
+          reviewItemId: request.reviewItemId,
+          rating: request.rating,
+          response: request.response,
+        }),
     ),
 })

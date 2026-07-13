@@ -90,6 +90,8 @@ const session = {
   ],
   masteryEvidence: [],
   misconceptionSignals: [],
+  reviewItems: [],
+  reviewEvents: [],
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
@@ -225,6 +227,24 @@ const stuckSession = {
       createdAt: '2026-07-11T00:02:00.000Z',
     },
   ],
+  reviewItems: [
+    {
+      id: '00000000-0000-4000-8000-000000000951',
+      lessonId: session.id,
+      masteryEvidenceId: '00000000-0000-4000-8000-000000000702',
+      misconceptionSignalId: '00000000-0000-4000-8000-000000000801',
+      prompt: '复习：学习者表达卡住。请重新解释这段证据想说明什么。',
+      answerOutline: [
+        'Learner explicitly signaled they are stuck or unsure.',
+        'Learner used language that indicates confusion or being stuck.',
+      ],
+      status: 'active' as const,
+      dueAt: '2026-07-12T00:00:00.000Z',
+      createdAt: '2026-07-11T00:02:00.000Z',
+      updatedAt: '2026-07-11T00:02:00.000Z',
+    },
+  ],
+  reviewEvents: [],
 }
 
 const failedSession = {
@@ -352,6 +372,9 @@ beforeEach(() => {
       cancelRun: vi
         .fn()
         .mockResolvedValue({ ok: true, data: { cancelled: true }, requestId: crypto.randomUUID() }),
+      recordReview: vi
+        .fn()
+        .mockResolvedValue({ ok: true, data: stuckSession, requestId: crypto.randomUUID() }),
     },
   })
 })
@@ -472,12 +495,40 @@ describe('LessonWorkspace', () => {
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
     expect(await screen.findByText('建议复习 · 75%')).toBeTruthy()
-    expect(screen.getByText('Learner explicitly signaled they are stuck or unsure.')).toBeTruthy()
+    expect(
+      screen.getAllByText('Learner explicitly signaled they are stuck or unsure.'),
+    ).toHaveLength(2)
     expect(screen.getByText('可能误区：学习者表达卡住 · medium')).toBeTruthy()
     expect(
-      screen.getByText('Learner used language that indicates confusion or being stuck.'),
-    ).toBeTruthy()
+      screen.getAllByText('Learner used language that indicates confusion or being stuck.'),
+    ).toHaveLength(2)
     expect(screen.getByText('建议加入后续复习')).toBeTruthy()
+  })
+
+  it('renders review tasks and records remembered reviews', async () => {
+    const user = userEvent.setup()
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [stuckSession], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: stuckSession, requestId: crypto.randomUUID() })
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    expect(await screen.findByText('复习任务')).toBeTruthy()
+    expect(screen.getByText('复习：学习者表达卡住。请重新解释这段证据想说明什么。')).toBeTruthy()
+    await user.type(screen.getByLabelText('这次复习回答'), '我已经能解释证据和判断依据。')
+    await user.click(screen.getByRole('button', { name: '记住了' }))
+
+    await waitFor(() =>
+      expect(window.deepstorming.lessons.recordReview).toHaveBeenCalledWith({
+        lessonId: session.id,
+        reviewItemId: '00000000-0000-4000-8000-000000000951',
+        rating: 'remembered',
+        response: '我已经能解释证据和判断依据。',
+      }),
+    )
+    expect(await screen.findByText('复习记录已保存。')).toBeTruthy()
   })
 
   it('shows snippet fallback when a lesson run has no retrieval chunks', async () => {
