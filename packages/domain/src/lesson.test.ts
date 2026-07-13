@@ -5,6 +5,8 @@ import {
   LESSON_SESSION_STATUSES,
   normalizeMasteryEvidence,
   normalizeMisconceptionSignal,
+  normalizeReviewEvent,
+  normalizeReviewItem,
   normalizeLessonContextChunkSummary,
   normalizeLessonStep,
   normalizeLessonModelRunInputSummary,
@@ -206,6 +208,54 @@ describe('lesson domain', () => {
         createdAt: '2026-07-11T00:01:00.000Z',
       }),
     ).toThrow('Misconception rationale is too long')
+  })
+
+  it('normalizes review items with trimmed prompts and outlines', () => {
+    expect(
+      normalizeReviewItem({
+        id: '00000000-0000-4000-8000-000000000951',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        masteryEvidenceId: '00000000-0000-4000-8000-000000000801',
+        misconceptionSignalId: '00000000-0000-4000-8000-000000000901',
+        prompt: '  复习：学习者把关键概念混淆了。请重新解释这段证据想说明什么。  ',
+        answerOutline: ['  先解释原证据 ', ' 再指出误区 '],
+        status: 'active',
+        dueAt: '2026-07-14T00:00:00.000Z',
+        createdAt: '2026-07-13T00:00:00.000Z',
+        updatedAt: '2026-07-13T00:00:00.000Z',
+      }).answerOutline,
+    ).toEqual(['先解释原证据', '再指出误区'])
+  })
+
+  it('rejects blank review outlines and invalid ratings', () => {
+    expect(() =>
+      normalizeReviewItem({
+        id: '00000000-0000-4000-8000-000000000951',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        masteryEvidenceId: '00000000-0000-4000-8000-000000000801',
+        misconceptionSignalId: null,
+        prompt: '复习：请重新解释这段课堂证据。',
+        answerOutline: ['   '],
+        status: 'active',
+        dueAt: '2026-07-14T00:00:00.000Z',
+        createdAt: '2026-07-13T00:00:00.000Z',
+        updatedAt: '2026-07-13T00:00:00.000Z',
+      }),
+    ).toThrow('Review answer outline item is required')
+
+    expect(() =>
+      normalizeReviewEvent({
+        id: '00000000-0000-4000-8000-000000000961',
+        reviewItemId: '00000000-0000-4000-8000-000000000951',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        rating: 'unknown' as never,
+        response: 'I think I remember this now.',
+        previousDueAt: '2026-07-14T00:00:00.000Z',
+        nextDueAt: '2026-07-17T00:00:00.000Z',
+        reviewedAt: '2026-07-14T09:00:00.000Z',
+        createdAt: '2026-07-14T09:00:00.000Z',
+      }),
+    ).toThrow('Review rating is invalid')
   })
 
   it('validates lesson state transitions', () => {

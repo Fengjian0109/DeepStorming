@@ -17,6 +17,8 @@ export const LESSON_STEP_STATUSES = ['started', 'succeeded', 'failed', 'cancelle
 export const MASTERY_EVIDENCE_KINDS = ['teach_back', 'stuck_signal', 'self_report'] as const
 export const MASTERY_JUDGEMENTS = ['insufficient', 'partial_understanding', 'needs_review'] as const
 export const MISCONCEPTION_SEVERITIES = ['low', 'medium', 'high'] as const
+export const REVIEW_ITEM_STATUSES = ['active', 'completed', 'suspended'] as const
+export const REVIEW_RATINGS = ['remembered', 'forgot'] as const
 
 export type LessonSessionStatus = (typeof LESSON_SESSION_STATUSES)[number]
 export type LessonMessageRole = (typeof LESSON_MESSAGE_ROLES)[number]
@@ -27,6 +29,8 @@ export type LessonStepStatus = (typeof LESSON_STEP_STATUSES)[number]
 export type MasteryEvidenceKind = (typeof MASTERY_EVIDENCE_KINDS)[number]
 export type MasteryJudgement = (typeof MASTERY_JUDGEMENTS)[number]
 export type MisconceptionSeverity = (typeof MISCONCEPTION_SEVERITIES)[number]
+export type ReviewItemStatus = (typeof REVIEW_ITEM_STATUSES)[number]
+export type ReviewRating = (typeof REVIEW_RATINGS)[number]
 
 export type LessonSourceTarget =
   | Readonly<{ kind: 'text_range' }>
@@ -59,6 +63,8 @@ export type LessonSession = Readonly<{
   steps: readonly LessonStep[]
   masteryEvidence: readonly MasteryEvidence[]
   misconceptionSignals: readonly MisconceptionSignal[]
+  reviewItems: readonly ReviewItem[]
+  reviewEvents: readonly ReviewEvent[]
   createdAt: string
   updatedAt: string
 }>
@@ -84,6 +90,31 @@ export type MisconceptionSignal = Readonly<{
   label: string
   severity: MisconceptionSeverity
   rationale: string
+  createdAt: string
+}>
+
+export type ReviewItem = Readonly<{
+  id: string
+  lessonId: string
+  masteryEvidenceId: string
+  misconceptionSignalId: string | null
+  prompt: string
+  answerOutline: readonly string[]
+  status: ReviewItemStatus
+  dueAt: string
+  createdAt: string
+  updatedAt: string
+}>
+
+export type ReviewEvent = Readonly<{
+  id: string
+  reviewItemId: string
+  lessonId: string
+  rating: ReviewRating
+  response: string
+  previousDueAt: string
+  nextDueAt: string | null
+  reviewedAt: string
   createdAt: string
 }>
 
@@ -257,6 +288,29 @@ const assertMisconceptionSeverity = (severity: MisconceptionSeverity): void => {
   }
 }
 
+const assertReviewItemStatus = (status: ReviewItemStatus): void => {
+  if (!includes(REVIEW_ITEM_STATUSES, status)) throw new Error('Review item status is invalid')
+}
+
+const assertReviewRating = (rating: ReviewRating): void => {
+  if (!includes(REVIEW_RATINGS, rating)) throw new Error('Review rating is invalid')
+}
+
+const assertIsoTimestamp = (value: string, message: string): string => {
+  if (Number.isNaN(Date.parse(value))) throw new Error(message)
+  return value
+}
+
+const normalizeReviewAnswerOutline = (answerOutline: readonly string[]): readonly string[] => {
+  if (answerOutline.length === 0) throw new Error('Review answer outline is required')
+  if (answerOutline.length > 5) throw new Error('Review answer outline is too long')
+  return answerOutline.map((item) => {
+    const normalized = normalizeNonBlank(item, 'Review answer outline item is required')
+    if (normalized.length > 280) throw new Error('Review answer outline item is too long')
+    return normalized
+  })
+}
+
 export const validateLessonStateTransition = (
   stateBefore: LessonState,
   stateAfter: LessonState,
@@ -366,6 +420,51 @@ export const normalizeMisconceptionSignal = (signal: MisconceptionSignal): Misco
   if (rationale.length > 280) throw new Error('Misconception rationale is too long')
 
   return { ...signal, label, rationale }
+}
+
+export const normalizeReviewItem = (item: ReviewItem): ReviewItem => {
+  if (!UUID.test(item.id)) throw new Error('Review item id is invalid')
+  if (!UUID.test(item.lessonId)) throw new Error('Review lesson id is invalid')
+  if (!UUID.test(item.masteryEvidenceId)) throw new Error('Review mastery evidence id is invalid')
+  if (item.misconceptionSignalId !== null && !UUID.test(item.misconceptionSignalId)) {
+    throw new Error('Review misconception signal id is invalid')
+  }
+  assertReviewItemStatus(item.status)
+  const prompt = normalizeNonBlank(item.prompt, 'Review prompt is required')
+  if (prompt.length > 280) throw new Error('Review prompt is too long')
+
+  return {
+    ...item,
+    prompt,
+    answerOutline: normalizeReviewAnswerOutline(item.answerOutline),
+    dueAt: assertIsoTimestamp(item.dueAt, 'Review due timestamp is invalid'),
+    createdAt: assertIsoTimestamp(item.createdAt, 'Review created timestamp is invalid'),
+    updatedAt: assertIsoTimestamp(item.updatedAt, 'Review updated timestamp is invalid'),
+  }
+}
+
+export const normalizeReviewEvent = (event: ReviewEvent): ReviewEvent => {
+  if (!UUID.test(event.id)) throw new Error('Review event id is invalid')
+  if (!UUID.test(event.reviewItemId)) throw new Error('Review item id is invalid')
+  if (!UUID.test(event.lessonId)) throw new Error('Review lesson id is invalid')
+  assertReviewRating(event.rating)
+  const response = normalizeNonBlank(event.response, 'Review response is required')
+  if (response.length > 1_000) throw new Error('Review response is too long')
+
+  return {
+    ...event,
+    response,
+    previousDueAt: assertIsoTimestamp(
+      event.previousDueAt,
+      'Previous review due timestamp is invalid',
+    ),
+    nextDueAt:
+      event.nextDueAt === null
+        ? null
+        : assertIsoTimestamp(event.nextDueAt, 'Next review due timestamp is invalid'),
+    reviewedAt: assertIsoTimestamp(event.reviewedAt, 'Review timestamp is invalid'),
+    createdAt: assertIsoTimestamp(event.createdAt, 'Review event created timestamp is invalid'),
+  }
 }
 
 export const normalizeLessonContextChunkSummary = (
