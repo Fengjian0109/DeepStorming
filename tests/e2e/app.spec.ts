@@ -38,6 +38,19 @@ const clearPersistedContextChunks = (userDataDir: string): void => {
   ])
 }
 
+const seedFollowUpContextChunks = (userDataDir: string): void => {
+  execFileSync('/opt/miniconda3/bin/sqlite3', [
+    path.join(userDataDir, 'runtime', 'deepstorming.sqlite3'),
+    `UPDATE lesson_model_runs
+     SET input_summary_json = json_set(
+       input_summary_json,
+       '$.contextCharacterCount', 48,
+       '$.contextChunks', json('[{"chunkId":"00000000-0000-4000-8000-000000000981","pageNumberStart":1,"pageNumberEnd":1,"charCount":48}]')
+     )
+     WHERE operation = 'lesson_tutor_follow_up';`,
+  ])
+}
+
 const pdfStringWith = (text: string): string => {
   const escaped = text.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)')
   const stream = `BT /F1 12 Tf 72 720 Td (${escaped}) Tj ET`
@@ -188,13 +201,14 @@ test('creates text documents and persists them across restart', async () => {
       await expect(page.locator('.lesson-anchor').getByText(pdfFixtureText)).toBeVisible()
       await expect(page.getByText('第 1 页 · Block 1')).toBeVisible()
       await expect(page.getByRole('heading', { name: '上下文证据' })).toHaveCount(1)
-      await expect(page.getByText('第 1-1 页')).toBeVisible()
+      await expect(page.locator('.lesson-context-chunks li').first()).toHaveText('第 1-1 页 · 48 字')
       await page.getByLabel('你的回答').fill('这段证据把结论和可观察行为连起来了。')
       await page.getByRole('button', { name: '提交回答' }).click()
       await expect(page.getByText('回答已提交。')).toBeVisible()
       await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
       await expect(page.getByRole('heading', { name: '上下文证据' })).toHaveCount(2)
-      await expect(page.getByText('第 1-1 页')).toBeVisible()
+      await expect(page.locator('.lesson-context-chunks li').first()).toHaveText('第 1-1 页 · 48 字')
+      await expect(page.getByText('课堂仍可继续（已降级为 snippet）')).toBeVisible()
       await page.getByRole('button', { name: '回到证据' }).click()
       await expect(
         page.locator('.document-detail').getByRole('heading', { name: 'evidence' }),
@@ -237,6 +251,7 @@ test('creates text documents and persists them across restart', async () => {
       await first.close()
     }
 
+    seedFollowUpContextChunks(userDataDir)
     clearPersistedContextChunks(userDataDir)
 
     const second = await launchDevApp(userDataDir)
@@ -285,6 +300,7 @@ test('creates text documents and persists them across restart', async () => {
         .filter({ hasText: 'evidence 课堂' })
         .getByRole('button', { name: '打开 evidence 课堂' })
         .click()
+      await expect(page.locator('.lesson-context-chunks li').nth(1)).toHaveText('第 1-1 页 · 48 字')
       await page.getByLabel('你的回答').fill('我会继续检查缺少 chunk 时还能否只靠 snippet 追问。')
       await page.getByRole('button', { name: '提交回答' }).click()
       await expect(page.getByText('课堂仍可继续（已降级为 snippet）')).toBeVisible()
