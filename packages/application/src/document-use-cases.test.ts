@@ -427,6 +427,7 @@ describe('document use cases', () => {
       hasher,
       clock,
       idGenerator,
+      new RebuildDocumentChunks(repo, importRepo),
     ).execute({
       filePath: '/tmp/paper.pdf',
       originalName: 'paper.pdf',
@@ -437,6 +438,10 @@ describe('document use cases', () => {
     expect(result.documentId).toBe(ids[1])
     expect(importRepo.pagesFor(result.documentId!)).toHaveLength(1)
     await expect(importRepo.listPageBlocks(result.documentId!, 1)).resolves.toHaveLength(1)
+    await expect(importRepo.listChunks(result.documentId!)).resolves.not.toHaveLength(0)
+    await expect(
+      importRepo.hasFreshChunks(result.documentId!, ids[2]!, 'chunk-rule:v1'),
+    ).resolves.toBe(true)
     await expect(new GetDocument(repo).execute(result.documentId!)).resolves.toMatchObject({
       title: 'paper',
       plainText: 'Paper text.',
@@ -464,6 +469,7 @@ describe('document use cases', () => {
       hasher,
       clock,
       idGenerator,
+      new RebuildDocumentChunks(repo, importRepo),
     ).execute({ filePath: '/tmp/locked.pdf', originalName: 'locked.pdf' })
 
     expect(result).toMatchObject({
@@ -489,12 +495,14 @@ describe('document use cases', () => {
       hasher,
       clock,
       idGenerator,
+      new RebuildDocumentChunks(repo, importRepo),
     ).execute({ filePath: '/tmp/scan.pdf', originalName: 'scan.pdf' })
 
     expect(result).toMatchObject({
       status: 'failed',
       error: { code: 'DOCUMENT_PDF_TEXT_MISSING', retryable: false },
     })
+    expect(importRepo.chunks.size).toBe(0)
   })
 
   it('fails PDF import when the PDF parser reports a damaged file', async () => {
@@ -516,12 +524,14 @@ describe('document use cases', () => {
       hasher,
       clock,
       idGenerator,
+      new RebuildDocumentChunks(repo, importRepo),
     ).execute({ filePath: '/tmp/damaged.pdf', originalName: 'damaged.pdf' })
 
     expect(result).toMatchObject({
       status: 'failed',
       error: { code: 'DOCUMENT_PDF_PARSE_FAILED', retryable: false },
     })
+    expect(importRepo.chunks.size).toBe(0)
   })
 
   it('lists imported PDF pages and page blocks', async () => {

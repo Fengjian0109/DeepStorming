@@ -21,6 +21,7 @@ import {
   LessonRunOperations,
   ProviderTestOperations,
   ProviderLessonTutorReplyGenerator,
+  RebuildDocumentChunks,
   RetryLessonRun,
   SearchDocuments,
   StartLessonFromDocument,
@@ -101,6 +102,10 @@ export const createCompositionRoot = async (
     const operations = new ProviderTestOperations()
     const lessonOperations = new LessonRunOperations()
     const providerGatewayFactory = new ProviderGatewayFactory()
+    const rebuildDocumentChunks = new RebuildDocumentChunks(
+      documentRepository,
+      documentImportRepository,
+    )
     const lessonTutorReplyGenerator = new ProviderLessonTutorReplyGenerator(
       repository,
       vault,
@@ -129,6 +134,7 @@ export const createCompositionRoot = async (
         documentHasher,
         clock,
         ids,
+        rebuildDocumentChunks,
       ),
       getDocumentPages: new GetDocumentPages(documentImportRepository),
       getDocumentPageBlocks: new GetDocumentPageBlocks(documentImportRepository),

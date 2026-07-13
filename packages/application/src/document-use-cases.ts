@@ -360,6 +360,7 @@ export class ImportPdfDocument {
     private readonly hasher: DocumentTextHasherPort,
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
+    private readonly rebuildDocumentChunks: RebuildDocumentChunks,
   ) {}
 
   public async execute(input: ImportPdfDocumentInput): Promise<DocumentImportJob> {
@@ -458,6 +459,7 @@ export class ImportPdfDocument {
         pages,
         this.toStoredBlocks(documentId, extracted.pages, pages, createdAt),
       )
+      await this.rebuildDocumentChunks.execute({ documentId })
       return await this.importRepository.updateJob({
         ...baseJob('ready'),
         documentId: document.id,
