@@ -8,6 +8,7 @@ import {
   GetDocumentPageBlocks,
   GetDocumentPages,
   ActivateProvider,
+  AssembleLessonContext,
   CancelLessonRun,
   CancelProviderTest,
   CreateProvider,
@@ -106,6 +107,10 @@ export const createCompositionRoot = async (
       documentRepository,
       documentImportRepository,
     )
+    const assembleLessonContext = new AssembleLessonContext(
+      documentRepository,
+      documentImportRepository,
+    )
     const lessonTutorReplyGenerator = new ProviderLessonTutorReplyGenerator(
       repository,
       vault,
@@ -145,12 +150,15 @@ export const createCompositionRoot = async (
         clock,
         ids,
         documentImportRepository,
+        assembleLessonContext,
+        lessonTutorReplyGenerator,
       ),
       getLessonSession: new GetLessonSession(lessonRepository),
       submitLessonReply: new SubmitLessonReply(
         lessonRepository,
         clock,
         ids,
+        assembleLessonContext,
         lessonTutorReplyGenerator,
         lessonOperations,
       ),
@@ -158,6 +166,7 @@ export const createCompositionRoot = async (
         lessonRepository,
         clock,
         ids,
+        assembleLessonContext,
         lessonTutorReplyGenerator,
         lessonOperations,
       ),

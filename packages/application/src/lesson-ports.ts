@@ -38,7 +38,14 @@ export type LessonSessionView = LessonSession
 export type LessonTutorReplyRequest = Readonly<{
   documentTitle: string
   sourceSnippet: string
+  contextChunks: readonly LessonTutorContextChunk[]
   learnerReply: string
+}>
+
+export type LessonTutorFirstQuestionRequest = Readonly<{
+  documentTitle: string
+  sourceSnippet: string
+  contextChunks: readonly LessonTutorContextChunk[]
 }>
 
 export type LessonTutorReplyResult = Readonly<{
@@ -47,7 +54,19 @@ export type LessonTutorReplyResult = Readonly<{
   modelName: string
 }>
 
+export type LessonTutorContextChunk = Readonly<{
+  chunkId: string
+  text: string
+  pageNumberStart: number
+  pageNumberEnd: number
+  charCount: number
+}>
+
 export interface LessonTutorReplyGeneratorPort {
+  generateFirstQuestion(
+    input: LessonTutorFirstQuestionRequest,
+    token: CancellationToken,
+  ): Promise<LessonTutorReplyResult>
   generateFollowUp(
     input: LessonTutorReplyRequest,
     token: CancellationToken,

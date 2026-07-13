@@ -1,6 +1,7 @@
 import {
   normalizeLessonStartDraft,
   type LessonPromptManifest,
+  type LessonContextChunkSummary,
   type LessonReplyDraft,
   type LessonRunRetryDraft,
   type LessonModelRun,
@@ -9,8 +10,10 @@ import {
   type LessonStartDraft,
 } from '@deepstorming/domain'
 import type { ClockPort, DocumentRepositoryPort, IdGeneratorPort } from './document-ports'
+import { DocumentUseCaseError, type AssembleLessonContext } from './document-use-cases'
 import type {
   LessonRepositoryPort,
+  LessonTutorFirstQuestionRequest,
   LessonTutorReplyRequest,
   LessonTutorReplyGeneratorPort,
   LessonTutorReplyResult,
@@ -90,6 +93,14 @@ const createMockTutorFollowUp = (learnerReply: string, snippet: string): string 
 
 const localTutorReply = (learnerReply: string, snippet: string): LessonTutorReplyResult => ({
   content: createMockTutorFollowUp(learnerReply, snippet),
+  providerId: null,
+  modelName: 'mock-local',
+})
+
+const localTutorFirstQuestion = (
+  input: LessonTutorFirstQuestionRequest,
+): LessonTutorReplyResult => ({
+  content: createMockTutorFirstQuestion(input.documentTitle, input.sourceSnippet),
   providerId: null,
   modelName: 'mock-local',
 })
@@ -232,6 +243,27 @@ const asInternalError = (error: unknown): LessonUseCaseError => {
   return internalError()
 }
 
+const asLessonContextError = (error: unknown): LessonUseCaseError => {
+  if (isLessonError(error)) return error
+  if (error instanceof DocumentUseCaseError) {
+    switch (error.code) {
+      case 'DOCUMENT_NOT_FOUND':
+        return new LessonUseCaseError(
+          'LESSON_DOCUMENT_NOT_FOUND',
+          'The source document was not found.',
+          false,
+        )
+      case 'DATABASE_UNAVAILABLE':
+        return databaseError()
+      case 'DOCUMENT_VALIDATION_FAILED':
+        return validationError(error)
+      default:
+        return internalError()
+    }
+  }
+  return internalError()
+}
+
 const generateTutorReply = async (
   generator: LessonTutorReplyGeneratorPort | undefined,
   input: LessonTutorReplyRequest,
@@ -241,6 +273,20 @@ const generateTutorReply = async (
   if (generator === undefined) return localTutorReply(input.learnerReply, input.sourceSnippet)
   try {
     return await generator.generateFollowUp(input, token)
+  } catch (error) {
+    throw asInternalError(error)
+  }
+}
+
+const generateFirstTutorQuestion = async (
+  generator: LessonTutorReplyGeneratorPort | undefined,
+  input: LessonTutorFirstQuestionRequest,
+  token: CancellationToken,
+): Promise<LessonTutorReplyResult> => {
+  if (token.cancelled) throw cancelledError()
+  if (generator === undefined) return localTutorFirstQuestion(input)
+  try {
+    return await generator.generateFirstQuestion(input, token)
   } catch (error) {
     throw asInternalError(error)
   }
@@ -257,6 +303,78 @@ const saveLesson = async (
   }
 }
 
+const toContextChunkSummary = (chunk: {
+  id: string
+  pageNumberStart: number
+  pageNumberEnd: number
+  charCount: number
+}): LessonContextChunkSummary => ({
+  chunkId: chunk.id,
+  pageNumberStart: chunk.pageNumberStart,
+  pageNumberEnd: chunk.pageNumberEnd,
+  charCount: chunk.charCount,
+})
+
+const toTutorContextChunk = (chunk: {
+  id: string
+  text: string
+  pageNumberStart: number
+  pageNumberEnd: number
+  charCount: number
+}) => ({
+  chunkId: chunk.id,
+  text: chunk.text,
+  pageNumberStart: chunk.pageNumberStart,
+  pageNumberEnd: chunk.pageNumberEnd,
+  charCount: chunk.charCount,
+})
+
+const latestTutorQuestionForReply = (session: StoredLessonSession): string => {
+  const latestTutorMessage = [...session.messages].reverse().find((message) => message.role === 'tutor')
+  if (latestTutorMessage === undefined) throw internalError()
+  return latestTutorMessage.content
+}
+
+const tutorQuestionForLearnerMessage = (
+  session: StoredLessonSession,
+  learnerMessageId: string,
+): string => {
+  const learnerIndex = session.messages.findIndex((message) => message.id === learnerMessageId)
+  if (learnerIndex < 0) throw internalError()
+  for (let index = learnerIndex - 1; index >= 0; index -= 1) {
+    const candidate = session.messages[index]
+    if (candidate?.role === 'tutor') return candidate.content
+  }
+  throw internalError()
+}
+
+const assembleLessonContextSummary = async (
+  assembler: Pick<AssembleLessonContext, 'execute'>,
+  input: Readonly<{
+    documentId: string
+    query: string
+    fallbackSnippet: string
+  }>,
+): Promise<
+  Readonly<{
+    contextChunks: readonly LessonContextChunkSummary[]
+    contextCharacterCount: number
+    tutorContextChunks: readonly ReturnType<typeof toTutorContextChunk>[]
+  }>
+> => {
+  try {
+    const context = await assembler.execute(input)
+    const contextChunks = context.chunks.map(toContextChunkSummary)
+    return {
+      contextChunks,
+      contextCharacterCount: contextChunks.reduce((total, chunk) => total + chunk.charCount, 0),
+      tutorContextChunks: context.chunks.map(toTutorContextChunk),
+    }
+  } catch (error) {
+    throw asLessonContextError(error)
+  }
+}
+
 const followUpModelRun = (
   input: Readonly<{
     id: string
@@ -265,6 +383,8 @@ const followUpModelRun = (
     documentTitle: string
     anchor: StoredLessonSession['sourceAnchors'][number]
     learnerReply: string
+    contextChunks: readonly LessonContextChunkSummary[]
+    contextCharacterCount: number
     startedAt: string
   }>,
 ): LessonModelRun => ({
@@ -284,8 +404,8 @@ const followUpModelRun = (
       endOffset: input.anchor.endOffset,
     },
     snippetCharacterCount: input.anchor.snippet.length,
-    contextCharacterCount: 0,
-    contextChunks: [],
+    contextCharacterCount: input.contextCharacterCount,
+    contextChunks: input.contextChunks,
     learnerReplyCharacterCount: input.learnerReply.length,
   },
   sourceAnchorIds: [input.anchor.id],
@@ -378,6 +498,8 @@ export class StartLessonFromDocument {
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
     private readonly sourceLocator?: DocumentSourceLocatorPort,
+    private readonly lessonContextAssembler?: Pick<AssembleLessonContext, 'execute'>,
+    private readonly tutorReplyGenerator?: LessonTutorReplyGeneratorPort,
   ) {}
 
   public async execute(input: LessonStartDraft): Promise<LessonSession> {
@@ -431,6 +553,23 @@ export class StartLessonFromDocument {
       throw asInternalError(error)
     }
 
+    if (this.lessonContextAssembler === undefined) throw internalError()
+
+    const contextSummary = await assembleLessonContextSummary(this.lessonContextAssembler, {
+      documentId: draft.documentId,
+      query: draft.source.snippet,
+      fallbackSnippet: draft.source.snippet,
+    })
+    const firstQuestion = await generateFirstTutorQuestion(
+      this.tutorReplyGenerator,
+      {
+        documentTitle: draft.documentTitle,
+        sourceSnippet: draft.source.snippet,
+        contextChunks: contextSummary.tutorContextChunks,
+      },
+      liveToken(),
+    )
+
     const session: StoredLessonSession = {
       id: sessionId,
       title: draft.title,
@@ -453,7 +592,7 @@ export class StartLessonFromDocument {
           lessonId: sessionId,
           modelRunId,
           role: 'tutor',
-          content: createMockTutorFirstQuestion(draft.documentTitle, draft.source.snippet),
+          content: firstQuestion.content,
           sourceAnchorIds: [anchorId],
           promptVersion: MOCK_TUTOR_PROMPT_VERSION,
           createdAt,
@@ -463,8 +602,8 @@ export class StartLessonFromDocument {
         {
           id: modelRunId,
           lessonId: sessionId,
-          providerId: null,
-          modelName: 'mock-local',
+          providerId: firstQuestion.providerId,
+          modelName: firstQuestion.modelName,
           operation: 'lesson_tutor_first_question',
           status: 'succeeded',
           promptManifest: MOCK_TUTOR_PROMPT_MANIFEST,
@@ -477,8 +616,8 @@ export class StartLessonFromDocument {
               endOffset: draft.source.endOffset,
             },
             snippetCharacterCount: draft.source.snippet.length,
-            contextCharacterCount: 0,
-            contextChunks: [],
+            contextCharacterCount: contextSummary.contextCharacterCount,
+            contextChunks: contextSummary.contextChunks,
           },
           sourceAnchorIds: [anchorId],
           outputMessageId: messageId,
@@ -504,6 +643,7 @@ export class SubmitLessonReply {
     private readonly lessons: LessonRepositoryPort,
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
+    private readonly lessonContextAssembler?: Pick<AssembleLessonContext, 'execute'>,
     private readonly tutorReplyGenerator?: LessonTutorReplyGeneratorPort,
     private readonly operations?: LessonRunOperations,
   ) {}
@@ -527,6 +667,7 @@ export class SubmitLessonReply {
 
     const anchor = session.sourceAnchors[0]
     if (anchor === undefined) throw internalError()
+    if (this.lessonContextAssembler === undefined) throw internalError()
 
     let createdAt: string
     let learnerMessageId: string
@@ -541,6 +682,12 @@ export class SubmitLessonReply {
       throw asInternalError(error)
     }
 
+    const contextSummary = await assembleLessonContextSummary(this.lessonContextAssembler, {
+      documentId: session.documentId,
+      query: `${latestTutorQuestionForReply(session)}\n${draft.content}`,
+      fallbackSnippet: anchor.snippet,
+    })
+
     const startedRun = followUpModelRun({
       id: modelRunId,
       lessonId: session.id,
@@ -548,6 +695,8 @@ export class SubmitLessonReply {
       documentTitle: session.documentTitle,
       anchor,
       learnerReply: draft.content,
+      contextChunks: contextSummary.contextChunks,
+      contextCharacterCount: contextSummary.contextCharacterCount,
       startedAt: createdAt,
     })
     const pending: StoredLessonSession = {
@@ -578,6 +727,7 @@ export class SubmitLessonReply {
         {
           documentTitle: session.documentTitle,
           sourceSnippet: anchor.snippet,
+          contextChunks: contextSummary.tutorContextChunks,
           learnerReply: draft.content,
         },
         token,
@@ -625,6 +775,7 @@ export class RetryLessonRun {
     private readonly lessons: LessonRepositoryPort,
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
+    private readonly lessonContextAssembler?: Pick<AssembleLessonContext, 'execute'>,
     private readonly tutorReplyGenerator?: LessonTutorReplyGeneratorPort,
     private readonly operations?: LessonRunOperations,
   ) {}
@@ -666,6 +817,7 @@ export class RetryLessonRun {
       session.sourceAnchors.find((sourceAnchor) => sourceAnchor.id === anchorId) ??
       session.sourceAnchors[0]
     if (anchor === undefined) throw internalError()
+    if (this.lessonContextAssembler === undefined) throw internalError()
 
     let createdAt: string
     let modelRunId: string
@@ -678,6 +830,12 @@ export class RetryLessonRun {
       throw asInternalError(error)
     }
 
+    const contextSummary = await assembleLessonContextSummary(this.lessonContextAssembler, {
+      documentId: session.documentId,
+      query: `${tutorQuestionForLearnerMessage(session, learnerMessage.id)}\n${learnerMessage.content}`,
+      fallbackSnippet: anchor.snippet,
+    })
+
     const startedRun = followUpModelRun({
       id: modelRunId,
       lessonId: session.id,
@@ -685,6 +843,8 @@ export class RetryLessonRun {
       documentTitle: session.documentTitle,
       anchor,
       learnerReply: learnerMessage.content,
+      contextChunks: contextSummary.contextChunks,
+      contextCharacterCount: contextSummary.contextCharacterCount,
       startedAt: createdAt,
     })
     const pending: StoredLessonSession = {
@@ -702,6 +862,7 @@ export class RetryLessonRun {
         {
           documentTitle: session.documentTitle,
           sourceSnippet: anchor.snippet,
+          contextChunks: contextSummary.tutorContextChunks,
           learnerReply: learnerMessage.content,
         },
         token,
@@ -750,6 +911,13 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
     private readonly vault: SecretVaultPort,
     private readonly gatewayFactory: ProviderGatewayFactoryPort,
   ) {}
+
+  public async generateFirstQuestion(
+    input: LessonTutorFirstQuestionRequest,
+    _token: CancellationToken,
+  ): Promise<LessonTutorReplyResult> {
+    return localTutorFirstQuestion(input)
+  }
 
   public async generateFollowUp(
     input: LessonTutorReplyRequest,

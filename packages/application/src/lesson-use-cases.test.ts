@@ -108,6 +108,39 @@ class FakeSourceLocator implements DocumentSourceLocatorPort {
   }
 }
 
+class FakeLessonContextAssembler {
+  public readonly calls: Array<{
+    readonly documentId: string
+    readonly query: string
+    readonly fallbackSnippet: string
+  }> = []
+
+  public nextResult = {
+    chunks: [] as Array<{
+      readonly id: string
+      readonly documentId: string
+      readonly pageNumberStart: number
+      readonly pageNumberEnd: number
+      readonly blockIds: readonly string[]
+      readonly text: string
+      readonly charCount: number
+      readonly sourceVersion: string
+      readonly rebuildToken: string
+    }>,
+    degradedToSnippetOnly: false,
+    snippetFallback: null as Readonly<{ snippet: string }> | null,
+  }
+
+  async execute(input: {
+    documentId: string
+    query: string
+    fallbackSnippet: string
+  }) {
+    this.calls.push(input)
+    return this.nextResult
+  }
+}
+
 class FakeLessonRepository implements LessonRepositoryPort {
   public records = new Map<string, StoredLessonSession>()
   public listError?: Error
@@ -141,13 +174,42 @@ class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
   public readonly calls: Array<{
     readonly documentTitle: string
     readonly sourceSnippet: string
+    readonly contextChunks: readonly {
+      readonly chunkId: string
+      readonly text: string
+      readonly pageNumberStart: number
+      readonly pageNumberEnd: number
+      readonly charCount: number
+    }[]
     readonly learnerReply: string
   }> = []
+
+  async generateFirstQuestion(
+    input: {
+      documentTitle: string
+      sourceSnippet: string
+      contextChunks: readonly unknown[]
+    },
+    _token: CancellationToken,
+  ) {
+    return {
+      content: `Provider 首问：${input.sourceSnippet}`,
+      providerId: '00000000-0000-4000-8000-000000000501',
+      modelName: 'deepseek-chat',
+    }
+  }
 
   async generateFollowUp(
     input: {
       documentTitle: string
       sourceSnippet: string
+      contextChunks: readonly {
+        readonly chunkId: string
+        readonly text: string
+        readonly pageNumberStart: number
+        readonly pageNumberEnd: number
+        readonly charCount: number
+      }[]
       learnerReply: string
     },
     _token: CancellationToken,
@@ -166,6 +228,14 @@ class ObservingTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
   public cancel = false
 
   public constructor(private readonly observe: () => void) {}
+
+  async generateFirstQuestion(_input: unknown, _token: CancellationToken) {
+    return {
+      content: 'Provider 首问',
+      providerId: '00000000-0000-4000-8000-000000000501',
+      modelName: 'deepseek-chat',
+    }
+  }
 
   async generateFollowUp(_input: unknown, token: CancellationToken) {
     this.observe()
@@ -285,6 +355,8 @@ class FakeGatewayFactory implements ProviderGatewayFactoryPort {
   }
 }
 
+const createContextAssembler = () => new FakeLessonContextAssembler()
+
 describe('lesson use cases', () => {
   let documents: FakeDocumentRepository
   let lessons: FakeLessonRepository
@@ -300,11 +372,31 @@ describe('lesson use cases', () => {
   })
 
   it('starts a lesson from a document source anchor', async () => {
+    const assembler = new FakeLessonContextAssembler()
+    assembler.nextResult = {
+      chunks: [
+        {
+          id: '00000000-0000-4000-8000-000000000901',
+          documentId,
+          pageNumberStart: 1,
+          pageNumberEnd: 1,
+          blockIds: ['block-1'],
+          text: 'Why What How',
+          charCount: 12,
+          sourceVersion: 'text-version-1',
+          rebuildToken: 'document.chunk.rebuild.v1',
+        },
+      ],
+      degradedToSnippetOnly: false,
+      snippetFallback: null,
+    }
     const created = await new StartLessonFromDocument(
       documents,
       lessons,
       clock,
       idGenerator,
+      undefined,
+      assembler,
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -362,6 +454,15 @@ describe('lesson use cases', () => {
             sourceAnchorIds: [anchorId],
             sourceCharacterRange: { startOffset: 13, endOffset: 21 },
             snippetCharacterCount: 8,
+            contextCharacterCount: 12,
+            contextChunks: [
+              {
+                chunkId: '00000000-0000-4000-8000-000000000901',
+                pageNumberStart: 1,
+                pageNumberEnd: 1,
+                charCount: 12,
+              },
+            ],
           },
           sourceAnchorIds: [anchorId],
           outputMessageId: messageId,
@@ -373,13 +474,27 @@ describe('lesson use cases', () => {
       createdAt: now,
       updatedAt: now,
     })
+    expect(assembler.calls).toEqual([
+      {
+        documentId,
+        query: 'Evidence',
+        fallbackSnippet: 'Evidence',
+      },
+    ])
     expect(JSON.stringify(created)).not.toContain('plainText')
   })
 
   it('requires a PDF block to belong to the source document', async () => {
     const locator = new FakeSourceLocator()
     await expect(
-      new StartLessonFromDocument(documents, lessons, clock, idGenerator, locator).execute({
+      new StartLessonFromDocument(
+        documents,
+        lessons,
+        clock,
+        idGenerator,
+        locator,
+        createContextAssembler(),
+      ).execute({
         documentId,
         documentTitle: 'Paper Map',
         source: {
@@ -399,6 +514,8 @@ describe('lesson use cases', () => {
       lessons,
       clock,
       idGenerator,
+      undefined,
+      createContextAssembler(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -413,18 +530,56 @@ describe('lesson use cases', () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
     const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
     let startIndex = 0
-    const created = await new StartLessonFromDocument(documents, lessons, clock, {
-      generate: () => startIds[startIndex++]!,
-    }).execute({
+    const startAssembler = new FakeLessonContextAssembler()
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      startAssembler,
+    ).execute({
       documentId,
       documentTitle: 'Paper Map',
       source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
     })
     let replyIndex = 0
+    const replyAssembler = new FakeLessonContextAssembler()
+    replyAssembler.nextResult = {
+      chunks: [
+        {
+          id: '00000000-0000-4000-8000-000000000901',
+          documentId,
+          pageNumberStart: 1,
+          pageNumberEnd: 1,
+          blockIds: ['block-1'],
+          text: 'Why What',
+          charCount: 8,
+          sourceVersion: 'text-version-1',
+          rebuildToken: 'document.chunk.rebuild.v1',
+        },
+        {
+          id: '00000000-0000-4000-8000-000000000902',
+          documentId,
+          pageNumberStart: 2,
+          pageNumberEnd: 2,
+          blockIds: ['block-2'],
+          text: 'How Evidence',
+          charCount: 12,
+          sourceVersion: 'text-version-1',
+          rebuildToken: 'document.chunk.rebuild.v1',
+        },
+      ],
+      degradedToSnippetOnly: false,
+      snippetFallback: null,
+    }
 
-    const updated = await new SubmitLessonReply(lessons, clock, {
-      generate: () => replyIds[replyIndex++]!,
-    }).execute({
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      replyAssembler,
+    ).execute({
       lessonId: created.id,
       content: '它在说明证据如何支撑判断。',
     })
@@ -470,6 +625,21 @@ describe('lesson use cases', () => {
         sourceAnchorIds: [anchorId],
         sourceCharacterRange: { startOffset: 13, endOffset: 21 },
         snippetCharacterCount: 8,
+        contextCharacterCount: 20,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            pageNumberStart: 1,
+            pageNumberEnd: 1,
+            charCount: 8,
+          },
+          {
+            chunkId: '00000000-0000-4000-8000-000000000902',
+            pageNumberStart: 2,
+            pageNumberEnd: 2,
+            charCount: 12,
+          },
+        ],
         learnerReplyCharacterCount: 13,
       },
       sourceAnchorIds: [anchorId],
@@ -478,16 +648,60 @@ describe('lesson use cases', () => {
       startedAt: now,
       finishedAt: now,
     })
+    expect(replyAssembler.calls).toEqual([
+      {
+        documentId,
+        query: `${created.messages[0]?.content}\n它在说明证据如何支撑判断。`,
+        fallbackSnippet: 'Evidence',
+      },
+    ])
     expect(JSON.stringify(updated)).not.toContain('plainText')
+  })
+
+  it('degrades stale lesson context to snippet-only without aborting lesson start', async () => {
+    const assembler = new FakeLessonContextAssembler()
+    assembler.nextResult = {
+      chunks: [],
+      degradedToSnippetOnly: true,
+      snippetFallback: { snippet: 'Evidence' },
+    }
+
+    const degraded = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      assembler,
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    expect(assembler.calls).toEqual([
+      {
+        documentId,
+        query: 'Evidence',
+        fallbackSnippet: 'Evidence',
+      },
+    ])
+    expect(degraded.modelRuns[0]?.inputSummary.contextChunks).toEqual([])
+    expect(degraded.modelRuns[0]?.inputSummary.contextCharacterCount).toBe(0)
   })
 
   it('uses an injected tutor generator for follow-up content and model metadata', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
     const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
     let startIndex = 0
-    const created = await new StartLessonFromDocument(documents, lessons, clock, {
-      generate: () => startIds[startIndex++]!,
-    }).execute({
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      createContextAssembler(),
+    ).execute({
       documentId,
       documentTitle: 'Paper Map',
       source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
@@ -499,6 +713,7 @@ describe('lesson use cases', () => {
       lessons,
       clock,
       { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
       generator,
     ).execute({
       lessonId: created.id,
@@ -509,6 +724,7 @@ describe('lesson use cases', () => {
       {
         documentTitle: 'Paper Map',
         sourceSnippet: 'Evidence',
+        contextChunks: [],
         learnerReply: '它在说明证据如何支撑判断。',
       },
     ])
@@ -530,9 +746,14 @@ describe('lesson use cases', () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
     const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
     let startIndex = 0
-    const created = await new StartLessonFromDocument(documents, lessons, clock, {
-      generate: () => startIds[startIndex++]!,
-    }).execute({
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      createContextAssembler(),
+    ).execute({
       documentId,
       documentTitle: 'Paper Map',
       source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
@@ -561,6 +782,7 @@ describe('lesson use cases', () => {
       lessons,
       clock,
       { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
       generator,
     ).execute({
       lessonId: created.id,
@@ -586,9 +808,14 @@ describe('lesson use cases', () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
     const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
     let startIndex = 0
-    const created = await new StartLessonFromDocument(documents, lessons, clock, {
-      generate: () => startIds[startIndex++]!,
-    }).execute({
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      createContextAssembler(),
+    ).execute({
       documentId,
       documentTitle: 'Paper Map',
       source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
@@ -602,6 +829,7 @@ describe('lesson use cases', () => {
         lessons,
         clock,
         { generate: () => replyIds[replyIndex++]! },
+        createContextAssembler(),
         generator,
       ).execute({
         lessonId: created.id,
@@ -632,9 +860,14 @@ describe('lesson use cases', () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
     const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
     let startIndex = 0
-    const created = await new StartLessonFromDocument(documents, lessons, clock, {
-      generate: () => startIds[startIndex++]!,
-    }).execute({
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      createContextAssembler(),
+    ).execute({
       documentId,
       documentTitle: 'Paper Map',
       source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
@@ -652,6 +885,7 @@ describe('lesson use cases', () => {
         lessons,
         clock,
         { generate: () => replyIds[replyIndex++]! },
+        createContextAssembler(),
         generator,
         operations,
       ).execute({
@@ -698,6 +932,7 @@ describe('lesson use cases', () => {
       {
         documentTitle: 'Paper Map',
         sourceSnippet: 'Evidence',
+        contextChunks: [],
         learnerReply: '它在说明证据如何支撑判断。',
       },
       { cancelled: false, onCancel: () => () => undefined },
@@ -734,17 +969,25 @@ describe('lesson use cases', () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
     const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
     let startIndex = 0
-    const created = await new StartLessonFromDocument(documents, lessons, clock, {
-      generate: () => startIds[startIndex++]!,
-    }).execute({
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      createContextAssembler(),
+    ).execute({
       documentId,
       documentTitle: 'Paper Map',
       source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
     })
     let replyIndex = 0
-    const replied = await new SubmitLessonReply(lessons, clock, {
-      generate: () => replyIds[replyIndex++]!,
-    }).execute({
+    const replied = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
+    ).execute({
       lessonId: created.id,
       content: '它在说明证据如何支撑判断。',
     })
@@ -760,9 +1003,12 @@ describe('lesson use cases', () => {
     const retryIds = [retryRunId, retryMessageId]
     let retryIndex = 0
 
-    const retried = await new RetryLessonRun(lessons, clock, {
-      generate: () => retryIds[retryIndex++]!,
-    }).execute({ lessonId, modelRunId: followUpRunId })
+    const retried = await new RetryLessonRun(
+      lessons,
+      clock,
+      { generate: () => retryIds[retryIndex++]! },
+      createContextAssembler(),
+    ).execute({ lessonId, modelRunId: followUpRunId })
 
     expect(retried.messages.at(-1)).toEqual({
       id: retryMessageId,
@@ -794,6 +1040,8 @@ describe('lesson use cases', () => {
       lessons,
       clock,
       idGenerator,
+      undefined,
+      createContextAssembler(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -801,7 +1049,7 @@ describe('lesson use cases', () => {
     })
 
     await expect(
-      new RetryLessonRun(lessons, clock, idGenerator).execute({
+      new RetryLessonRun(lessons, clock, idGenerator, createContextAssembler()).execute({
         lessonId: created.id,
         modelRunId,
       }),
@@ -815,7 +1063,14 @@ describe('lesson use cases', () => {
     documents.document = undefined
 
     await expect(
-      new StartLessonFromDocument(documents, lessons, clock, idGenerator).execute({
+      new StartLessonFromDocument(
+        documents,
+        lessons,
+        clock,
+        idGenerator,
+        undefined,
+        createContextAssembler(),
+      ).execute({
         documentId,
         documentTitle: 'Paper Map',
         source: { startOffset: 0, endOffset: 3, snippet: 'Why' },
