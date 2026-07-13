@@ -49,6 +49,7 @@ class FakeRepository implements DocumentRepositoryPort {
   public createError?: Error
   public removeError?: Error
   public searchError?: Error
+  public onRemove?: (id: string) => void
 
   private toSummary(document: StoredDocumentDetail): StoredDocument {
     return {
@@ -87,7 +88,9 @@ class FakeRepository implements DocumentRepositoryPort {
 
   async remove(id: string): Promise<boolean> {
     if (this.removeError) throw this.removeError
-    return this.records.delete(id)
+    const removed = this.records.delete(id)
+    if (removed) this.onRemove?.(id)
+    return removed
   }
 
   async search(query: string): Promise<readonly StoredDocumentDetail[]> {
@@ -211,6 +214,12 @@ describe('document use cases', () => {
   beforeEach(() => {
     repo = new FakeRepository()
     importRepo = new FakeDocumentImportRepository()
+    repo.onRemove = (documentId) => {
+      importRepo.files.delete(documentId)
+      importRepo.pages.delete(documentId)
+      importRepo.blocks.delete(documentId)
+      importRepo.chunks.delete(documentId)
+    }
     extractor = {
       extract: async () => ({
         pages: [
@@ -531,6 +540,36 @@ describe('document use cases', () => {
       status: 'failed',
       error: { code: 'DOCUMENT_PDF_PARSE_FAILED', retryable: false },
     })
+    expect(importRepo.chunks.size).toBe(0)
+  })
+
+  it('cleans up persisted import state when chunk rebuilding fails after page storage', async () => {
+    const rebuildError = new Error('chunk rebuild failed')
+    const result = await new ImportPdfDocument(
+      repo,
+      importRepo,
+      fileStore,
+      extractor,
+      hasher,
+      clock,
+      idGenerator,
+      {
+        execute: async () => {
+          throw rebuildError
+        },
+      } as unknown as RebuildDocumentChunks,
+    ).execute({ filePath: '/tmp/paper.pdf', originalName: 'paper.pdf' })
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      documentId: null,
+      error: { code: 'DOCUMENT_IMPORT_FAILED', retryable: true },
+    })
+    expect(importRepo.statusHistory).toEqual(['queued', 'copying', 'parsing', 'failed'])
+    expect(repo.records.size).toBe(0)
+    expect(importRepo.files.size).toBe(0)
+    expect(importRepo.pages.size).toBe(0)
+    expect(importRepo.blocks.size).toBe(0)
     expect(importRepo.chunks.size).toBe(0)
   })
 

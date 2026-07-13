@@ -414,6 +414,7 @@ export class ImportPdfDocument {
       throw asDatabaseError(error)
     })
 
+    let createdDocumentId: string | null = null
     try {
       const extracted = await this.extractor.extract(input.filePath)
       const plainText = pdfPlainText(extracted.pages)
@@ -444,6 +445,7 @@ export class ImportPdfDocument {
         createdAt,
         updatedAt: createdAt,
       })
+      createdDocumentId = document.id
 
       await this.importRepository.saveFile({
         documentId,
@@ -467,7 +469,22 @@ export class ImportPdfDocument {
         finishedAt: this.clock.now(),
       })
     } catch (error) {
+      if (createdDocumentId !== null) {
+        await this.rollbackImportedDocument(createdDocumentId)
+      }
       return this.failJob(baseJob('parsing'), asImportFailure(error))
+    }
+  }
+
+  private async rollbackImportedDocument(documentId: string): Promise<void> {
+    let removed: boolean
+    try {
+      removed = await this.documentRepository.remove(documentId)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (!removed) {
+      throw databaseError()
     }
   }
 
