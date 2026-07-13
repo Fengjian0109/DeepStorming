@@ -472,9 +472,7 @@ export const LessonWorkspace = ({
                                 <span>
                                   可能误区：{signal.label} · {signal.severity}
                                 </span>
-                                <p className="lesson-misconception-rationale">
-                                  {signal.rationale}
-                                </p>
+                                <p className="lesson-misconception-rationale">{signal.rationale}</p>
                               </li>
                             ))}
                           </ul>
