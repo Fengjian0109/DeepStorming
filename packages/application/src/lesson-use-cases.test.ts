@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { ProviderProfile } from '@deepstorming/domain'
+import type { PaperReadingStage, ProviderProfile } from '@deepstorming/domain'
 import type { DocumentRepositoryPort, StoredDocumentDetail } from './document-ports'
 import type {
   DocumentSourceLocatorPort,
@@ -326,7 +326,7 @@ class FakeGateway implements ProviderGatewayPort {
       readonly documentTitle: string
       readonly sourceSnippet: string
       readonly lessonMode: 'standard' | 'paper'
-      readonly paperStage?: string | null
+      readonly paperStage?: PaperReadingStage | null
       readonly contextChunks: readonly {
         readonly chunkId: string
         readonly text: string
@@ -348,7 +348,7 @@ class FakeGateway implements ProviderGatewayPort {
       documentTitle: string
       sourceSnippet: string
       lessonMode: 'standard' | 'paper'
-      paperStage: string | null
+      paperStage: PaperReadingStage | null
       contextChunks: readonly {
         readonly chunkId: string
         readonly text: string
@@ -370,7 +370,7 @@ class FakeGateway implements ProviderGatewayPort {
       documentTitle: string
       sourceSnippet: string
       lessonMode: 'standard' | 'paper'
-      paperStage: string | null
+      paperStage: PaperReadingStage | null
       contextChunks: readonly {
         readonly chunkId: string
         readonly text: string
@@ -1612,6 +1612,56 @@ describe('lesson use cases', () => {
         token: expect.objectContaining({ cancelled: false }),
       },
     ])
+  })
+
+  it('preserves paper-mode fallback when no active provider is configured', async () => {
+    const providers = new FakeProviderRepository([])
+    const vault = new FakeVault()
+    const factory = new FakeGatewayFactory()
+
+    const firstQuestion = await new ProviderLessonTutorReplyGenerator(
+      providers,
+      vault,
+      factory,
+    ).generateFirstQuestion(
+      {
+        documentTitle: 'Paper Map',
+        sourceSnippet: 'Evidence',
+        lessonMode: 'paper',
+        paperStage: 'orientation',
+        contextChunks: [],
+      },
+      { cancelled: false, onCancel: () => () => undefined },
+    )
+
+    const followUp = await new ProviderLessonTutorReplyGenerator(
+      providers,
+      vault,
+      factory,
+    ).generateFollowUp(
+      {
+        documentTitle: 'Paper Map',
+        sourceSnippet: 'Evidence',
+        lessonMode: 'paper',
+        paperStage: 'problem_framing',
+        contextChunks: [],
+        learnerReply: 'The paper frames a gap between evidence and behavior.',
+      },
+      { cancelled: false, onCancel: () => () => undefined },
+    )
+
+    expect(firstQuestion).toMatchObject({
+      providerId: null,
+      modelName: 'mock-local',
+    })
+    expect(firstQuestion.content).toContain('我们先进入论文阅读模式')
+    expect(followUp).toMatchObject({
+      providerId: null,
+      modelName: 'mock-local',
+    })
+    expect(followUp.content).toContain('问题定义、关键假设或方法线索')
+    expect(factory.gateway.calls).toEqual([])
+    expect(vault.refs).toEqual([])
   })
 
   it('retries a failed tutor run with a deterministic follow-up', async () => {

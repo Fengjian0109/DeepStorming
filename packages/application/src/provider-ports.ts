@@ -1,4 +1,4 @@
-import type { ProviderProfile, ProviderTestStatus } from '@deepstorming/domain'
+import type { PaperReadingStage, ProviderProfile, ProviderTestStatus } from '@deepstorming/domain'
 export type { ClockPort, IdGeneratorPort } from './document-ports'
 
 export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & {
@@ -114,7 +114,7 @@ export interface ProviderGatewayPort {
       documentTitle: string
       sourceSnippet: string
       lessonMode: 'standard' | 'paper'
-      paperStage: string | null
+      paperStage: PaperReadingStage | null
       contextChunks: readonly Readonly<{
         chunkId: string
         text: string
@@ -132,7 +132,7 @@ export interface ProviderGatewayPort {
       documentTitle: string
       sourceSnippet: string
       lessonMode: 'standard' | 'paper'
-      paperStage: string | null
+      paperStage: PaperReadingStage | null
       contextChunks: readonly Readonly<{
         chunkId: string
         text: string

@@ -1572,7 +1572,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       throw asDatabaseError(error)
     }
     if (activeProvider === undefined) {
-      return localTutorFirstQuestion(input, 'standard')
+      return localTutorFirstQuestion(input, input.lessonMode)
     }
 
     let apiKey: string | undefined
@@ -1625,7 +1625,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       throw asDatabaseError(error)
     }
     if (activeProvider === undefined) {
-      return localTutorReply(input, 'standard')
+      return localTutorReply(input, input.lessonMode)
     }
 
     let apiKey: string | undefined
