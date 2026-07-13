@@ -1,4 +1,4 @@
-import type { LessonSessionDto } from '@deepstorming/contracts'
+import type { LessonSessionDto, LessonStateDto } from '@deepstorming/contracts'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 type LessonListState =
@@ -32,6 +32,21 @@ const formatContextChunkLabel = (chunk: {
   chunk.pageNumberStart === chunk.pageNumberEnd
     ? `第 ${chunk.pageNumberStart} 页 · ${chunk.charCount} 字`
     : `第 ${chunk.pageNumberStart}-${chunk.pageNumberEnd} 页 · ${chunk.charCount} 字`
+
+const lessonStateLabels: Record<LessonStateDto, string> = {
+  opening: '开场提问',
+  probing: '苏格拉底追问',
+  hinting: '提示阶梯',
+  explaining: '短讲解',
+  reflecting: '复述反思',
+  summarizing: '阶段小结',
+  completed: '已完成',
+  paused: '已暂停',
+  error: '待恢复',
+}
+
+const stepForRun = (session: LessonSessionDto, modelRunId: string) =>
+  session.steps.find((step) => step.modelRunId === modelRunId)
 
 export const LessonWorkspace = ({
   selectedLessonId,
@@ -275,6 +290,9 @@ export const LessonWorkspace = ({
             <article>
               <h2>{detailState.session.title}</h2>
               <p className="field-help">{detailState.session.documentTitle}</p>
+              <p className="lesson-state-pill">
+                当前阶段：{lessonStateLabels[detailState.session.currentState]}
+              </p>
               <div className="lesson-anchor-list">
                 {detailState.session.sourceAnchors.map((anchor) => (
                   <blockquote key={anchor.id} className="lesson-anchor">
@@ -327,59 +345,72 @@ export const LessonWorkspace = ({
               </div>
               <div className="lesson-run-list">
                 <h3>生成记录</h3>
-                {detailState.session.modelRuns.map((modelRun) => (
-                  <article key={modelRun.id} className="lesson-run">
-                    <p>
-                      {modelRun.modelName} · {modelRun.status}
-                    </p>
-                    <footer>
-                      {modelRun.promptManifest.key} v{modelRun.promptManifest.version}
-                    </footer>
-                    <div className="lesson-context-chunks">
-                      <h4>上下文证据</h4>
-                      {modelRun.inputSummary.contextChunks.length > 0 ? (
-                        <ul>
-                          {modelRun.inputSummary.contextChunks.map((chunk) => (
-                            <li key={chunk.chunkId}>{formatContextChunkLabel(chunk)}</li>
-                          ))}
-                        </ul>
+                {detailState.session.modelRuns.map((modelRun) => {
+                  const lessonStep = stepForRun(detailState.session, modelRun.id)
+                  return (
+                    <article key={modelRun.id} className="lesson-run">
+                      <p>
+                        {modelRun.modelName} · {modelRun.status}
+                      </p>
+                      {lessonStep === undefined ? (
+                        <p className="lesson-step-meta">状态机记录尚未生成</p>
                       ) : (
-                        <p className="lesson-context-fallback">课堂仍可继续（已降级为 snippet）</p>
+                        <p className="lesson-step-meta">
+                          动作：{lessonStep.actionType} · {lessonStep.stateBefore} →{' '}
+                          {lessonStep.stateAfter}
+                        </p>
                       )}
-                    </div>
-                    {modelRun.errorSummary !== null && (
-                      <p className="error-state">{modelRun.errorSummary.message}</p>
-                    )}
-                    {(modelRun.status === 'failed' || modelRun.status === 'cancelled') && (
-                      <div className="card-actions">
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          disabled={
-                            runRetryState.status === 'retrying' &&
-                            runRetryState.modelRunId === modelRun.id
-                          }
-                          onClick={() => void retryRun(modelRun.id)}
-                        >
-                          {runRetryState.status === 'retrying' &&
-                          runRetryState.modelRunId === modelRun.id
-                            ? '重试中…'
-                            : `重试生成 ${modelRun.promptManifest.key} v${modelRun.promptManifest.version}`}
-                        </button>
-                        {runRetryState.status === 'retrying' &&
-                          runRetryState.modelRunId === modelRun.id && (
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() => void cancelRetry()}
-                            >
-                              取消重试
-                            </button>
-                          )}
+                      <footer>
+                        {modelRun.promptManifest.key} v{modelRun.promptManifest.version}
+                      </footer>
+                      <div className="lesson-context-chunks">
+                        <h4>上下文证据</h4>
+                        {modelRun.inputSummary.contextChunks.length > 0 ? (
+                          <ul>
+                            {modelRun.inputSummary.contextChunks.map((chunk) => (
+                              <li key={chunk.chunkId}>{formatContextChunkLabel(chunk)}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="lesson-context-fallback">
+                            课堂仍可继续（已降级为 snippet）
+                          </p>
+                        )}
                       </div>
-                    )}
-                  </article>
-                ))}
+                      {modelRun.errorSummary !== null && (
+                        <p className="error-state">{modelRun.errorSummary.message}</p>
+                      )}
+                      {(modelRun.status === 'failed' || modelRun.status === 'cancelled') && (
+                        <div className="card-actions">
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            disabled={
+                              runRetryState.status === 'retrying' &&
+                              runRetryState.modelRunId === modelRun.id
+                            }
+                            onClick={() => void retryRun(modelRun.id)}
+                          >
+                            {runRetryState.status === 'retrying' &&
+                            runRetryState.modelRunId === modelRun.id
+                              ? '重试中…'
+                              : `重试生成 ${modelRun.promptManifest.key} v${modelRun.promptManifest.version}`}
+                          </button>
+                          {runRetryState.status === 'retrying' &&
+                            runRetryState.modelRunId === modelRun.id && (
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() => void cancelRetry()}
+                              >
+                                取消重试
+                              </button>
+                            )}
+                        </div>
+                      )}
+                    </article>
+                  )
+                })}
                 {detailState.session.modelRuns.length === 0 && (
                   <p className="muted-state">这节课还没有生成记录。</p>
                 )}

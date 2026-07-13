@@ -472,6 +472,13 @@ h2 {
   font-size: 0.8rem;
 }
 
+.lesson-state-pill,
+.lesson-step-meta {
+  color: #375346;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
 .lesson-run-list {
   display: grid;
   gap: 10px;
@@ -491,6 +498,10 @@ h2 {
 .lesson-run p {
   margin: 0;
   font-weight: 700;
+}
+
+.lesson-run .lesson-step-meta {
+  margin-top: 6px;
 }
 
 .lesson-run .lesson-context-fallback {

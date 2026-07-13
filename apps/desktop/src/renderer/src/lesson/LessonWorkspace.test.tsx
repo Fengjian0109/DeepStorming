@@ -70,6 +70,24 @@ const session = {
       finishedAt: '2026-07-11T00:00:00.000Z',
     },
   ],
+  currentState: 'probing' as const,
+  steps: [
+    {
+      id: '00000000-0000-4000-8000-000000000501',
+      lessonId: '00000000-0000-4000-8000-000000000101',
+      sequenceNo: 0,
+      stateBefore: 'opening' as const,
+      stateAfter: 'probing' as const,
+      actionType: 'ask' as const,
+      status: 'succeeded' as const,
+      modelRunId: '00000000-0000-4000-8000-000000000501',
+      messageId: '00000000-0000-4000-8000-000000000401',
+      rationale: 'Started with a source-grounded opening question.',
+      errorSummary: null,
+      createdAt: '2026-07-11T00:00:00.000Z',
+      finishedAt: '2026-07-11T00:00:00.000Z',
+    },
+  ],
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
@@ -138,6 +156,25 @@ const repliedSession = {
       finishedAt: '2026-07-11T00:01:00.000Z',
     },
   ],
+  currentState: 'probing' as const,
+  steps: [
+    ...session.steps,
+    {
+      id: '00000000-0000-4000-8000-000000000502',
+      lessonId: session.id,
+      sequenceNo: 1,
+      stateBefore: 'probing' as const,
+      stateAfter: 'probing' as const,
+      actionType: 'ask' as const,
+      status: 'succeeded' as const,
+      modelRunId: '00000000-0000-4000-8000-000000000502',
+      messageId: '00000000-0000-4000-8000-000000000403',
+      rationale: 'Continue probing with source-grounded question.',
+      errorSummary: null,
+      createdAt: '2026-07-11T00:01:00.000Z',
+      finishedAt: '2026-07-11T00:01:00.000Z',
+    },
+  ],
   updatedAt: '2026-07-11T00:01:00.000Z',
 }
 
@@ -159,6 +196,18 @@ const failedSession = {
           },
         }
       : run,
+  ),
+  steps: repliedSession.steps.map((step) =>
+    step.modelRunId === '00000000-0000-4000-8000-000000000502'
+      ? {
+          ...step,
+          stateAfter: 'probing' as const,
+          status: 'failed' as const,
+          messageId: null,
+          rationale: null,
+          errorSummary: 'The lesson operation could not be completed.',
+        }
+      : step,
   ),
 }
 
@@ -216,6 +265,24 @@ const retriedSession = {
       finishedAt: '2026-07-11T00:02:00.000Z',
     },
   ],
+  steps: [
+    ...failedSession.steps,
+    {
+      id: '00000000-0000-4000-8000-000000000503',
+      lessonId: session.id,
+      sequenceNo: 2,
+      stateBefore: 'probing' as const,
+      stateAfter: 'probing' as const,
+      actionType: 'ask' as const,
+      status: 'succeeded' as const,
+      modelRunId: '00000000-0000-4000-8000-000000000503',
+      messageId: '00000000-0000-4000-8000-000000000404',
+      rationale: 'Continue probing with source-grounded question.',
+      errorSummary: null,
+      createdAt: '2026-07-11T00:02:00.000Z',
+      finishedAt: '2026-07-11T00:02:00.000Z',
+    },
+  ],
   updatedAt: '2026-07-11T00:02:00.000Z',
 }
 
@@ -258,6 +325,8 @@ describe('LessonWorkspace', () => {
       screen.getByText((_content, node) => node?.textContent === '导师 · Prompt mock-tutor-v1'),
     ).toBeTruthy()
     expect(screen.getByText('mock-local · succeeded')).toBeTruthy()
+    expect(screen.getByText('当前阶段：苏格拉底追问')).toBeTruthy()
+    expect(screen.getByText('动作：ask · opening → probing')).toBeTruthy()
     expect(screen.getByText('上下文证据')).toBeTruthy()
     expect(screen.getByText('第 1 页 · 312 字')).toBeTruthy()
 
@@ -319,7 +388,22 @@ describe('LessonWorkspace', () => {
     expect(await screen.findByText('它在说明证据如何支撑判断。')).toBeTruthy()
     expect(await screen.findByText(/下一步你会如何验证这个判断/)).toBeTruthy()
     expect(screen.getByText('lesson.mockTutor.followUp v1')).toBeTruthy()
+    expect(screen.getByText('动作：ask · probing → probing')).toBeTruthy()
     expect(screen.getByText('第 2-3 页 · 186 字')).toBeTruthy()
+  })
+
+  it('keeps historical sessions readable before step records exist', async () => {
+    const legacySession = { ...session, steps: [] }
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [legacySession], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: legacySession, requestId: crypto.randomUUID() })
+
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    expect(await screen.findByText('状态机记录尚未生成')).toBeTruthy()
   })
 
   it('shows snippet fallback when a lesson run has no retrieval chunks', async () => {
