@@ -1,10 +1,26 @@
 export const LESSON_SESSION_STATUSES = ['active', 'archived'] as const
 export const LESSON_MESSAGE_ROLES = ['system', 'tutor', 'learner'] as const
 export const LESSON_MODEL_RUN_STATUSES = ['started', 'succeeded', 'failed', 'cancelled'] as const
+export const LESSON_STATES = [
+  'opening',
+  'probing',
+  'hinting',
+  'explaining',
+  'reflecting',
+  'summarizing',
+  'completed',
+  'paused',
+  'error',
+] as const
+export const TUTOR_ACTION_TYPES = ['ask', 'hint', 'explain', 'reflect', 'summarize'] as const
+export const LESSON_STEP_STATUSES = ['started', 'succeeded', 'failed', 'cancelled'] as const
 
 export type LessonSessionStatus = (typeof LESSON_SESSION_STATUSES)[number]
 export type LessonMessageRole = (typeof LESSON_MESSAGE_ROLES)[number]
 export type LessonModelRunStatus = (typeof LESSON_MODEL_RUN_STATUSES)[number]
+export type LessonState = (typeof LESSON_STATES)[number]
+export type TutorActionType = (typeof TUTOR_ACTION_TYPES)[number]
+export type LessonStepStatus = (typeof LESSON_STEP_STATUSES)[number]
 
 export type LessonSourceTarget =
   | Readonly<{ kind: 'text_range' }>
@@ -81,6 +97,31 @@ export type LessonModelRunErrorSummary = Readonly<{
   retryable: boolean
 }>
 
+export type TutorAction = Readonly<{
+  actionType: TutorActionType
+  stateBefore: LessonState
+  stateAfter: LessonState
+  utterance: string
+  citedChunkIds: readonly string[]
+  rationale: string
+}>
+
+export type LessonStep = Readonly<{
+  id: string
+  lessonId: string
+  sequenceNo: number
+  stateBefore: LessonState
+  stateAfter: LessonState
+  actionType: TutorActionType
+  status: LessonStepStatus
+  modelRunId: string
+  messageId: string | null
+  rationale: string | null
+  errorSummary: LessonModelRunErrorSummary | null
+  createdAt: string
+  finishedAt: string | null
+}>
+
 export type LessonModelRun = Readonly<{
   id: string
   lessonId: string
@@ -139,6 +180,107 @@ const normalizeNonBlank = (value: string, message: string): string => {
   const normalized = value.trim()
   if (normalized.length === 0) throw new Error(message)
   return normalized
+}
+
+const includes = <Value extends string>(values: readonly Value[], value: string): value is Value =>
+  values.includes(value as Value)
+
+const VALID_STATE_TRANSITIONS: ReadonlyMap<LessonState, readonly LessonState[]> = new Map([
+  ['opening', ['probing', 'paused', 'error']],
+  ['probing', ['probing', 'hinting', 'reflecting', 'summarizing', 'completed', 'paused', 'error']],
+  ['hinting', ['probing', 'hinting', 'explaining', 'reflecting', 'summarizing', 'paused', 'error']],
+  ['explaining', ['probing', 'reflecting', 'summarizing', 'paused', 'error']],
+  ['reflecting', ['probing', 'summarizing', 'completed', 'paused', 'error']],
+  ['summarizing', ['probing', 'completed', 'paused', 'error']],
+  ['paused', ['opening', 'probing', 'hinting', 'explaining', 'reflecting', 'summarizing', 'error']],
+  ['error', ['opening', 'probing', 'hinting', 'explaining', 'reflecting', 'summarizing']],
+  ['completed', []],
+])
+
+const assertLessonState = (state: LessonState, message: string): void => {
+  if (!includes(LESSON_STATES, state)) throw new Error(message)
+}
+
+const assertTutorActionType = (actionType: TutorActionType): void => {
+  if (!includes(TUTOR_ACTION_TYPES, actionType)) throw new Error('Tutor action type is invalid')
+}
+
+const assertLessonStepStatus = (status: LessonStepStatus): void => {
+  if (!includes(LESSON_STEP_STATUSES, status)) throw new Error('Lesson step status is invalid')
+}
+
+export const validateLessonStateTransition = (
+  stateBefore: LessonState,
+  stateAfter: LessonState,
+): void => {
+  assertLessonState(stateBefore, 'Lesson state is invalid')
+  assertLessonState(stateAfter, 'Lesson state is invalid')
+  if (!(VALID_STATE_TRANSITIONS.get(stateBefore) ?? []).includes(stateAfter)) {
+    throw new Error('Lesson state transition is invalid')
+  }
+}
+
+export const normalizeTutorAction = (action: TutorAction): TutorAction => {
+  assertTutorActionType(action.actionType)
+  validateLessonStateTransition(action.stateBefore, action.stateAfter)
+  const utterance = normalizeNonBlank(action.utterance, 'Tutor action utterance must not be blank')
+  const rationale = normalizeNonBlank(action.rationale, 'Tutor action rationale must not be blank')
+  if (action.citedChunkIds.some((id) => !UUID.test(id))) {
+    throw new Error('Tutor action cited chunk id is invalid')
+  }
+
+  return { ...action, utterance, rationale }
+}
+
+export const normalizeLessonStep = (step: LessonStep): LessonStep => {
+  if (!UUID.test(step.id)) throw new Error('Lesson step id is invalid')
+  if (!UUID.test(step.lessonId)) throw new Error('Lesson step lesson id is invalid')
+  if (!UUID.test(step.modelRunId)) throw new Error('Lesson step model run id is invalid')
+  if (!Number.isInteger(step.sequenceNo) || step.sequenceNo < 0) {
+    throw new Error('Lesson step sequence number is invalid')
+  }
+  assertTutorActionType(step.actionType)
+  assertLessonStepStatus(step.status)
+  validateLessonStateTransition(step.stateBefore, step.stateAfter)
+
+  if (step.status === 'started') {
+    if (
+      step.messageId !== null ||
+      step.rationale !== null ||
+      step.errorSummary !== null ||
+      step.finishedAt !== null
+    ) {
+      throw new Error('Started lesson step fields are invalid')
+    }
+    return step
+  }
+
+  if (step.finishedAt === null) throw new Error('Finished lesson step timestamp is invalid')
+
+  if (step.status === 'succeeded') {
+    if (step.messageId === null || !UUID.test(step.messageId)) {
+      throw new Error('Succeeded lesson step message id is invalid')
+    }
+    if (step.rationale === null) throw new Error('Succeeded lesson step rationale is invalid')
+    const rationale = normalizeNonBlank(
+      step.rationale,
+      'Succeeded lesson step rationale is invalid',
+    )
+    if (step.errorSummary !== null) throw new Error('Succeeded lesson step fields are invalid')
+    return { ...step, rationale }
+  }
+
+  if (step.messageId !== null && !UUID.test(step.messageId)) {
+    throw new Error('Lesson step message id is invalid')
+  }
+  if (step.rationale !== null) {
+    normalizeNonBlank(step.rationale, 'Lesson step rationale is invalid')
+  }
+  if (step.errorSummary !== null) {
+    normalizeNonBlank(step.errorSummary.code, 'Lesson step error code is invalid')
+    normalizeNonBlank(step.errorSummary.message, 'Lesson step error message is invalid')
+  }
+  return step
 }
 
 export const normalizeLessonContextChunkSummary = (

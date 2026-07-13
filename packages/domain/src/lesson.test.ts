@@ -4,9 +4,12 @@ import {
   LESSON_MODEL_RUN_STATUSES,
   LESSON_SESSION_STATUSES,
   normalizeLessonContextChunkSummary,
+  normalizeLessonStep,
   normalizeLessonModelRunInputSummary,
+  normalizeTutorAction,
   type LessonModelRunInputSummary,
   normalizeLessonStartDraft,
+  validateLessonStateTransition,
 } from './lesson'
 
 describe('lesson domain', () => {
@@ -95,6 +98,101 @@ describe('lesson domain', () => {
 
   it('defines the accepted lesson model run statuses', () => {
     expect(LESSON_MODEL_RUN_STATUSES).toEqual(['started', 'succeeded', 'failed', 'cancelled'])
+  })
+
+  it('validates lesson state transitions', () => {
+    expect(validateLessonStateTransition('opening', 'probing')).toBeUndefined()
+    expect(validateLessonStateTransition('probing', 'hinting')).toBeUndefined()
+    expect(validateLessonStateTransition('hinting', 'explaining')).toBeUndefined()
+    expect(() => validateLessonStateTransition('completed', 'probing')).toThrow(
+      'Lesson state transition is invalid',
+    )
+  })
+
+  it('normalizes tutor actions and rejects invalid transitions', () => {
+    expect(
+      normalizeTutorAction({
+        actionType: 'ask',
+        stateBefore: 'opening',
+        stateAfter: 'probing',
+        utterance: '你觉得这段证据想解决什么问题？',
+        citedChunkIds: ['00000000-0000-4000-8000-000000000901'],
+        rationale: 'Start with a source-grounded question.',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        actionType: 'ask',
+        stateBefore: 'opening',
+        stateAfter: 'probing',
+      }),
+    )
+
+    expect(() =>
+      normalizeTutorAction({
+        actionType: 'ask',
+        stateBefore: 'opening',
+        stateAfter: 'completed',
+        utterance: '直接结束。',
+        citedChunkIds: [],
+        rationale: 'Bad jump.',
+      }),
+    ).toThrow('Lesson state transition is invalid')
+  })
+
+  it('normalizes lesson steps and enforces status-specific fields', () => {
+    expect(
+      normalizeLessonStep({
+        id: '00000000-0000-4000-8000-000000000701',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        sequenceNo: 0,
+        stateBefore: 'opening',
+        stateAfter: 'probing',
+        actionType: 'ask',
+        status: 'succeeded',
+        modelRunId: '00000000-0000-4000-8000-000000000501',
+        messageId: '00000000-0000-4000-8000-000000000401',
+        rationale: 'Started with a source-grounded question.',
+        errorSummary: null,
+        createdAt: '2026-07-13T00:00:00.000Z',
+        finishedAt: '2026-07-13T00:00:00.000Z',
+      }),
+    ).toEqual(expect.objectContaining({ sequenceNo: 0, status: 'succeeded' }))
+
+    expect(() =>
+      normalizeLessonStep({
+        id: '00000000-0000-4000-8000-000000000701',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        sequenceNo: 0,
+        stateBefore: 'opening',
+        stateAfter: 'completed',
+        actionType: 'ask',
+        status: 'succeeded',
+        modelRunId: '00000000-0000-4000-8000-000000000501',
+        messageId: '00000000-0000-4000-8000-000000000401',
+        rationale: 'bad transition',
+        errorSummary: null,
+        createdAt: '2026-07-13T00:00:00.000Z',
+        finishedAt: '2026-07-13T00:00:00.000Z',
+      }),
+    ).toThrow('Lesson state transition is invalid')
+
+    expect(() =>
+      normalizeLessonStep({
+        id: '00000000-0000-4000-8000-000000000702',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        sequenceNo: 1,
+        stateBefore: 'probing',
+        stateAfter: 'probing',
+        actionType: 'ask',
+        status: 'started',
+        modelRunId: '00000000-0000-4000-8000-000000000502',
+        messageId: '00000000-0000-4000-8000-000000000402',
+        rationale: null,
+        errorSummary: null,
+        createdAt: '2026-07-13T00:00:00.000Z',
+        finishedAt: null,
+      }),
+    ).toThrow('Started lesson step fields are invalid')
   })
 
   it('supports lesson model run summaries with required context chunks', () => {

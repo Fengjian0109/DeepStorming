@@ -21,6 +21,19 @@ const timestampSchema = z.iso.datetime()
 export const lessonSessionStatusSchema = z.enum(['active', 'archived'])
 export const lessonMessageRoleSchema = z.enum(['system', 'tutor', 'learner'])
 export const lessonModelRunStatusSchema = z.enum(['started', 'succeeded', 'failed', 'cancelled'])
+export const lessonStateSchema = z.enum([
+  'opening',
+  'probing',
+  'hinting',
+  'explaining',
+  'reflecting',
+  'summarizing',
+  'completed',
+  'paused',
+  'error',
+])
+export const tutorActionTypeSchema = z.enum(['ask', 'hint', 'explain', 'reflect', 'summarize'])
+export const lessonStepStatusSchema = z.enum(['started', 'succeeded', 'failed', 'cancelled'])
 export const lessonSourceTargetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('text_range') }).strict(),
   z
@@ -133,6 +146,45 @@ export const lessonModelRunSchema = z
   })
   .strict()
 
+export const lessonStepSchema = z
+  .object({
+    id: z.string().uuid(),
+    lessonId: lessonIdSchema,
+    sequenceNo: z.number().int().nonnegative(),
+    stateBefore: lessonStateSchema,
+    stateAfter: lessonStateSchema,
+    actionType: tutorActionTypeSchema,
+    status: lessonStepStatusSchema,
+    modelRunId: z.string().uuid(),
+    messageId: z.string().uuid().nullable(),
+    rationale: requiredTextSchema.max(240).nullable(),
+    errorSummary: lessonModelRunErrorSummarySchema.nullable(),
+    createdAt: timestampSchema,
+    finishedAt: timestampSchema.nullable(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.status !== 'started' ||
+      (value.messageId === null &&
+        value.rationale === null &&
+        value.errorSummary === null &&
+        value.finishedAt === null),
+    { message: 'started step must not have completion fields' },
+  )
+  .refine(
+    (value) =>
+      value.status !== 'succeeded' ||
+      (value.messageId !== null &&
+        value.rationale !== null &&
+        value.errorSummary === null &&
+        value.finishedAt !== null),
+    { message: 'succeeded step must have success fields only' },
+  )
+  .refine((value) => value.status === 'started' || value.finishedAt !== null, {
+    message: 'finished step must have finishedAt',
+  })
+
 export const lessonSessionSchema = z
   .object({
     id: lessonIdSchema,
@@ -143,6 +195,8 @@ export const lessonSessionSchema = z
     sourceAnchors: z.array(lessonSourceAnchorSchema).min(1),
     messages: z.array(lessonMessageSchema),
     modelRuns: z.array(lessonModelRunSchema),
+    currentState: lessonStateSchema,
+    steps: z.array(lessonStepSchema),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -261,11 +315,15 @@ export type LessonSourceAnchorDto = z.infer<typeof lessonSourceAnchorSchema>
 export type LessonMessageRoleDto = z.infer<typeof lessonMessageRoleSchema>
 export type LessonMessageDto = z.infer<typeof lessonMessageSchema>
 export type LessonModelRunStatusDto = z.infer<typeof lessonModelRunStatusSchema>
+export type LessonStateDto = z.infer<typeof lessonStateSchema>
+export type TutorActionTypeDto = z.infer<typeof tutorActionTypeSchema>
+export type LessonStepStatusDto = z.infer<typeof lessonStepStatusSchema>
 export type LessonPromptManifestDto = z.infer<typeof lessonPromptManifestSchema>
 export type LessonContextChunkSummaryDto = z.infer<typeof lessonContextChunkSummarySchema>
 export type LessonModelRunInputSummaryDto = z.infer<typeof lessonModelRunInputSummarySchema>
 export type LessonModelRunErrorSummaryDto = z.infer<typeof lessonModelRunErrorSummarySchema>
 export type LessonModelRunDto = z.infer<typeof lessonModelRunSchema>
+export type LessonStepDto = z.infer<typeof lessonStepSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
 export type LessonReplyDraftDto = z.infer<typeof lessonReplyDraftSchema>

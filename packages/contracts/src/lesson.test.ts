@@ -4,6 +4,7 @@ import {
   getLessonRequestSchema,
   lessonModelRunInputSummarySchema,
   lessonModelRunSchema,
+  lessonStepSchema,
   lessonSessionResultSchema,
   lessonSessionSchema,
   lessonSessionsResultSchema,
@@ -20,6 +21,7 @@ const documentId = '00000000-0000-4000-8000-000000000201'
 const anchorId = '00000000-0000-4000-8000-000000000301'
 const messageId = '00000000-0000-4000-8000-000000000401'
 const modelRunId = '00000000-0000-4000-8000-000000000501'
+const stepId = '00000000-0000-4000-8000-000000000701'
 
 const session = {
   id: lessonId,
@@ -82,6 +84,24 @@ const session = {
       outputMessageId: messageId,
       errorSummary: null,
       startedAt: '2026-07-11T00:00:00.000Z',
+      finishedAt: '2026-07-11T00:00:00.000Z',
+    },
+  ],
+  currentState: 'probing',
+  steps: [
+    {
+      id: stepId,
+      lessonId,
+      sequenceNo: 0,
+      stateBefore: 'opening',
+      stateAfter: 'probing',
+      actionType: 'ask',
+      status: 'succeeded',
+      modelRunId,
+      messageId,
+      rationale: 'Started with a source-grounded question.',
+      errorSummary: null,
+      createdAt: '2026-07-11T00:00:00.000Z',
       finishedAt: '2026-07-11T00:00:00.000Z',
     },
   ],
@@ -172,6 +192,7 @@ describe('lesson contracts', () => {
 
   it('rejects full document text and SQLite internals on session DTOs', () => {
     expect(lessonSessionSchema.safeParse(session).success).toBe(true)
+    expect(lessonSessionSchema.parse(session).currentState).toBe('probing')
     expect(
       lessonSessionSchema.safeParse({
         ...session,
@@ -205,6 +226,36 @@ describe('lesson contracts', () => {
       lessonSessionSchema.safeParse({
         ...session,
         modelRuns: [{ ...session.modelRuns[0], inputSummary: { plainText: 'full text' } }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it('validates lesson step DTO status fields', () => {
+    expect(lessonStepSchema.safeParse(session.steps[0]).success).toBe(true)
+    expect(
+      lessonStepSchema.safeParse({
+        ...session.steps[0],
+        status: 'succeeded',
+        errorSummary: {
+          code: 'INTERNAL_ERROR',
+          message: 'The lesson operation could not be completed.',
+          retryable: true,
+        },
+      }).success,
+    ).toBe(false)
+    expect(
+      lessonStepSchema.safeParse({
+        ...session.steps[0],
+        status: 'started',
+        messageId: null,
+        rationale: null,
+        finishedAt: null,
+      }).success,
+    ).toBe(true)
+    expect(
+      lessonStepSchema.safeParse({
+        ...session.steps[0],
+        actionType: 'dance',
       }).success,
     ).toBe(false)
   })
