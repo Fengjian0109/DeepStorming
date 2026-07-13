@@ -2,7 +2,6 @@ import type {
   LessonMessage,
   LessonMode,
   LessonModelRun,
-  PaperLessonProfile,
   LessonState,
   LessonStep,
   LessonSession,
@@ -10,6 +9,8 @@ import type {
   LessonSessionStatus,
   MasteryEvidence,
   MisconceptionSignal,
+  PaperLessonProfile,
+  PaperReadingStage,
   ReviewEvent,
   ReviewItem,
   TutorActionType,
@@ -60,6 +61,8 @@ export type LessonSessionView = LessonSession
 export type LessonTutorReplyRequest = Readonly<{
   documentTitle: string
   sourceSnippet: string
+  lessonMode: LessonMode
+  paperStage: PaperReadingStage | null
   contextChunks: readonly LessonTutorContextChunk[]
   learnerReply: string
 }>
@@ -67,6 +70,8 @@ export type LessonTutorReplyRequest = Readonly<{
 export type LessonTutorFirstQuestionRequest = Readonly<{
   documentTitle: string
   sourceSnippet: string
+  lessonMode: LessonMode
+  paperStage: PaperReadingStage | null
   contextChunks: readonly LessonTutorContextChunk[]
 }>
 

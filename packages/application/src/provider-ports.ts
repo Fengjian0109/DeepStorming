@@ -113,6 +113,8 @@ export interface ProviderGatewayPort {
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      lessonMode: 'standard' | 'paper'
+      paperStage: string | null
       contextChunks: readonly Readonly<{
         chunkId: string
         text: string
@@ -129,6 +131,8 @@ export interface ProviderGatewayPort {
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      lessonMode: 'standard' | 'paper'
+      paperStage: string | null
       contextChunks: readonly Readonly<{
         chunkId: string
         text: string

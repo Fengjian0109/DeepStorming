@@ -325,6 +325,8 @@ class FakeGateway implements ProviderGatewayPort {
       readonly apiKey?: string
       readonly documentTitle: string
       readonly sourceSnippet: string
+      readonly lessonMode: 'standard' | 'paper'
+      readonly paperStage?: string | null
       readonly contextChunks: readonly {
         readonly chunkId: string
         readonly text: string
@@ -345,6 +347,8 @@ class FakeGateway implements ProviderGatewayPort {
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      lessonMode: 'standard' | 'paper'
+      paperStage: string | null
       contextChunks: readonly {
         readonly chunkId: string
         readonly text: string
@@ -365,6 +369,8 @@ class FakeGateway implements ProviderGatewayPort {
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      lessonMode: 'standard' | 'paper'
+      paperStage: string | null
       contextChunks: readonly {
         readonly chunkId: string
         readonly text: string
@@ -1216,6 +1222,8 @@ describe('lesson use cases', () => {
       {
         documentTitle: 'Paper Map',
         sourceSnippet: 'Evidence',
+        lessonMode: 'standard',
+        paperStage: null,
         contextChunks: [],
         learnerReply: '它在说明证据如何支撑判断。',
       },
@@ -1298,6 +1306,8 @@ describe('lesson use cases', () => {
         apiKey: 'api-key',
         documentTitle: 'Paper Map',
         sourceSnippet: 'Evidence',
+        lessonMode: 'standard',
+        paperStage: null,
         contextChunks: [
           {
             chunkId: '00000000-0000-4000-8000-000000000901',
@@ -1309,6 +1319,34 @@ describe('lesson use cases', () => {
         ],
       },
       token: expect.objectContaining({ cancelled: false }),
+    })
+  })
+
+  it('passes paper lesson context into provider-backed first questions', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const providers = new FakeProviderRepository()
+    const vault = new FakeVault()
+    const factory = new FakeGatewayFactory()
+
+    await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+      new ProviderLessonTutorReplyGenerator(providers, vault, factory),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    expect(factory.gateway.calls[0]?.input).toMatchObject({
+      documentTitle: 'Paper Map',
+      sourceSnippet: 'Evidence',
+      lessonMode: 'paper',
+      paperStage: 'orientation',
     })
   })
 
@@ -1538,6 +1576,8 @@ describe('lesson use cases', () => {
       {
         documentTitle: 'Paper Map',
         sourceSnippet: 'Evidence',
+        lessonMode: 'standard',
+        paperStage: null,
         contextChunks: [],
         learnerReply: '它在说明证据如何支撑判断。',
       },
@@ -1564,6 +1604,8 @@ describe('lesson use cases', () => {
           apiKey: 'api-key',
           documentTitle: 'Paper Map',
           sourceSnippet: 'Evidence',
+          lessonMode: 'standard',
+          paperStage: null,
           contextChunks: [],
           learnerReply: '它在说明证据如何支撑判断。',
         },
@@ -1683,6 +1725,83 @@ describe('lesson use cases', () => {
       rationale: 'Learner gave a source-grounded answer that can support follow-up.',
       suggestedReview: false,
       createdAt: now,
+    })
+  })
+
+  it('passes paper lesson context into provider-backed retry follow-ups', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+    const replied = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
+    ).execute({
+      lessonId: created.id,
+      content: 'The paper frames a gap between evidence and behavior.',
+    })
+    lessons.records.set(lessonId, {
+      ...replied,
+      currentState: 'probing',
+      steps: replied.steps.map((step) =>
+        step.modelRunId === followUpRunId
+          ? {
+              ...step,
+              status: 'failed' as const,
+              messageId: null,
+              rationale: null,
+              errorSummary: {
+                code: 'INTERNAL_ERROR',
+                message: 'The lesson operation could not be completed.',
+                retryable: true,
+              },
+              finishedAt: now,
+            }
+          : step,
+      ),
+      modelRuns: replied.modelRuns.map((run) =>
+        run.id === followUpRunId
+          ? { ...run, status: 'failed' as const, outputMessageId: null, finishedAt: now }
+          : run,
+      ),
+      messages: replied.messages.filter((message) => message.id !== followUpMessageId),
+    })
+
+    const providers = new FakeProviderRepository()
+    const vault = new FakeVault()
+    const factory = new FakeGatewayFactory()
+    const retryIds = [retryRunId, retryMessageId, retryEvidenceId]
+    let retryIndex = 0
+
+    await new RetryLessonRun(
+      lessons,
+      clock,
+      { generate: () => retryIds[retryIndex++]! },
+      createContextAssembler(),
+      new ProviderLessonTutorReplyGenerator(providers, vault, factory),
+    ).execute({ lessonId, modelRunId: followUpRunId })
+
+    expect(factory.gateway.calls.at(-1)?.input).toMatchObject({
+      documentTitle: 'Paper Map',
+      sourceSnippet: 'Evidence',
+      learnerReply: 'The paper frames a gap between evidence and behavior.',
+      lessonMode: 'paper',
+      paperStage: 'problem_framing',
     })
   })
 

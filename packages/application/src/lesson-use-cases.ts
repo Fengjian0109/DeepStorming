@@ -842,6 +842,9 @@ const updatePaperProfileAfterReply = (
   }
 }
 
+const currentPaperStage = (session: Pick<StoredLessonSession, 'lessonMode' | 'paperProfile'>) =>
+  session.lessonMode === 'paper' ? (session.paperProfile?.currentStage ?? 'orientation') : null
+
 export class ListLessonSessions {
   public constructor(private readonly repository: LessonRepositoryPort) {}
 
@@ -952,6 +955,8 @@ export class StartLessonFromDocument {
       {
         documentTitle: draft.documentTitle,
         sourceSnippet: draft.source.snippet,
+        lessonMode: draft.lessonMode,
+        paperStage: draft.lessonMode === 'paper' ? 'orientation' : null,
         contextChunks: contextSummary.tutorContextChunks,
       },
       draft.lessonMode,
@@ -1161,6 +1166,8 @@ export class SubmitLessonReply {
         {
           documentTitle: session.documentTitle,
           sourceSnippet: anchor.snippet,
+          lessonMode: session.lessonMode,
+          paperStage: currentPaperStage(session),
           contextChunks: contextSummary.tutorContextChunks,
           learnerReply: draft.content,
         },
@@ -1359,6 +1366,8 @@ export class RetryLessonRun {
         {
           documentTitle: session.documentTitle,
           sourceSnippet: anchor.snippet,
+          lessonMode: session.lessonMode,
+          paperStage: currentPaperStage(session),
           contextChunks: contextSummary.tutorContextChunks,
           learnerReply: learnerMessage.content,
         },
@@ -1583,6 +1592,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             modelName: activeProvider.modelName,
             documentTitle: input.documentTitle,
             sourceSnippet: input.sourceSnippet,
+            lessonMode: input.lessonMode,
+            paperStage: input.paperStage,
             contextChunks: input.contextChunks,
           }
         : {
@@ -1590,6 +1601,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             apiKey,
             documentTitle: input.documentTitle,
             sourceSnippet: input.sourceSnippet,
+            lessonMode: input.lessonMode,
+            paperStage: input.paperStage,
             contextChunks: input.contextChunks,
           },
       token,
@@ -1632,6 +1645,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             modelName: activeProvider.modelName,
             documentTitle: input.documentTitle,
             sourceSnippet: input.sourceSnippet,
+            lessonMode: input.lessonMode,
+            paperStage: input.paperStage,
             contextChunks: input.contextChunks,
             learnerReply: input.learnerReply,
           }
@@ -1640,6 +1655,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             apiKey,
             documentTitle: input.documentTitle,
             sourceSnippet: input.sourceSnippet,
+            lessonMode: input.lessonMode,
+            paperStage: input.paperStage,
             contextChunks: input.contextChunks,
             learnerReply: input.learnerReply,
           },
