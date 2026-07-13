@@ -176,6 +176,29 @@ CREATE INDEX document_text_blocks_document_page ON document_text_blocks(document
 const LESSON_SOURCE_TARGET_SQL = `
 ALTER TABLE lesson_source_anchors ADD COLUMN target_json TEXT;`
 
+const DOCUMENT_CHUNK_SQL = `
+CREATE TABLE document_chunks (
+ id TEXT PRIMARY KEY,
+ document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE CASCADE,
+ chunk_index INTEGER NOT NULL CHECK (chunk_index >= 0),
+ page_number_start INTEGER NOT NULL CHECK (page_number_start > 0),
+ page_number_end INTEGER NOT NULL CHECK (page_number_end >= page_number_start),
+ block_ids_json TEXT NOT NULL,
+ text TEXT NOT NULL,
+ char_count INTEGER NOT NULL CHECK (char_count >= 0),
+ source_version TEXT NOT NULL,
+ rebuild_token TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(document_id, chunk_index)
+);
+CREATE INDEX document_chunks_document_index ON document_chunks(document_id, chunk_index);
+CREATE INDEX document_chunks_freshness_index ON document_chunks(document_id, source_version, rebuild_token);
+CREATE VIRTUAL TABLE document_chunks_fts USING fts5(
+ chunk_id UNINDEXED,
+ document_id UNINDEXED,
+ body
+);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -186,6 +209,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 7, name: 'lesson_model_run_error_summary', sql: LESSON_MODEL_RUN_ERROR_SUMMARY_SQL },
   { version: 8, name: 'pdf_document_foundation', sql: PDF_DOCUMENT_SQL },
   { version: 9, name: 'lesson_source_target', sql: LESSON_SOURCE_TARGET_SQL },
+  { version: 10, name: 'document_chunk_storage', sql: DOCUMENT_CHUNK_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

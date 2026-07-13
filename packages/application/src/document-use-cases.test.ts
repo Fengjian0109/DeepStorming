@@ -6,6 +6,7 @@ import type {
   PdfTextExtractorPort,
   DocumentTextHasherPort,
   StoredDocumentFile,
+  StoredDocumentChunk,
   StoredDocumentPage,
   StoredDocumentTextBlock,
   StoredDocument,
@@ -100,6 +101,7 @@ class FakeDocumentImportRepository implements DocumentImportRepositoryPort {
   public files = new Map<string, StoredDocumentFile>()
   public pages = new Map<string, StoredDocumentPage[]>()
   public blocks = new Map<string, StoredDocumentTextBlock[]>()
+  public chunks = new Map<string, StoredDocumentChunk[]>()
   public statusHistory: DocumentImportJob['status'][] = []
 
   async saveJob(job: DocumentImportJob): Promise<DocumentImportJob> {
@@ -149,6 +151,40 @@ class FakeDocumentImportRepository implements DocumentImportRepositoryPort {
   async findTextBlock(documentId: string, pageNumber: number, blockId: string) {
     return (this.blocks.get(documentId) ?? []).find(
       (block) => block.pageNumber === pageNumber && block.id === blockId,
+    )
+  }
+
+  async replaceChunks(documentId: string, chunks: readonly StoredDocumentChunk[]): Promise<void> {
+    this.chunks.set(documentId, [...chunks])
+  }
+
+  async listChunks(documentId: string): Promise<readonly StoredDocumentChunk[]> {
+    return this.chunks.get(documentId) ?? []
+  }
+
+  async searchChunks(input: {
+    documentId: string
+    query: string
+    limit: number
+  }): Promise<readonly StoredDocumentChunk[]> {
+    const normalized = input.query.toLocaleLowerCase()
+    return (this.chunks.get(input.documentId) ?? [])
+      .filter((chunk) => chunk.text.toLocaleLowerCase().includes(normalized))
+      .slice(0, input.limit)
+  }
+
+  async hasFreshChunks(
+    documentId: string,
+    sourceVersion: string,
+    rebuildToken: string,
+  ): Promise<boolean> {
+    const chunks = this.chunks.get(documentId) ?? []
+    return (
+      chunks.length > 0 &&
+      chunks.every(
+        (chunk) =>
+          chunk.sourceVersion === sourceVersion && chunk.rebuildToken === rebuildToken,
+      )
     )
   }
 

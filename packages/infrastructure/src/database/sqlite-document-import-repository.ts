@@ -1,5 +1,6 @@
 import type {
   DocumentImportRepositoryPort,
+  StoredDocumentChunk,
   StoredDocumentFile,
   StoredDocumentPage,
   StoredDocumentTextBlock,
@@ -57,6 +58,20 @@ type BlockRow = {
   y: number | null
   width: number | null
   height: number | null
+  created_at: string
+}
+
+type ChunkRow = {
+  id: string
+  document_id: string
+  chunk_index: number
+  page_number_start: number
+  page_number_end: number
+  block_ids_json: string
+  text: string
+  char_count: number
+  source_version: string
+  rebuild_token: string
   created_at: string
 }
 
@@ -135,6 +150,28 @@ const mapBlock = (row: BlockRow): StoredDocumentTextBlock => ({
   ...(row.y === null ? {} : { y: row.y }),
   ...(row.width === null ? {} : { width: row.width }),
   ...(row.height === null ? {} : { height: row.height }),
+  createdAt: row.created_at,
+})
+
+const parseBlockIds = (value: string): readonly string[] => {
+  const parsed: unknown = JSON.parse(value)
+  if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string')) {
+    throw new Error('invalid document chunk block ids json')
+  }
+  return parsed
+}
+
+const mapChunk = (row: ChunkRow): StoredDocumentChunk => ({
+  id: row.id,
+  documentId: row.document_id,
+  chunkIndex: row.chunk_index,
+  pageNumberStart: row.page_number_start,
+  pageNumberEnd: row.page_number_end,
+  blockIds: parseBlockIds(row.block_ids_json),
+  text: row.text,
+  charCount: row.char_count,
+  sourceVersion: row.source_version,
+  rebuildToken: row.rebuild_token,
   createdAt: row.created_at,
 })
 
@@ -354,6 +391,128 @@ export class SqliteDocumentImportRepository implements DocumentImportRepositoryP
         )
         .get(documentId, pageNumber, blockId) as BlockRow | undefined
       return row === undefined ? undefined : mapBlock(row)
+    })
+  }
+
+  public async replaceChunks(
+    documentId: string,
+    chunks: readonly StoredDocumentChunk[],
+  ): Promise<void> {
+    return this.safe(() =>
+      this.db.transaction(() => {
+        this.db.prepare('DELETE FROM document_chunks_fts WHERE document_id=?').run(documentId)
+        this.db.prepare('DELETE FROM document_chunks WHERE document_id=?').run(documentId)
+
+        const insertChunk = this.db.prepare(
+          `INSERT INTO document_chunks
+           (id,document_id,chunk_index,page_number_start,page_number_end,block_ids_json,text,char_count,source_version,rebuild_token,created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        )
+        const insertChunkFts = this.db.prepare(
+          `INSERT INTO document_chunks_fts (chunk_id,document_id,body)
+           VALUES (?,?,?)`,
+        )
+
+        for (const chunk of chunks) {
+          insertChunk.run(
+            chunk.id,
+            chunk.documentId,
+            chunk.chunkIndex,
+            chunk.pageNumberStart,
+            chunk.pageNumberEnd,
+            JSON.stringify(chunk.blockIds),
+            chunk.text,
+            chunk.charCount,
+            chunk.sourceVersion,
+            chunk.rebuildToken,
+            chunk.createdAt,
+          )
+          insertChunkFts.run(chunk.id, chunk.documentId, chunk.text)
+        }
+      })(),
+    )
+  }
+
+  public async listChunks(documentId: string): Promise<readonly StoredDocumentChunk[]> {
+    return this.safe(() =>
+      (
+        this.db
+          .prepare(
+            `SELECT id,document_id,chunk_index,page_number_start,page_number_end,block_ids_json,text,
+                    char_count,source_version,rebuild_token,created_at
+             FROM document_chunks
+             WHERE document_id=?
+             ORDER BY chunk_index,id`,
+          )
+          .all(documentId) as ChunkRow[]
+      ).map(mapChunk),
+    )
+  }
+
+  public async searchChunks(input: {
+    documentId: string
+    query: string
+    limit: number
+  }): Promise<readonly StoredDocumentChunk[]> {
+    return this.safe(() =>
+      (
+        this.db
+          .prepare(
+            `SELECT c.id,c.document_id,c.chunk_index,c.page_number_start,c.page_number_end,
+                    c.block_ids_json,c.text,c.char_count,c.source_version,c.rebuild_token,c.created_at
+             FROM document_chunks_fts f
+             INNER JOIN document_chunks c ON c.id = f.chunk_id
+             WHERE f.document_id=? AND document_chunks_fts MATCH ?
+             ORDER BY c.chunk_index, c.id
+             LIMIT ?`,
+          )
+          .all(input.documentId, input.query, input.limit) as ChunkRow[]
+      ).map(mapChunk),
+    )
+  }
+
+  public async hasFreshChunks(
+    documentId: string,
+    sourceVersion: string,
+    rebuildToken: string,
+  ): Promise<boolean> {
+    return this.safe(() => {
+      const row = this.db
+        .prepare(
+          `SELECT EXISTS(
+               SELECT 1
+               FROM document_chunks
+               WHERE document_id=?
+             ) has_chunks,
+             EXISTS(
+               SELECT 1
+               FROM document_chunks
+               WHERE document_id=?
+                 AND source_version=?
+                 AND rebuild_token=?
+             ) has_matching_chunks,
+             EXISTS(
+               SELECT 1
+               FROM document_chunks
+               WHERE document_id=?
+                 AND (source_version<>? OR rebuild_token<>?)
+             ) has_stale_chunks`,
+        )
+        .get(
+          documentId,
+          documentId,
+          sourceVersion,
+          rebuildToken,
+          documentId,
+          sourceVersion,
+          rebuildToken,
+        ) as {
+        has_chunks: number
+        has_matching_chunks: number
+        has_stale_chunks: number
+      }
+
+      return row.has_chunks === 1 && row.has_matching_chunks === 1 && row.has_stale_chunks === 0
     })
   }
 }

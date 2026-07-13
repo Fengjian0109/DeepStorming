@@ -66,6 +66,20 @@ export type StoredDocumentTextBlock = Readonly<{
   createdAt: string
 }>
 
+export type StoredDocumentChunk = Readonly<{
+  id: string
+  documentId: string
+  chunkIndex: number
+  pageNumberStart: number
+  pageNumberEnd: number
+  blockIds: readonly string[]
+  text: string
+  charCount: number
+  sourceVersion: string
+  rebuildToken: string
+  createdAt: string
+}>
+
 export interface DocumentImportRepositoryPort {
   saveJob(job: DocumentImportJob): Promise<DocumentImportJob>
   updateJob(job: DocumentImportJob): Promise<DocumentImportJob>
@@ -85,6 +99,14 @@ export interface DocumentImportRepositoryPort {
     pageNumber: number,
     blockId: string,
   ): Promise<StoredDocumentTextBlock | undefined>
+  replaceChunks(documentId: string, chunks: readonly StoredDocumentChunk[]): Promise<void>
+  listChunks(documentId: string): Promise<readonly StoredDocumentChunk[]>
+  searchChunks(input: {
+    documentId: string
+    query: string
+    limit: number
+  }): Promise<readonly StoredDocumentChunk[]>
+  hasFreshChunks(documentId: string, sourceVersion: string, rebuildToken: string): Promise<boolean>
 }
 
 export type PdfFileDescription = Readonly<{

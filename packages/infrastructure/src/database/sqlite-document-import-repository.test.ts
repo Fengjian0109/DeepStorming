@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { StoredDocumentDetail } from '@deepstorming/application'
+import type { StoredDocumentChunk, StoredDocumentDetail } from '@deepstorming/application'
 import type { DocumentImportJob } from '@deepstorming/domain'
 import { openDatabase, type SqliteDatabase } from './database'
 import { migrateDatabase } from './migrations'
@@ -17,6 +17,8 @@ let documentRepo: SqliteDocumentRepository
 const documentId = '00000000-0000-4000-8000-000000000101'
 const jobId = '00000000-0000-4000-8000-000000000201'
 const pageId = '00000000-0000-4000-8000-000000000301'
+const chunkId1 = '00000000-0000-4000-8000-000000000501'
+const chunkId2 = '00000000-0000-4000-8000-000000000502'
 
 const document = (overrides: Partial<StoredDocumentDetail> = {}): StoredDocumentDetail => ({
   id: documentId,
@@ -45,6 +47,23 @@ const importJob = (overrides: Partial<DocumentImportJob> = {}): DocumentImportJo
   createdAt: '2026-07-12T00:00:00.000Z',
   updatedAt: '2026-07-12T00:00:00.000Z',
   finishedAt: null,
+  ...overrides,
+})
+
+const documentChunk = (
+  overrides: Partial<StoredDocumentChunk> = {},
+): StoredDocumentChunk => ({
+  id: chunkId1,
+  documentId,
+  chunkIndex: 0,
+  pageNumberStart: 1,
+  pageNumberEnd: 1,
+  blockIds: ['00000000-0000-4000-8000-000000000401'],
+  text: 'Gradient descent converges with a stable step size.',
+  charCount: 52,
+  sourceVersion: 'page-text:v1',
+  rebuildToken: 'chunk-rule:v1',
+  createdAt: '2026-07-12T00:02:00.000Z',
   ...overrides,
 })
 
@@ -174,5 +193,75 @@ describe('SqliteDocumentImportRepository', () => {
     await expect(repo.listJobsForDocument(documentId)).resolves.toEqual([
       expect.objectContaining({ id: jobId, documentId, status: 'ready' }),
     ])
+  })
+
+  it('replaces, lists, and lexically searches document chunks', async () => {
+    await documentRepo.create(document())
+    await repo.replaceChunks(documentId, [
+      documentChunk(),
+      documentChunk({
+        id: chunkId2,
+        chunkIndex: 1,
+        pageNumberStart: 2,
+        pageNumberEnd: 3,
+        blockIds: [
+          '00000000-0000-4000-8000-000000000402',
+          '00000000-0000-4000-8000-000000000403',
+        ],
+        text: 'Gradient descent also needs a gradient clipping strategy.',
+        charCount: 58,
+        createdAt: '2026-07-12T00:02:01.000Z',
+      }),
+    ])
+
+    await expect(repo.listChunks(documentId)).resolves.toEqual([
+      expect.objectContaining({
+        id: chunkId1,
+        chunkIndex: 0,
+        blockIds: ['00000000-0000-4000-8000-000000000401'],
+      }),
+      expect.objectContaining({
+        id: chunkId2,
+        chunkIndex: 1,
+        blockIds: [
+          '00000000-0000-4000-8000-000000000402',
+          '00000000-0000-4000-8000-000000000403',
+        ],
+      }),
+    ])
+
+    await expect(
+      repo.searchChunks({
+        documentId,
+        query: 'gradient descent',
+        limit: 5,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: chunkId1,
+        chunkIndex: 0,
+        text: 'Gradient descent converges with a stable step size.',
+      }),
+      expect.objectContaining({
+        id: chunkId2,
+        chunkIndex: 1,
+        text: 'Gradient descent also needs a gradient clipping strategy.',
+      }),
+    ])
+  })
+
+  it('detects whether stored chunks are fresh for a document version and rebuild token', async () => {
+    await documentRepo.create(document())
+    await repo.replaceChunks(documentId, [documentChunk()])
+
+    await expect(repo.hasFreshChunks(documentId, 'page-text:v1', 'chunk-rule:v1')).resolves.toBe(
+      true,
+    )
+    await expect(repo.hasFreshChunks(documentId, 'page-text:v2', 'chunk-rule:v1')).resolves.toBe(
+      false,
+    )
+    await expect(repo.hasFreshChunks(documentId, 'page-text:v1', 'chunk-rule:v2')).resolves.toBe(
+      false,
+    )
   })
 })
