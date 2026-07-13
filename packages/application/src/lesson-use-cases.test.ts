@@ -39,6 +39,9 @@ const followUpRunId = '00000000-0000-4000-8000-000000000106'
 const followUpMessageId = '00000000-0000-4000-8000-000000000107'
 const retryRunId = '00000000-0000-4000-8000-000000000108'
 const retryMessageId = '00000000-0000-4000-8000-000000000109'
+const evidenceId = '00000000-0000-4000-8000-000000000110'
+const signalId = '00000000-0000-4000-8000-000000000111'
+const retryEvidenceId = '00000000-0000-4000-8000-000000000112'
 const documentId = '00000000-0000-4000-8000-000000000001'
 const operationId = '00000000-0000-4000-8000-000000000701'
 
@@ -578,7 +581,7 @@ describe('lesson use cases', () => {
 
   it('appends a learner reply and deterministic tutor follow-up', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
-    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
     let startIndex = 0
     const startAssembler = new FakeLessonContextAssembler()
     const created = await new StartLessonFromDocument(
@@ -719,12 +722,74 @@ describe('lesson use cases', () => {
         fallbackSnippet: 'Evidence',
       },
     ])
+    expect(updated.masteryEvidence).toEqual([
+      {
+        id: evidenceId,
+        lessonId,
+        stepId: followUpRunId,
+        learnerMessageId,
+        tutorMessageId: followUpMessageId,
+        kind: 'teach_back',
+        judgement: 'partial_understanding',
+        confidence: 0.55,
+        rationale: 'Learner gave a source-grounded answer that can support follow-up.',
+        suggestedReview: false,
+        createdAt: now,
+      },
+    ])
+    expect(updated.misconceptionSignals).toEqual([])
     expect(JSON.stringify(updated)).not.toContain('plainText')
+  })
+
+  it('records insufficient evidence for a short non-stuck reply without misconception signals', async () => {
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
+    ).execute({
+      lessonId: created.id,
+      content: '是的',
+    })
+
+    expect(updated.masteryEvidence).toEqual([
+      {
+        id: evidenceId,
+        lessonId,
+        stepId: followUpRunId,
+        learnerMessageId,
+        tutorMessageId: followUpMessageId,
+        kind: 'teach_back',
+        judgement: 'insufficient',
+        confidence: 0.65,
+        rationale: 'Learner reply was too short to show stable understanding.',
+        suggestedReview: true,
+        createdAt: now,
+      },
+    ])
+    expect(updated.misconceptionSignals).toEqual([])
   })
 
   it('routes stuck learner replies into the hinting state', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
-    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId, signalId]
     let startIndex = 0
     const created = await new StartLessonFromDocument(
       documents,
@@ -758,11 +823,37 @@ describe('lesson use cases', () => {
       stateAfter: 'hinting',
       status: 'succeeded',
     })
+    expect(hinting.masteryEvidence).toEqual([
+      {
+        id: evidenceId,
+        lessonId,
+        stepId: followUpRunId,
+        learnerMessageId,
+        tutorMessageId: followUpMessageId,
+        kind: 'stuck_signal',
+        judgement: 'needs_review',
+        confidence: 0.75,
+        rationale: 'Learner explicitly signaled they are stuck or unsure.',
+        suggestedReview: true,
+        createdAt: now,
+      },
+    ])
+    expect(hinting.misconceptionSignals).toEqual([
+      {
+        id: signalId,
+        evidenceId,
+        lessonId,
+        label: '学习者表达卡住',
+        severity: 'medium',
+        rationale: 'Learner used language that indicates confusion or being stuck.',
+        createdAt: now,
+      },
+    ])
   })
 
   it('uses assembled chunk text in the local follow-up fallback path', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
-    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
     let startIndex = 0
     const created = await new StartLessonFromDocument(
       documents,
@@ -855,7 +946,7 @@ describe('lesson use cases', () => {
 
   it('uses an injected tutor generator for follow-up content and model metadata', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
-    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
     let startIndex = 0
     const created = await new StartLessonFromDocument(
       documents,
@@ -985,7 +1076,7 @@ describe('lesson use cases', () => {
 
   it('persists a started provider run before requesting a tutor follow-up', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
-    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
     let startIndex = 0
     const created = await new StartLessonFromDocument(
       documents,
@@ -1111,6 +1202,8 @@ describe('lesson use cases', () => {
       },
       finishedAt: now,
     })
+    expect(failed?.masteryEvidence).toEqual([])
+    expect(failed?.misconceptionSignals).toEqual([])
   })
 
   it('cancels an in-flight provider reply and persists the run as cancelled', async () => {
@@ -1190,6 +1283,8 @@ describe('lesson use cases', () => {
       },
       finishedAt: now,
     })
+    expect(cancelled?.masteryEvidence).toEqual([])
+    expect(cancelled?.misconceptionSignals).toEqual([])
   })
 
   it('generates tutor replies through the active provider gateway', async () => {
@@ -1241,7 +1336,7 @@ describe('lesson use cases', () => {
 
   it('retries a failed tutor run with a deterministic follow-up', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
-    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
     let startIndex = 0
     const created = await new StartLessonFromDocument(
       documents,
@@ -1291,7 +1386,7 @@ describe('lesson use cases', () => {
       ),
       messages: replied.messages.filter((message) => message.id !== followUpMessageId),
     })
-    const retryIds = [retryRunId, retryMessageId]
+    const retryIds = [retryRunId, retryMessageId, retryEvidenceId]
     let retryIndex = 0
 
     const retried = await new RetryLessonRun(
@@ -1337,6 +1432,19 @@ describe('lesson use cases', () => {
       status: 'succeeded',
       modelRunId: retryRunId,
       messageId: retryMessageId,
+    })
+    expect(retried.masteryEvidence).toContainEqual({
+      id: retryEvidenceId,
+      lessonId,
+      stepId: retryRunId,
+      learnerMessageId,
+      tutorMessageId: retryMessageId,
+      kind: 'teach_back',
+      judgement: 'partial_understanding',
+      confidence: 0.55,
+      rationale: 'Learner gave a source-grounded answer that can support follow-up.',
+      suggestedReview: false,
+      createdAt: now,
     })
   })
 

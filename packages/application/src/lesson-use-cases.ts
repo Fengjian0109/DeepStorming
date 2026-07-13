@@ -1,4 +1,6 @@
 import {
+  normalizeMasteryEvidence,
+  normalizeMisconceptionSignal,
   normalizeLessonStep,
   normalizeLessonStartDraft,
   normalizeTutorAction,
@@ -21,6 +23,8 @@ import type {
   LessonTutorReplyRequest,
   LessonTutorReplyGeneratorPort,
   LessonTutorReplyResult,
+  StoredMasteryEvidence,
+  StoredMisconceptionSignal,
   StoredLessonSession,
   DocumentSourceLocatorPort,
 } from './lesson-ports'
@@ -468,6 +472,100 @@ const failModelRun = (
 
 const nextStepSequence = (session: StoredLessonSession): number => session.steps.length
 
+const STUCK_REPLY_PATTERN = /不会|不懂|卡住|不知道|help|stuck|confused/iu
+
+const classifyMasteryEvidence = (input: {
+  evidenceId: string
+  signalId?: string | undefined
+  lessonId: string
+  stepId: string
+  learnerMessageId: string
+  tutorMessageId: string
+  learnerReply: string
+  createdAt: string
+}): Readonly<{
+  evidence: StoredMasteryEvidence
+  signals: readonly StoredMisconceptionSignal[]
+}> => {
+  const trimmedReply = input.learnerReply.trim()
+  const isStuck = STUCK_REPLY_PATTERN.test(trimmedReply)
+  if (isStuck) {
+    const evidence = normalizeMasteryEvidence({
+      id: input.evidenceId,
+      lessonId: input.lessonId,
+      stepId: input.stepId,
+      learnerMessageId: input.learnerMessageId,
+      tutorMessageId: input.tutorMessageId,
+      kind: 'stuck_signal',
+      judgement: 'needs_review',
+      confidence: 0.75,
+      rationale: 'Learner explicitly signaled they are stuck or unsure.',
+      suggestedReview: true,
+      createdAt: input.createdAt,
+    })
+    if (input.signalId === undefined) throw internalError()
+    return {
+      evidence,
+      signals: [
+        normalizeMisconceptionSignal({
+          id: input.signalId,
+          evidenceId: input.evidenceId,
+          lessonId: input.lessonId,
+          label: '学习者表达卡住',
+          severity: 'medium',
+          rationale: 'Learner used language that indicates confusion or being stuck.',
+          createdAt: input.createdAt,
+        }),
+      ],
+    }
+  }
+
+  if (trimmedReply.length < 12) {
+    return {
+      evidence: normalizeMasteryEvidence({
+        id: input.evidenceId,
+        lessonId: input.lessonId,
+        stepId: input.stepId,
+        learnerMessageId: input.learnerMessageId,
+        tutorMessageId: input.tutorMessageId,
+        kind: 'teach_back',
+        judgement: 'insufficient',
+        confidence: 0.65,
+        rationale: 'Learner reply was too short to show stable understanding.',
+        suggestedReview: true,
+        createdAt: input.createdAt,
+      }),
+      signals: [],
+    }
+  }
+
+  return {
+    evidence: normalizeMasteryEvidence({
+      id: input.evidenceId,
+      lessonId: input.lessonId,
+      stepId: input.stepId,
+      learnerMessageId: input.learnerMessageId,
+      tutorMessageId: input.tutorMessageId,
+      kind: 'teach_back',
+      judgement: 'partial_understanding',
+      confidence: 0.55,
+      rationale: 'Learner gave a source-grounded answer that can support follow-up.',
+      suggestedReview: false,
+      createdAt: input.createdAt,
+    }),
+    signals: [],
+  }
+}
+
+const createMasteryDiagnosis = (
+  ids: IdGeneratorPort,
+  input: Omit<Parameters<typeof classifyMasteryEvidence>[0], 'evidenceId' | 'signalId'>,
+): ReturnType<typeof classifyMasteryEvidence> => {
+  const evidenceId = ids.generate()
+  const signalId = STUCK_REPLY_PATTERN.test(input.learnerReply.trim()) ? ids.generate() : undefined
+  return classifyMasteryEvidence({ ...input, evidenceId, signalId })
+}
+
 const classifyTutorAction = (
   currentState: LessonState,
   learnerReply: string,
@@ -584,6 +682,21 @@ const completeOperation = (
   operationId: string | undefined,
 ): void => {
   if (operations !== undefined && operationId !== undefined) operations.complete(operationId)
+}
+
+const findLearnerMessageBeforeRun = (
+  session: StoredLessonSession,
+  modelRun: StoredLessonSession['modelRuns'][number],
+): StoredLessonSession['messages'][number] | undefined => {
+  const outputIndex =
+    modelRun.outputMessageId === null
+      ? -1
+      : session.messages.findIndex((message) => message.id === modelRun.outputMessageId)
+  const searchSpace =
+    outputIndex >= 0
+      ? session.messages.slice(0, outputIndex)
+      : session.messages.filter((message) => message.createdAt <= modelRun.startedAt)
+  return [...searchSpace].reverse().find((message) => message.role === 'learner')
 }
 
 export class ListLessonSessions {
@@ -910,6 +1023,19 @@ export class SubmitLessonReply {
       citedChunkIds: contextSummary.contextChunks.map((chunk) => chunk.chunkId),
       rationale: tutorReply.rationale ?? classifiedAction.rationale,
     })
+    let diagnosis: ReturnType<typeof createMasteryDiagnosis>
+    try {
+      diagnosis = createMasteryDiagnosis(this.ids, {
+        lessonId: session.id,
+        stepId: modelRunId,
+        learnerMessageId,
+        tutorMessageId,
+        learnerReply: draft.content,
+        createdAt,
+      })
+    } catch (error) {
+      throw asInternalError(error)
+    }
     const updated: StoredLessonSession = {
       ...pending,
       messages: [
@@ -940,6 +1066,8 @@ export class SubmitLessonReply {
             })
           : step,
       ),
+      masteryEvidence: [...pending.masteryEvidence, diagnosis.evidence],
+      misconceptionSignals: [...pending.misconceptionSignals, ...diagnosis.signals],
       updatedAt: createdAt,
     }
 
@@ -982,12 +1110,7 @@ export class RetryLessonRun {
       throw validationError(new Error('Lesson model run cannot be retried.'))
     }
 
-    const learnerMessage = [...session.messages]
-      .reverse()
-      .find((message) => message.role === 'learner')
-    if (learnerMessage === undefined) {
-      throw validationError(new Error('A learner reply is required before retrying a lesson run.'))
-    }
+    const learnerMessage = findLearnerMessageBeforeRun(session, modelRun)
 
     const anchorId = modelRun.sourceAnchorIds[0]
     const anchor =
@@ -995,6 +1118,10 @@ export class RetryLessonRun {
       session.sourceAnchors[0]
     if (anchor === undefined) throw internalError()
     if (this.lessonContextAssembler === undefined) throw internalError()
+
+    if (learnerMessage === undefined) {
+      return toView(session)
+    }
 
     let createdAt: string
     let modelRunId: string
@@ -1079,6 +1206,21 @@ export class RetryLessonRun {
       citedChunkIds: contextSummary.contextChunks.map((chunk) => chunk.chunkId),
       rationale: tutorReply.rationale ?? classifiedAction.rationale,
     })
+    let diagnosis: ReturnType<typeof createMasteryDiagnosis> | undefined
+    if (!session.masteryEvidence.some((evidence) => evidence.tutorMessageId === tutorMessageId)) {
+      try {
+        diagnosis = createMasteryDiagnosis(this.ids, {
+          lessonId: session.id,
+          stepId: modelRunId,
+          learnerMessageId: learnerMessage.id,
+          tutorMessageId,
+          learnerReply: learnerMessage.content,
+          createdAt,
+        })
+      } catch (error) {
+        throw asInternalError(error)
+      }
+    }
     const updated: StoredLessonSession = {
       ...pending,
       messages: [
@@ -1109,6 +1251,14 @@ export class RetryLessonRun {
             })
           : step,
       ),
+      masteryEvidence:
+        diagnosis === undefined
+          ? pending.masteryEvidence
+          : [...pending.masteryEvidence, diagnosis.evidence],
+      misconceptionSignals:
+        diagnosis === undefined
+          ? pending.misconceptionSignals
+          : [...pending.misconceptionSignals, ...diagnosis.signals],
       updatedAt: createdAt,
     }
 
