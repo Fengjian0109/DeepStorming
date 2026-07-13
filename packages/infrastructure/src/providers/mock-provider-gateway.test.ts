@@ -49,6 +49,7 @@ test('generates deterministic lesson tutor replies from source evidence and lear
         modelName: 'mock-success',
         documentTitle: 'Research Notes',
         sourceSnippet: 'Evidence',
+        contextChunks: [],
         learnerReply: '它在说明证据如何支撑判断。',
       },
       liveToken(),
@@ -75,6 +76,7 @@ test('honors cancellation while mock lesson generation is pending', async () => 
       modelName: 'mock-delay',
       documentTitle: 'Research Notes',
       sourceSnippet: 'Evidence',
+      contextChunks: [],
       learnerReply: '它在说明证据如何支撑判断。',
     },
     token,
@@ -83,4 +85,29 @@ test('honors cancellation while mock lesson generation is pending', async () => 
   await expect(pending).rejects.toEqual(
     new ProviderUseCaseError('OPERATION_CANCELLED', 'The provider test was cancelled.', false),
   )
+})
+
+test('generates deterministic first questions from source evidence and chunk context', async () => {
+  await expect(
+    new MockProviderGateway().generateLessonTutorFirstQuestion(
+      {
+        modelName: 'mock-success',
+        documentTitle: 'Research Notes',
+        sourceSnippet: 'Evidence',
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            text: 'Prior context',
+            pageNumberStart: 1,
+            pageNumberEnd: 1,
+            charCount: 13,
+          },
+        ],
+      },
+      liveToken(),
+    ),
+  ).resolves.toEqual({
+    content:
+      '我们先从《Research Notes》的这段证据开始：Evidence\n\n结合这些上下文片段，你觉得它想解决的核心问题是什么？',
+  })
 })

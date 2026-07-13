@@ -87,6 +87,13 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      contextChunks: readonly Readonly<{
+        chunkId: string
+        text: string
+        pageNumberStart: number
+        pageNumberEnd: number
+        charCount: number
+      }>[]
       learnerReply: string
     }>,
     token: CancellationToken,
@@ -103,6 +110,54 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
             modelName: input.modelName,
             apiKey: input.apiKey,
             messages: lessonTutorMessages(input),
+            maxTokens: 220,
+          }
+    const body = await this.postChatCompletion(
+      request,
+      token,
+      'The provider lesson generation timed out.',
+      'The provider lesson generation could not reach the provider.',
+    )
+    const content = firstAssistantContent(body)
+    if (content === undefined) {
+      throw new ProviderUseCaseError(
+        'PROVIDER_RESPONSE_INVALID',
+        'The provider returned an invalid response.',
+        true,
+        { fieldName: 'choices.message.content' },
+      )
+    }
+    return { content }
+  }
+
+  public async generateLessonTutorFirstQuestion(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      documentTitle: string
+      sourceSnippet: string
+      contextChunks: readonly Readonly<{
+        chunkId: string
+        text: string
+        pageNumberStart: number
+        pageNumberEnd: number
+        charCount: number
+      }>[]
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>> {
+    if (token.cancelled) throw cancelledError()
+    const request =
+      input.apiKey === undefined
+        ? {
+            modelName: input.modelName,
+            messages: lessonTutorFirstQuestionMessages(input),
+            maxTokens: 220,
+          }
+        : {
+            modelName: input.modelName,
+            apiKey: input.apiKey,
+            messages: lessonTutorFirstQuestionMessages(input),
             maxTokens: 220,
           }
     const body = await this.postChatCompletion(
@@ -249,19 +304,66 @@ const hasChoices = (body: unknown): boolean => {
   return Array.isArray(choices) && choices.length > 0
 }
 
+const formatContextChunks = (
+  contextChunks: readonly Readonly<{
+    chunkId: string
+    text: string
+    pageNumberStart: number
+    pageNumberEnd: number
+    charCount: number
+  }>[],
+): string =>
+  contextChunks.length === 0
+    ? '无'
+    : contextChunks
+        .map(
+          (chunk, index) =>
+            `${index + 1}. [${chunk.pageNumberStart}-${chunk.pageNumberEnd}] ${chunk.text}`,
+        )
+        .join('\n')
+
+const lessonTutorFirstQuestionMessages = (input: {
+  readonly documentTitle: string
+  readonly sourceSnippet: string
+  readonly contextChunks: readonly Readonly<{
+    chunkId: string
+    text: string
+    pageNumberStart: number
+    pageNumberEnd: number
+    charCount: number
+  }>[]
+}): readonly Readonly<{ role: 'system' | 'user'; content: string }>[] => [
+  {
+    role: 'system',
+    content:
+      '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段和扩展上下文提出开场问题，不编造来源。',
+  },
+  {
+    role: 'user',
+    content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n扩展上下文：\n${formatContextChunks(input.contextChunks)}\n请用中文提出一个简短开场问题，帮助学习者先判断这段证据想解决的核心问题。`,
+  },
+]
+
 const lessonTutorMessages = (input: {
   readonly documentTitle: string
   readonly sourceSnippet: string
+  readonly contextChunks: readonly Readonly<{
+    chunkId: string
+    text: string
+    pageNumberStart: number
+    pageNumberEnd: number
+    charCount: number
+  }>[]
   readonly learnerReply: string
 }): readonly Readonly<{ role: 'system' | 'user'; content: string }>[] => [
   {
     role: 'system',
     content:
-      '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段和学习者回答继续追问，不编造来源。',
+      '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段、扩展上下文和学习者回答继续追问，不编造来源。',
   },
   {
     role: 'user',
-    content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n学习者回答：${input.learnerReply}\n请用中文提出一个简短追问，帮助学习者验证自己的判断。`,
+    content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n扩展上下文：\n${formatContextChunks(input.contextChunks)}\n学习者回答：${input.learnerReply}\n请用中文提出一个简短追问，帮助学习者验证自己的判断。`,
   },
 ]
 

@@ -107,12 +107,35 @@ export interface ProviderGatewayPort {
     input: Readonly<{ modelName: string; apiKey?: string }>,
     token: CancellationToken,
   ): Promise<void>
+  generateLessonTutorFirstQuestion(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      documentTitle: string
+      sourceSnippet: string
+      contextChunks: readonly Readonly<{
+        chunkId: string
+        text: string
+        pageNumberStart: number
+        pageNumberEnd: number
+        charCount: number
+      }>[]
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>>
   generateLessonTutorReply(
     input: Readonly<{
       modelName: string
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      contextChunks: readonly Readonly<{
+        chunkId: string
+        text: string
+        pageNumberStart: number
+        pageNumberEnd: number
+        charCount: number
+      }>[]
       learnerReply: string
     }>,
     token: CancellationToken,

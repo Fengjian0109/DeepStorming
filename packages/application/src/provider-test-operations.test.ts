@@ -187,6 +187,7 @@ class CapturingGateway implements ProviderGatewayPort {
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      contextChunks: readonly unknown[]
       learnerReply: string
     },
     token: CancellationToken,
@@ -199,6 +200,26 @@ class CapturingGateway implements ProviderGatewayPort {
       token,
     })
     return { content: '追问' }
+  }
+
+  public async generateLessonTutorFirstQuestion(
+    input: {
+      modelName: string
+      apiKey?: string
+      documentTitle: string
+      sourceSnippet: string
+      contextChunks: readonly unknown[]
+    },
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>> {
+    this.calls.push({
+      input:
+        input.apiKey === undefined
+          ? { modelName: input.modelName }
+          : { modelName: input.modelName, apiKey: input.apiKey },
+      token,
+    })
+    return { content: '首问' }
   }
 }
 

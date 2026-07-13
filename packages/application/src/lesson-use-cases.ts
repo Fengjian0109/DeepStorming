@@ -914,9 +914,51 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
 
   public async generateFirstQuestion(
     input: LessonTutorFirstQuestionRequest,
-    _token: CancellationToken,
+    token: CancellationToken,
   ): Promise<LessonTutorReplyResult> {
-    return localTutorFirstQuestion(input)
+    let activeProvider
+    try {
+      activeProvider = (await this.providers.list()).find((provider) => provider.isActive)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (activeProvider === undefined) {
+      return localTutorFirstQuestion(input)
+    }
+
+    let apiKey: string | undefined
+    if (activeProvider.providerType !== 'mock') {
+      if (activeProvider.secretRef === undefined) throw internalError()
+      try {
+        apiKey = await this.vault.get(activeProvider.secretRef)
+      } catch (error) {
+        throw asInternalError(error)
+      }
+    }
+
+    const gateway = this.gatewayFactory.create(toProviderProfile(activeProvider))
+    const generated = await gateway.generateLessonTutorFirstQuestion(
+      apiKey === undefined
+        ? {
+            modelName: activeProvider.modelName,
+            documentTitle: input.documentTitle,
+            sourceSnippet: input.sourceSnippet,
+            contextChunks: input.contextChunks,
+          }
+        : {
+            modelName: activeProvider.modelName,
+            apiKey,
+            documentTitle: input.documentTitle,
+            sourceSnippet: input.sourceSnippet,
+            contextChunks: input.contextChunks,
+          },
+      token,
+    )
+    return {
+      content: generated.content,
+      providerId: activeProvider.id,
+      modelName: activeProvider.modelName,
+    }
   }
 
   public async generateFollowUp(
@@ -950,6 +992,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             modelName: activeProvider.modelName,
             documentTitle: input.documentTitle,
             sourceSnippet: input.sourceSnippet,
+            contextChunks: input.contextChunks,
             learnerReply: input.learnerReply,
           }
         : {
@@ -957,6 +1000,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             apiKey,
             documentTitle: input.documentTitle,
             sourceSnippet: input.sourceSnippet,
+            contextChunks: input.contextChunks,
             learnerReply: input.learnerReply,
           },
       token,

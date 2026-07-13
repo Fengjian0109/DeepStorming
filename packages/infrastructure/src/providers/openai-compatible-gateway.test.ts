@@ -193,6 +193,15 @@ test('posts lesson tutor prompt and returns first assistant message content', as
       apiKey: 'secret-api-key',
       documentTitle: 'Research Notes',
       sourceSnippet: 'Evidence',
+      contextChunks: [
+        {
+          chunkId: '00000000-0000-4000-8000-000000000901',
+          text: 'Prior context',
+          pageNumberStart: 1,
+          pageNumberEnd: 1,
+          charCount: 13,
+        },
+      ],
       learnerReply: '它在说明证据如何支撑判断。',
     },
     liveToken(),
@@ -208,12 +217,57 @@ test('posts lesson tutor prompt and returns first assistant message content', as
       {
         role: 'system',
         content:
-          '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段和学习者回答继续追问，不编造来源。',
+          '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段、扩展上下文和学习者回答继续追问，不编造来源。',
       },
       {
         role: 'user',
         content:
-          '文档：Research Notes\n证据片段：Evidence\n学习者回答：它在说明证据如何支撑判断。\n请用中文提出一个简短追问，帮助学习者验证自己的判断。',
+          '文档：Research Notes\n证据片段：Evidence\n扩展上下文：\n1. [1-1] Prior context\n学习者回答：它在说明证据如何支撑判断。\n请用中文提出一个简短追问，帮助学习者验证自己的判断。',
+      },
+    ],
+    max_tokens: 220,
+    stream: false,
+  })
+})
+
+test('posts first-question tutor prompt with chunk context', async () => {
+  await startServer((_request, response) => {
+    response.setHeader('content-type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: '这段证据想解释什么问题？' } }] }))
+  })
+
+  const result = await new OpenAICompatibleGateway(baseUrl).generateLessonTutorFirstQuestion(
+    {
+      modelName: 'model-a',
+      apiKey: 'secret-api-key',
+      documentTitle: 'Research Notes',
+      sourceSnippet: 'Evidence',
+      contextChunks: [
+        {
+          chunkId: '00000000-0000-4000-8000-000000000901',
+          text: 'Prior context',
+          pageNumberStart: 1,
+          pageNumberEnd: 1,
+          charCount: 13,
+        },
+      ],
+    },
+    liveToken(),
+  )
+
+  expect(result).toEqual({ content: '这段证据想解释什么问题？' })
+  expect(JSON.parse(requests[0]?.body ?? '{}')).toEqual({
+    model: 'model-a',
+    messages: [
+      {
+        role: 'system',
+        content:
+          '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段和扩展上下文提出开场问题，不编造来源。',
+      },
+      {
+        role: 'user',
+        content:
+          '文档：Research Notes\n证据片段：Evidence\n扩展上下文：\n1. [1-1] Prior context\n请用中文提出一个简短开场问题，帮助学习者先判断这段证据想解决的核心问题。',
       },
     ],
     max_tokens: 220,
@@ -233,6 +287,7 @@ test('rejects empty lesson tutor content as invalid provider response', async ()
         modelName: 'model-a',
         documentTitle: 'Research Notes',
         sourceSnippet: 'Evidence',
+        contextChunks: [],
         learnerReply: '它在说明证据如何支撑判断。',
       },
       liveToken(),

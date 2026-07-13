@@ -323,12 +323,39 @@ class FakeGateway implements ProviderGatewayPort {
       readonly apiKey?: string
       readonly documentTitle: string
       readonly sourceSnippet: string
-      readonly learnerReply: string
+      readonly contextChunks: readonly {
+        readonly chunkId: string
+        readonly text: string
+        readonly pageNumberStart: number
+        readonly pageNumberEnd: number
+        readonly charCount: number
+      }[]
+      readonly learnerReply?: string
     }
     readonly token: CancellationToken
   }> = []
 
   async testConnection(): Promise<void> {}
+
+  async generateLessonTutorFirstQuestion(
+    input: {
+      modelName: string
+      apiKey?: string
+      documentTitle: string
+      sourceSnippet: string
+      contextChunks: readonly {
+        readonly chunkId: string
+        readonly text: string
+        readonly pageNumberStart: number
+        readonly pageNumberEnd: number
+        readonly charCount: number
+      }[]
+    },
+    token: CancellationToken,
+  ) {
+    this.calls.push({ input, token })
+    return { content: 'Provider 首问' }
+  }
 
   async generateLessonTutorReply(
     input: {
@@ -336,6 +363,13 @@ class FakeGateway implements ProviderGatewayPort {
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      contextChunks: readonly {
+        readonly chunkId: string
+        readonly text: string
+        readonly pageNumberStart: number
+        readonly pageNumberEnd: number
+        readonly charCount: number
+      }[]
       learnerReply: string
     },
     token: CancellationToken,
@@ -742,6 +776,84 @@ describe('lesson use cases', () => {
     })
   })
 
+  it('uses the provider-backed generator for first questions with assembled chunk context', async () => {
+    const assembler = new FakeLessonContextAssembler()
+    assembler.nextResult = {
+      chunks: [
+        {
+          id: '00000000-0000-4000-8000-000000000901',
+          documentId,
+          pageNumberStart: 1,
+          pageNumberEnd: 2,
+          blockIds: ['block-1'],
+          text: 'Why What How',
+          charCount: 12,
+          sourceVersion: 'text-version-1',
+          rebuildToken: 'document.chunk.rebuild.v1',
+        },
+      ],
+      degradedToSnippetOnly: false,
+      snippetFallback: null,
+    }
+    const providers = new FakeProviderRepository()
+    const vault = new FakeVault()
+    const factory = new FakeGatewayFactory()
+
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      assembler,
+      new ProviderLessonTutorReplyGenerator(providers, vault, factory),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    expect(created.messages[0]).toMatchObject({
+      id: messageId,
+      content: 'Provider 首问',
+      modelRunId,
+    })
+    expect(created.modelRuns[0]).toMatchObject({
+      id: modelRunId,
+      providerId: activeProvider.id,
+      modelName: 'deepseek-chat',
+      inputSummary: {
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            pageNumberStart: 1,
+            pageNumberEnd: 2,
+            charCount: 12,
+          },
+        ],
+        contextCharacterCount: 12,
+      },
+    })
+    expect(factory.gateway.calls[0]).toEqual({
+      input: {
+        modelName: 'deepseek-chat',
+        apiKey: 'api-key',
+        documentTitle: 'Paper Map',
+        sourceSnippet: 'Evidence',
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            text: 'Why What How',
+            pageNumberStart: 1,
+            pageNumberEnd: 2,
+            charCount: 12,
+          },
+        ],
+      },
+      token: expect.objectContaining({ cancelled: false }),
+    })
+  })
+
   it('persists a started provider run before requesting a tutor follow-up', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
     const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
@@ -958,6 +1070,7 @@ describe('lesson use cases', () => {
           apiKey: 'api-key',
           documentTitle: 'Paper Map',
           sourceSnippet: 'Evidence',
+          contextChunks: [],
           learnerReply: '它在说明证据如何支撑判断。',
         },
         token: expect.objectContaining({ cancelled: false }),

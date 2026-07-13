@@ -57,6 +57,13 @@ export class MockProviderGateway implements ProviderGatewayPort {
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      contextChunks: readonly Readonly<{
+        chunkId: string
+        text: string
+        pageNumberStart: number
+        pageNumberEnd: number
+        charCount: number
+      }>[]
       learnerReply: string
     }>,
     token: CancellationToken,
@@ -65,6 +72,29 @@ export class MockProviderGateway implements ProviderGatewayPort {
     if (input.modelName === 'mock-delay') await waitForDelay(this.options.delayMs ?? 1_000, token)
     return {
       content: `你刚才提到：“${input.learnerReply}”。我们把它和证据“${input.sourceSnippet}”连起来：下一步你会如何验证这个判断？`,
+    }
+  }
+
+  public async generateLessonTutorFirstQuestion(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      documentTitle: string
+      sourceSnippet: string
+      contextChunks: readonly Readonly<{
+        chunkId: string
+        text: string
+        pageNumberStart: number
+        pageNumberEnd: number
+        charCount: number
+      }>[]
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>> {
+    await this.testConnection({ modelName: input.modelName }, token)
+    if (input.modelName === 'mock-delay') await waitForDelay(this.options.delayMs ?? 1_000, token)
+    return {
+      content: `我们先从《${input.documentTitle}》的这段证据开始：${input.sourceSnippet}\n\n结合这些上下文片段，你觉得它想解决的核心问题是什么？`,
     }
   }
 }
