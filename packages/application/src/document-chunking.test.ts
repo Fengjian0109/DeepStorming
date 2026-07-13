@@ -56,7 +56,7 @@ describe('document chunking helpers', () => {
       sourceVersion: 'text-version:v1',
       rebuildToken: 'chunk-rule:v1',
       maxCharactersPerChunk: 50,
-      idForIndex: (index) => `chunk-${index}`,
+      idForChunk: ({ chunkIndex }) => `chunk-${chunkIndex}`,
     })
 
     expect(chunks).toEqual([
@@ -92,6 +92,7 @@ describe('document chunking helpers', () => {
   it('selects the top chunks under the default 4 / 2400 context budget', () => {
     const selected = selectBudgetedChunks(
       [
+        fakeChunk({ id: 'oversized', charCount: 2500 }),
         fakeChunk({ id: 'a', charCount: 700 }),
         fakeChunk({ id: 'b', charCount: 700 }),
         fakeChunk({ id: 'c', charCount: 700 }),

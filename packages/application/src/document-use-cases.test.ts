@@ -601,13 +601,12 @@ describe('document use cases', () => {
       updatedAt: now,
     })
 
-    const chunks = await new RebuildDocumentChunks(repo, importRepo, clock, idGenerator).execute({
-      documentId: ids[0]!,
-    })
+    const rebuildDocumentChunks = new RebuildDocumentChunks(repo, importRepo)
+    const chunks = await rebuildDocumentChunks.execute({ documentId: ids[0]! })
+    const rebuiltAgain = await rebuildDocumentChunks.execute({ documentId: ids[0]! })
 
     expect(chunks).toEqual([
-      {
-        id: ids[0],
+      expect.objectContaining({
         documentId: ids[0],
         pageNumberStart: 1,
         pageNumberEnd: 1,
@@ -615,10 +614,20 @@ describe('document use cases', () => {
         text: 'Alpha evidence.\n\nBeta detail.',
         charCount: 29,
         sourceVersion: ids[4],
-        rebuildToken: expect.any(String),
-      },
+        rebuildToken: 'chunk-rule:v1',
+      }),
     ])
-    await expect(importRepo.listChunks(ids[0]!)).resolves.toHaveLength(1)
+    expect(chunks[0]?.id).toMatch(
+      /^[\da-f]{8}-[\da-f]{4}-5[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu,
+    )
+    expect(chunks[0]).not.toHaveProperty('createdAt')
+    expect(rebuiltAgain).toEqual(chunks)
+    await expect(importRepo.listChunks(ids[0]!)).resolves.toEqual([
+      expect.objectContaining({
+        id: chunks[0]?.id,
+        createdAt: now,
+      }),
+    ])
   })
 
   it('rejects blank chunk searches before calling storage', async () => {
@@ -693,6 +702,91 @@ describe('document use cases', () => {
       chunks: [],
       degradedToSnippetOnly: true,
       snippetFallback: { snippet: 'evidence snippet' },
+    })
+  })
+
+  it('returns fresh searched chunks under the shared 4 / 2400 budget', async () => {
+    repo.records.set(ids[0]!, {
+      id: ids[0]!,
+      textVersionId: ids[1]!,
+      documentType: 'paper',
+      title: 'Paper',
+      plainText: 'evidence snippet and supporting detail',
+      sourceKind: 'text_file',
+      contentHash: 'e'.repeat(64),
+      characterCount: 38,
+      createdAt: now,
+      updatedAt: now,
+    })
+    importRepo.chunks.set(ids[0]!, [
+      {
+        id: ids[2]!,
+        documentId: ids[0]!,
+        chunkIndex: 0,
+        pageNumberStart: 1,
+        pageNumberEnd: 1,
+        blockIds: [ids[3]!],
+        text: 'evidence ' + 'a'.repeat(791),
+        charCount: 800,
+        sourceVersion: ids[1]!,
+        rebuildToken: 'chunk-rule:v1',
+        createdAt: now,
+      },
+      {
+        id: ids[4]!,
+        documentId: ids[0]!,
+        chunkIndex: 1,
+        pageNumberStart: 1,
+        pageNumberEnd: 1,
+        blockIds: [ids[5]!],
+        text: 'evidence ' + 'b'.repeat(791),
+        charCount: 800,
+        sourceVersion: ids[1]!,
+        rebuildToken: 'chunk-rule:v1',
+        createdAt: now,
+      },
+      {
+        id: ids[6]!,
+        documentId: ids[0]!,
+        chunkIndex: 2,
+        pageNumberStart: 2,
+        pageNumberEnd: 2,
+        blockIds: [ids[7]!],
+        text: 'evidence ' + 'c'.repeat(691),
+        charCount: 700,
+        sourceVersion: ids[1]!,
+        rebuildToken: 'chunk-rule:v1',
+        createdAt: now,
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000009',
+        documentId: ids[0]!,
+        chunkIndex: 3,
+        pageNumberStart: 2,
+        pageNumberEnd: 2,
+        blockIds: ['block-9'],
+        text: 'evidence ' + 'd'.repeat(291),
+        charCount: 300,
+        sourceVersion: ids[1]!,
+        rebuildToken: 'chunk-rule:v1',
+        createdAt: now,
+      },
+    ])
+
+    await expect(
+      new AssembleLessonContext(repo, importRepo).execute({
+        documentId: ids[0]!,
+        query: 'evidence',
+        fallbackSnippet: 'evidence snippet',
+      }),
+    ).resolves.toMatchObject({
+      degradedToSnippetOnly: false,
+      snippetFallback: null,
+      chunks: [
+        expect.objectContaining({ id: ids[2], charCount: 800 }),
+        expect.objectContaining({ id: ids[4], charCount: 800 }),
+        expect.objectContaining({ id: ids[6], charCount: 700 }),
+      ],
     })
   })
 })

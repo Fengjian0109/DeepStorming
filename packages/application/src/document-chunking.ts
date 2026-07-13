@@ -16,6 +16,34 @@ export const DOCUMENT_CHUNK_REBUILD_TOKEN = 'chunk-rule:v1'
 
 const normalizeBlockText = (text: string): string => text.trim()
 
+const hash32 = (value: string, seed: number): number => {
+  let hash = seed >>> 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+const formatHex = (value: number): string => value.toString(16).padStart(8, '0')
+
+const toDeterministicUuid = (value: string): string => {
+  const hex = [
+    formatHex(hash32(value, 0x811c9dc5)),
+    formatHex(hash32(value, 0x9e3779b9)),
+    formatHex(hash32(value, 0x85ebca6b)),
+    formatHex(hash32(value, 0xc2b2ae35)),
+  ].join('')
+
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    `5${hex.slice(13, 16)}`,
+    `8${hex.slice(17, 20)}`,
+    hex.slice(20, 32),
+  ].join('-')
+}
+
 const compareBlocks = (left: StoredDocumentTextBlock, right: StoredDocumentTextBlock): number =>
   left.pageNumber - right.pageNumber ||
   left.blockIndex - right.blockIndex ||
@@ -39,7 +67,7 @@ export const deriveDocumentChunks = (input: {
   blocks: readonly StoredDocumentTextBlock[]
   sourceVersion: string
   rebuildToken: string
-  idForIndex: (index: number) => string
+  idForChunk: (chunk: { chunkIndex: number; blockIds: readonly string[]; text: string }) => string
   maxCharactersPerChunk?: number
 }): readonly StoredDocumentChunk[] => {
   const maxCharactersPerChunk = input.maxCharactersPerChunk ?? DEFAULT_MAX_CHUNK_CHARACTERS
@@ -56,13 +84,15 @@ export const deriveDocumentChunks = (input: {
     if (currentBlocks.length === 0) return
     const firstBlock = currentBlocks[0]!
     const lastBlock = currentBlocks[currentBlocks.length - 1]!
+    const chunkIndex = chunks.length
+    const blockIds = currentBlocks.map((block) => block.id)
     chunks.push({
-      id: input.idForIndex(chunks.length),
+      id: input.idForChunk({ chunkIndex, blockIds, text: currentText }),
       documentId: input.documentId,
-      chunkIndex: chunks.length,
+      chunkIndex,
       pageNumberStart: firstBlock.pageNumber,
       pageNumberEnd: lastBlock.pageNumber,
-      blockIds: currentBlocks.map((block) => block.id),
+      blockIds,
       text: currentText,
       charCount: [...currentText].length,
       sourceVersion: input.sourceVersion,
@@ -86,6 +116,25 @@ export const deriveDocumentChunks = (input: {
   return chunks
 }
 
+export const createDeterministicChunkId = (input: {
+  documentId: string
+  sourceVersion: string
+  rebuildToken: string
+  chunkIndex: number
+  blockIds: readonly string[]
+  text: string
+}): string =>
+  toDeterministicUuid(
+    [
+      input.documentId,
+      input.sourceVersion,
+      input.rebuildToken,
+      String(input.chunkIndex),
+      input.blockIds.join(','),
+      input.text,
+    ].join('|'),
+  )
+
 export const selectBudgetedChunks = (
   chunks: readonly DocumentChunk[],
   budget: DocumentContextBudget,
@@ -94,7 +143,7 @@ export const selectBudgetedChunks = (
   let total = 0
   for (const chunk of chunks) {
     if (selected.length >= budget.maxChunks) break
-    if (total + chunk.charCount > budget.maxCharacters) break
+    if (total + chunk.charCount > budget.maxCharacters) continue
     selected.push(chunk)
     total += chunk.charCount
   }

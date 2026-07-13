@@ -29,6 +29,7 @@ import { DuplicateDocumentError } from './document-ports'
 import {
   DEFAULT_CONTEXT_BUDGET,
   DOCUMENT_CHUNK_REBUILD_TOKEN,
+  createDeterministicChunkId,
   deriveDocumentChunks,
   selectBudgetedChunks,
   toDocumentChunks,
@@ -560,8 +561,6 @@ export class RebuildDocumentChunks {
   public constructor(
     private readonly documentRepository: DocumentRepositoryPort,
     private readonly importRepository: DocumentImportRepositoryPort,
-    private readonly clock: ClockPort,
-    private readonly ids: IdGeneratorPort,
   ) {}
 
   public async execute(input: RebuildDocumentChunksInput): Promise<readonly DocumentChunk[]> {
@@ -593,13 +592,20 @@ export class RebuildDocumentChunks {
       throw asDatabaseError(error)
     }
 
-    const createdAt = this.clock.now()
     const chunks = deriveDocumentChunks({
       documentId: input.documentId,
-      blocks: blocks.map((block) => ({ ...block, createdAt })),
+      blocks,
       sourceVersion: document.textVersionId,
       rebuildToken: DOCUMENT_CHUNK_REBUILD_TOKEN,
-      idForIndex: () => this.ids.generate(),
+      idForChunk: ({ chunkIndex, blockIds, text }) =>
+        createDeterministicChunkId({
+          documentId: input.documentId,
+          sourceVersion: document.textVersionId,
+          rebuildToken: DOCUMENT_CHUNK_REBUILD_TOKEN,
+          chunkIndex,
+          blockIds,
+          text,
+        }),
     })
 
     try {
