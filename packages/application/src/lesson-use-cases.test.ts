@@ -586,6 +586,41 @@ describe('lesson use cases', () => {
     await expect(new GetLessonSession(lessons).execute(created.id)).resolves.toEqual(created)
   })
 
+  it('preserves paper lesson metadata in lesson views', async () => {
+    lessons.records.set(lessonId, {
+      id: lessonId,
+      title: 'Paper Map 课堂',
+      status: 'active',
+      documentId,
+      documentTitle: 'Paper Map',
+      sourceAnchors: [],
+      messages: [],
+      modelRuns: [],
+      currentState: 'opening',
+      steps: [],
+      masteryEvidence: [],
+      misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+        stageSummary: null,
+        termsIntroduced: [],
+        citedAnchorIds: [],
+      },
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await expect(new GetLessonSession(lessons).execute(lessonId)).resolves.toMatchObject({
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+      },
+    })
+  })
+
   it('appends a learner reply and deterministic tutor follow-up', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
     const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
@@ -943,6 +978,8 @@ describe('lesson use cases', () => {
         },
       ],
       reviewEvents: [],
+      lessonMode: 'standard',
+      paperProfile: null,
       createdAt: now,
       updatedAt: now,
     })

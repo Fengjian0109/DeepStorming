@@ -271,6 +271,8 @@ const mapSession = (
   misconceptionSignals,
   reviewItems,
   reviewEvents,
+  lessonMode: 'standard',
+  paperProfile: null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })

@@ -33,6 +33,7 @@ describe('lesson domain', () => {
       documentId: '00000000-0000-4000-8000-000000000001',
       title: 'Paper Map 课堂',
       documentTitle: 'Paper Map',
+      lessonMode: 'standard',
       source: {
         startOffset: 4,
         endOffset: 12,
@@ -40,6 +41,21 @@ describe('lesson domain', () => {
         target: { kind: 'text_range' },
       },
     })
+  })
+
+  it('normalizes lesson start drafts with paper mode', () => {
+    expect(
+      normalizeLessonStartDraft({
+        documentId: '00000000-0000-4000-8000-000000000001',
+        documentTitle: 'Paper Map',
+        lessonMode: 'paper',
+        source: {
+          startOffset: 4,
+          endOffset: 12,
+          snippet: 'Evidence snippet',
+        },
+      }).lessonMode,
+    ).toBe('paper')
   })
 
   it('normalizes a pdf block target', () => {

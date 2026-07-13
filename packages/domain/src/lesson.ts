@@ -241,6 +241,7 @@ export type LessonStartDraft = Readonly<{
   documentId: string
   documentTitle: string
   title?: string
+  lessonMode?: LessonMode
   source: Readonly<{
     startOffset: number
     endOffset: number
@@ -256,6 +257,7 @@ export type NormalizedLessonStartDraft = Readonly<{
   documentId: string
   documentTitle: string
   title: string
+  lessonMode: LessonMode
   source: Readonly<{
     startOffset: number
     endOffset: number
@@ -644,6 +646,8 @@ export const normalizeLessonStartDraft = (draft: LessonStartDraft): NormalizedLe
     draft.title === undefined
       ? `${documentTitle} 课堂`
       : normalizeNonBlank(draft.title, 'Lesson title must not be blank')
+  const lessonMode = draft.lessonMode ?? 'standard'
+  assertLessonMode(lessonMode)
 
   const target = draft.source.target ?? { kind: 'text_range' as const }
   if (target.kind === 'pdf_block') {
@@ -662,6 +666,7 @@ export const normalizeLessonStartDraft = (draft: LessonStartDraft): NormalizedLe
     documentId: draft.documentId,
     documentTitle,
     title,
+    lessonMode,
     source: {
       startOffset: draft.source.startOffset,
       endOffset: draft.source.endOffset,

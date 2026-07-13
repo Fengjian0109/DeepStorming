@@ -76,8 +76,8 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   misconceptionSignals: session.misconceptionSignals,
   reviewItems: session.reviewItems,
   reviewEvents: session.reviewEvents,
-  lessonMode: 'standard',
-  paperProfile: null,
+  lessonMode: session.lessonMode,
+  paperProfile: session.paperProfile,
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })
@@ -937,6 +937,16 @@ export class StartLessonFromDocument {
       misconceptionSignals: [],
       reviewItems: [],
       reviewEvents: [],
+      lessonMode: draft.lessonMode,
+      paperProfile:
+        draft.lessonMode === 'paper'
+          ? {
+              currentStage: 'orientation',
+              stageSummary: null,
+              termsIntroduced: [],
+              citedAnchorIds: [],
+            }
+          : null,
       createdAt,
       updatedAt: createdAt,
     }

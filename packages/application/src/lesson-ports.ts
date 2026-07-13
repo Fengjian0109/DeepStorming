@@ -1,6 +1,8 @@
 import type {
   LessonMessage,
+  LessonMode,
   LessonModelRun,
+  PaperLessonProfile,
   LessonState,
   LessonStep,
   LessonSession,
@@ -47,6 +49,8 @@ export type StoredLessonSession = Readonly<{
   misconceptionSignals: readonly StoredMisconceptionSignal[]
   reviewItems: readonly StoredReviewItem[]
   reviewEvents: readonly StoredReviewEvent[]
+  lessonMode: LessonMode
+  paperProfile: PaperLessonProfile | null
   createdAt: string
   updatedAt: string
 }>
