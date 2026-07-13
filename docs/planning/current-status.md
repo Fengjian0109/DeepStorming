@@ -2,8 +2,8 @@
 
 - 更新时间：2026-07-13
 - 当前分支：`main`
-- 当前阶段：Phase 6 D4 Chunk / 检索 / 上下文预算
-- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位，以及 D4 chunk 检索上下文展示与 snippet 降级闭环已完成
+- 当前阶段：Phase 6 D5 TutorAction / LessonState 状态机
+- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环，以及 D5 课堂状态机审计链路已完成
 
 ## 已完成
 
@@ -110,16 +110,22 @@
   - Renderer：课堂详情的每条生成记录下新增“上下文证据”区块，展示命中的页码范围与字符数；没有 chunk 时明确标注“课堂仍可继续（已降级为 snippet）”。
   - 文档 / 课堂联动：文档库重新允许同一 PDF 证据目标被重复聚焦，支持多次从课堂回到同一 block。
   - E2E：桌面主流程新增 PDF block 课堂首问/追问两轮上下文证据断言，并在重启前清空 `document_chunks` fixture，验证 chunk 缺失后课堂仍可继续。
+- Phase 6 D5 TutorAction / LessonState 状态机：
+  - Domain / Contracts：新增 `LessonState`、`TutorActionType`、`LessonStep` 与状态转移校验；当前动作集合为 `ask/hint/explain/reflect/summarize`，状态集合覆盖 `opening/probing/hinting/explaining/reflecting/summarizing/completed/paused/error`。
+  - Infrastructure：Migration 12 为 `lesson_sessions` 增加 `current_state`，并新增 `lesson_steps`，用 `sequence_no`、`state_before/state_after`、`action_type`、`status`、`model_run_id/message_id`、安全错误摘要记录课堂状态机审计链路。
+  - Application：Start / Reply / Retry / Cancel 都会先写入或更新对应 step；成功路径推进到下一状态，失败和取消保留可恢复记录，重试追加新 step 而不覆盖原失败 step。
+  - Renderer：课堂详情展示当前阶段中文标签；每条生成记录展示对应教学动作与状态转移，历史会话缺少 step 时显示“状态机记录尚未生成”。
+  - E2E：桌面主流程覆盖 PDF block 与搜索片段课堂的 `opening -> probing` 首问、`probing -> probing` follow-up、重启恢复后的状态显示，以及 chunk 缺失降级时状态机记录仍存在。
 
 ## 当前范围与非目标
 
-- 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化，以及安全错误摘要持久化与展示。
-- 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、embeddings、语义检索、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
+- 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化、安全错误摘要持久化与展示，以及 LessonState / LessonStep 状态机审计。
+- 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、embeddings、语义检索、流式课堂、掌握度评分、复习调度、论文工作区、后台导入任务。
 
 ## 当前门禁
 
 1. `pnpm check`：通过；Prettier、全 workspace typecheck、测试与桌面端构建全部通过。
-2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 现覆盖 `.md` 导入、PDF 导入、PDF 页面/Block 预览、从 PDF block 启动课堂后的上下文证据展示、学习者回复后的 follow-up 上下文证据、正文搜索、从搜索结果启动课堂，以及重启后 chunk 索引缺失时的 snippet-only 降级继续课堂；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
+2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 现覆盖 `.md` 导入、PDF 导入、PDF 页面/Block 预览、从 PDF block 启动课堂后的上下文证据与状态机展示、学习者回复后的 follow-up 上下文证据与 `probing -> probing` step、正文搜索、从搜索结果启动课堂，以及重启后 chunk 索引缺失时的 snippet-only 降级继续课堂；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
 5. 原生模块证据：`Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node` 为 Mach-O 64-bit arm64 bundle；使用该目录包的 Electron runtime 从 `app.asar` 加载模块并完成临时 SQLite 的 create/insert/select，输出 `{"value":"ok"}`。
@@ -139,4 +145,4 @@ pnpm package:dir
 
 ## 下一步
 
-D4 已完成：chunk 检索结果已进入课堂 model run 审计，桌面端可展示上下文证据，并在 chunk 缺失时稳定降级为 snippet-only。下一步进入 D5 TutorAction / LessonState 状态机；发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。
+D5 已完成：课堂状态、教学动作与每次生成的状态转移已经进入 Domain / Contracts / SQLite / Application / Renderer / E2E 闭环。下一步进入 D6 费曼评价、误区与复习；发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。

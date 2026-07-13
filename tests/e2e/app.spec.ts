@@ -187,6 +187,15 @@ test('creates text documents and persists them across restart', async () => {
       await expect(page.locator('#lesson-title')).toHaveText('课堂')
       await expect(page.locator('.lesson-anchor').getByText(pdfFixtureText)).toBeVisible()
       await expect(page.getByText('第 1 页 · Block 1')).toBeVisible()
+      await expect(
+        page.locator('.document-detail').getByText('当前阶段：苏格拉底追问'),
+      ).toBeVisible()
+      await expect(
+        page
+          .locator('.lesson-step-meta')
+          .filter({ hasText: '动作：ask · opening → probing' })
+          .first(),
+      ).toBeVisible()
       await expect(page.getByRole('heading', { name: '上下文证据' })).toHaveCount(1)
       await expect(page.locator('.lesson-context-chunks li').first()).toHaveText('第 1 页 · 48 字')
       await page
@@ -195,6 +204,12 @@ test('creates text documents and persists them across restart', async () => {
       await page.getByRole('button', { name: '提交回答' }).click()
       await expect(page.getByText('回答已提交。')).toBeVisible()
       await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
+      await expect(
+        page
+          .locator('.lesson-step-meta')
+          .filter({ hasText: '动作：ask · probing → probing' })
+          .first(),
+      ).toBeVisible()
       await expect(page.getByRole('heading', { name: '上下文证据' })).toHaveCount(2)
       await expect(page.locator('.lesson-context-chunks li').nth(1)).toHaveText('第 1 页 · 48 字')
       await page.getByRole('button', { name: '回到证据' }).click()
@@ -218,6 +233,15 @@ test('creates text documents and persists them across restart', async () => {
       ).toBeVisible()
       await expect(page.getByText(/你觉得它想解决的核心问题是什么/)).toBeVisible()
       await expect(page.getByText('lesson.mockTutor.firstQuestion v1')).toBeVisible()
+      await expect(
+        page.locator('.document-detail').getByText('当前阶段：苏格拉底追问'),
+      ).toBeVisible()
+      await expect(
+        page
+          .locator('.lesson-step-meta')
+          .filter({ hasText: '动作：ask · opening → probing' })
+          .first(),
+      ).toBeVisible()
       await page.getByLabel('你的回答').fill('它在说明证据如何支撑判断。')
       await page.getByRole('button', { name: '提交回答' }).click()
       await expect(page.getByText('回答已提交。')).toBeVisible()
@@ -229,6 +253,12 @@ test('creates text documents and persists them across restart', async () => {
       ).toBeVisible()
       await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
       await expect(page.getByText('lesson.mockTutor.followUp v2')).toBeVisible()
+      await expect(
+        page
+          .locator('.lesson-step-meta')
+          .filter({ hasText: '动作：ask · probing → probing' })
+          .first(),
+      ).toBeVisible()
       await page.getByRole('button', { name: '文档库' }).click()
 
       await page.getByRole('button', { name: '删除 Socratic Notes' }).click()
@@ -271,6 +301,9 @@ test('creates text documents and persists them across restart', async () => {
       await expect(
         page.locator('.lesson-anchor').getByText('Why What How Evidence Limits Next'),
       ).toBeVisible()
+      await expect(
+        page.locator('.document-detail').getByText('当前阶段：苏格拉底追问'),
+      ).toBeVisible()
       await expect(page.getByText(/你觉得它想解决的核心问题是什么/)).toBeVisible()
       await expect(page.getByText('lesson.mockTutor.firstQuestion v1')).toBeVisible()
       await expect(
@@ -281,6 +314,12 @@ test('creates text documents and persists them across restart', async () => {
       ).toBeVisible()
       await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
       await expect(page.getByText('lesson.mockTutor.followUp v2')).toBeVisible()
+      await expect(
+        page
+          .locator('.lesson-step-meta')
+          .filter({ hasText: '动作：ask · probing → probing' })
+          .first(),
+      ).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Socratic Notes' })).not.toBeVisible()
       await page
         .locator('.document-card')
@@ -291,6 +330,12 @@ test('creates text documents and persists them across restart', async () => {
       await page.getByLabel('你的回答').fill('我会继续检查缺少 chunk 时还能否只靠 snippet 追问。')
       await page.getByRole('button', { name: '提交回答' }).click()
       await expect(page.getByText('课堂仍可继续（已降级为 snippet）')).toBeVisible()
+      await expect(
+        page
+          .locator('.lesson-step-meta')
+          .filter({ hasText: '动作：ask · probing → probing' })
+          .first(),
+      ).toBeVisible()
     } finally {
       await second.close()
     }

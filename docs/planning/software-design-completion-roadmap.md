@@ -2,7 +2,7 @@
 
 - 日期：2026-07-13
 - 目标：把当前已完成的 Provider / 文本文档 / LessonSession 基线，收敛到可发布 MVP 所需的剩余软件设计与实施顺序。
-- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位与 D4 检索上下文已完成；下一阶段进入 D5 TutorAction / LessonState、真实云 Provider 手动验收和发布准备。
+- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位、D4 检索上下文与 D5 TutorAction / LessonState 状态机已完成；下一阶段进入 D6 费曼评价 / 误区 / 复习、真实云 Provider 手动验收和发布准备。
 
 ## 1. 当前设计基线
 
@@ -21,6 +21,7 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 2. 纯文本与文本层 PDF Learning Document 导入、去重、搜索、删除和重启持久化。
 3. PDF import job、应用私有文件副本、页面与文本块事实持久化。
 4. LessonSession 从文档证据启动、首问、学习者回答、Provider-backed follow-up、生成记录、失败/取消保存、重试和安全错误摘要。
+5. LessonState / LessonStep 状态机审计：每次首问、追问、失败、取消和重试都有可恢复的状态转移记录。
 
 ## 2. 剩余软件设计队列
 
@@ -113,12 +114,19 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 
 目的：把当前“导师追问字符串”升级为可解释、可恢复、可测试的课堂状态机。
 
-设计范围：
+设计范围（已完成）：
 
-- TutorAction：ask、hint、explain、quiz、reflect、summarize。
-- LessonStep：目标、来源、允许动作、完成条件。
-- 用户卡住时的提示阶梯。
-- 课堂失败、取消、重试、恢复统一进入状态机。
+- TutorAction：ask、hint、explain、reflect、summarize。
+- LessonState：opening、probing、hinting、explaining、reflecting、summarizing、completed、paused、error。
+- LessonStep：sequence、stateBefore/stateAfter、actionType、status、modelRunId/messageId、rationale、安全错误摘要。
+- Start / Reply / Retry / Cancel 统一写入状态机审计链路，失败/取消不覆盖原始 step，重试追加新 step。
+- Renderer 展示当前阶段与每条生成记录对应的动作/状态转移；历史会话缺少 step 时有兼容 fallback。
+
+后续扩展：
+
+- 更细的 TutorAction，例如 quiz / checkpoint。
+- 基于真实学习表现的完成条件与状态跳转，而不只依赖 deterministic classifier。
+- 用户“卡住”时的多级提示阶梯和可配置教学策略。
 
 ### D6. 费曼评价、误区与复习
 
@@ -164,7 +172,7 @@ D3 阅读器与证据定位（已完成）
   ↓
 D4 Chunk / 检索 / 上下文预算（已完成）
   ↓
-D5 TutorAction / LessonState
+D5 TutorAction / LessonState（已完成）
   ↓
 D6 费曼评价与复习
   ↓

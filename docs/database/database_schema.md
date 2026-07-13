@@ -172,15 +172,16 @@ erDiagram
 
 当前仓库在 Migration 3 (`lesson_session_foundation`) 里落地的是 Phase 5 课堂最小会话骨架，用于在接入真实 AI 课堂前先保存本地会话与来源引用。
 
-| 字段           | 类型 | 约束                                          | 说明                 |
-| -------------- | ---- | --------------------------------------------- | -------------------- |
-| id             | TEXT | PK                                            | 课堂会话 ID          |
-| title          | TEXT | NOT NULL                                      | 用户可见课堂标题     |
-| status         | TEXT | NOT NULL                                      | `active/archived`    |
-| document_id    | TEXT | FK `learning_documents(id)` ON DELETE CASCADE | 来源文档             |
-| document_title | TEXT | NOT NULL                                      | 创建会话时的文档标题 |
-| created_at     | TEXT | NOT NULL                                      | 创建时间             |
-| updated_at     | TEXT | NOT NULL                                      | 最近更新时间         |
+| 字段           | 类型 | 约束                                          | 说明                         |
+| -------------- | ---- | --------------------------------------------- | ---------------------------- |
+| id             | TEXT | PK                                            | 课堂会话 ID                  |
+| title          | TEXT | NOT NULL                                      | 用户可见课堂标题             |
+| status         | TEXT | NOT NULL                                      | `active/archived`            |
+| document_id    | TEXT | FK `learning_documents(id)` ON DELETE CASCADE | 来源文档                     |
+| document_title | TEXT | NOT NULL                                      | 创建会话时的文档标题         |
+| current_state  | TEXT | NOT NULL                                      | 状态机当前状态；Migration 12 |
+| created_at     | TEXT | NOT NULL                                      | 创建时间                     |
+| updated_at     | TEXT | NOT NULL                                      | 最近更新时间                 |
 
 ### 5.0.4 `lesson_source_anchors`（Migration 3）
 
@@ -261,6 +262,55 @@ Migration 7 (`lesson_model_run_error_summary`) 为 `lesson_model_runs` 追加 `e
 ```
 
 该字段是用户安全摘要，不是诊断日志；排查真实 Provider 问题时应通过后续专门的脱敏日志/遥测设计扩展，而不是把原始错误写入本表。
+
+### 5.0.12 LessonState 状态机（Migration 12）
+
+Migration 12 (`lesson_state_machine`) 为课堂会话增加可恢复、可解释的状态机审计链路。它在 `lesson_sessions` 上追加 `current_state`，并新增 `lesson_steps` 表。历史会话通过 `current_state = 'opening'` 默认值兼容；Renderer 对缺少 step 的历史 run 显示“状态机记录尚未生成”。
+
+`lesson_sessions.current_state` 的允许值：
+
+- `opening`
+- `probing`
+- `hinting`
+- `explaining`
+- `reflecting`
+- `summarizing`
+- `completed`
+- `paused`
+- `error`
+
+#### `lesson_steps`
+
+| 字段               | 类型    | 约束                                              | 说明                                  |
+| ------------------ | ------- | ------------------------------------------------- | ------------------------------------- |
+| id                 | TEXT    | PK                                                | Step ID；当前与对应 model run ID 对齐 |
+| lesson_id          | TEXT    | FK `lesson_sessions(id)` ON DELETE CASCADE        | 所属课堂会话                          |
+| sequence_no        | INTEGER | NOT NULL, `CHECK (sequence_no >= 0)`              | 课堂内 step 顺序                      |
+| state_before       | TEXT    | NOT NULL                                          | 执行动作前状态                        |
+| state_after        | TEXT    | NOT NULL                                          | 执行动作后状态                        |
+| action_type        | TEXT    | NOT NULL                                          | `ask/hint/explain/reflect/summarize`  |
+| status             | TEXT    | NOT NULL                                          | `started/succeeded/failed/cancelled`  |
+| model_run_id       | TEXT    | FK `lesson_model_runs(id)` ON DELETE CASCADE      | 对应生成运行记录                      |
+| message_id         | TEXT    | FK `lesson_messages(id)` ON DELETE SET NULL, NULL | 成功生成的 tutor message              |
+| rationale          | TEXT    | NULL                                              | 成功 step 的简短安全说明              |
+| error_summary_json | TEXT    | NULL                                              | 失败/取消时的安全错误摘要             |
+| created_at         | TEXT    | NOT NULL                                          | Step 创建时间                         |
+| finished_at        | TEXT    | NULL                                              | Step 终态时间                         |
+
+索引与约束：
+
+- `UNIQUE(lesson_id, sequence_no)` 保证同一课堂 step 顺序不重复。
+- `lesson_steps_lesson_sequence` 用于按课堂读取状态机历史。
+- `lesson_steps_model_run` 用于 Renderer 将生成记录映射到对应 step。
+- `status = 'succeeded'` 时必须有 `message_id`、`rationale`、`finished_at`，且 `error_summary_json` 必须为空。
+- `status = 'started'` 时不得提前写入 `message_id`、`rationale`、`finished_at` 或错误摘要。
+- `failed/cancelled` step 必须有 `finished_at`，错误摘要只保存稳定安全信息；不得写入 Provider 原始响应、API Key、Authorization header、原始 prompt 或堆栈。
+
+应用语义：
+
+- Start 写入 `opening -> probing` / `ask` / `succeeded` step。
+- Reply 和 Retry 先写入 `started` step；成功后更新为 `succeeded` 并推进 `current_state`，失败或取消时更新为 `failed/cancelled` 并保留可恢复历史。
+- Retry 追加新的 step，不覆盖原失败或取消 step。
 
 ### 5.0.9 PDF 文档底座（Migration 8）
 
@@ -722,7 +772,7 @@ body
 | state_before    | TEXT    | NOT NULL                             | 前状态                               |
 | state_after     | TEXT    | NOT NULL                             | 后状态                               |
 | action_type     | TEXT    | NOT NULL                             | 教学动作                             |
-| status          | TEXT    | NOT NULL                             | `started/completed/cancelled/failed` |
+| status          | TEXT    | NOT NULL                             | `started/succeeded/cancelled/failed` |
 | idempotency_key | TEXT    | NOT NULL                             | 幂等键                               |
 | model_run_id    | TEXT    | FK model_runs SET NULL               | 模型调用                             |
 | started_at      | TEXT    | NOT NULL                             | 开始时间                             |
