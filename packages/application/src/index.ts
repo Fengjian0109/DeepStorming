@@ -1,5 +1,6 @@
 export * from './app-info-port'
 export * from './document-ports'
+export * from './document-chunking'
 export * from './document-use-cases'
 export * from './get-application-info'
 export * from './lesson-ports'

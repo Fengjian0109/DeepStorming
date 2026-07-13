@@ -4,6 +4,7 @@ import {
   normalizeDocumentDraft,
   normalizeDocumentImportJob,
   type DocumentDraft,
+  type DocumentChunk,
   type DocumentImportError,
   type DocumentImportJob,
   type DocumentImportStatus,
@@ -21,9 +22,17 @@ import type {
   StoredDocument,
   StoredDocumentDetail,
   StoredDocumentPage,
+  StoredDocumentChunk,
   StoredDocumentTextBlock,
 } from './document-ports'
 import { DuplicateDocumentError } from './document-ports'
+import {
+  DEFAULT_CONTEXT_BUDGET,
+  DOCUMENT_CHUNK_REBUILD_TOKEN,
+  deriveDocumentChunks,
+  selectBudgetedChunks,
+  toDocumentChunks,
+} from './document-chunking'
 
 export type DocumentUseCaseErrorCode =
   | 'DOCUMENT_VALIDATION_FAILED'
@@ -64,6 +73,17 @@ export type DocumentDetail = LearningDocument & Readonly<{ plainText: string }>
 export type DocumentSearchInput = Readonly<{ query: string }>
 export type ImportPdfDocumentInput = Readonly<{ filePath: string; originalName: string }>
 export type GetDocumentPageBlocksInput = Readonly<{ documentId: string; pageNumber: number }>
+export type RebuildDocumentChunksInput = Readonly<{ documentId: string }>
+export type SearchDocumentChunksInput = Readonly<{
+  documentId: string
+  query: string
+  limit?: number
+}>
+export type AssembleLessonContextInput = Readonly<{
+  documentId: string
+  query: string
+  fallbackSnippet: string
+}>
 export type DocumentSearchResult = Omit<LearningDocument, 'id'> &
   Readonly<{
     documentId: string
@@ -73,6 +93,7 @@ export type DocumentSearchResult = Omit<LearningDocument, 'id'> &
   }>
 
 const SEARCH_SNIPPET_CONTEXT = 48
+const DEFAULT_CHUNK_SEARCH_LIMIT = 8
 
 const toSummary = (document: StoredDocument): LearningDocument => ({
   id: document.id,
@@ -526,6 +547,146 @@ export class GetDocumentPageBlocks {
       return await this.importRepository.listPageBlocks(input.documentId, input.pageNumber)
     } catch (error) {
       throw asDatabaseError(error)
+    }
+  }
+}
+
+export class RebuildDocumentChunks {
+  public constructor(
+    private readonly documentRepository: DocumentRepositoryPort,
+    private readonly importRepository: DocumentImportRepositoryPort,
+    private readonly clock: ClockPort,
+    private readonly ids: IdGeneratorPort,
+  ) {}
+
+  public async execute(input: RebuildDocumentChunksInput): Promise<readonly DocumentChunk[]> {
+    let document: StoredDocumentDetail | undefined
+    try {
+      document = await this.documentRepository.findById(input.documentId)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (!document) {
+      throw new DocumentUseCaseError('DOCUMENT_NOT_FOUND', 'The document was not found.', false)
+    }
+
+    let pages: readonly StoredDocumentPage[]
+    try {
+      pages = await this.importRepository.listPages(input.documentId)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+
+    const blocks: StoredDocumentTextBlock[] = []
+    try {
+      for (const page of pages) {
+        blocks.push(
+          ...(await this.importRepository.listPageBlocks(input.documentId, page.pageNumber)),
+        )
+      }
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+
+    const createdAt = this.clock.now()
+    const chunks = deriveDocumentChunks({
+      documentId: input.documentId,
+      blocks: blocks.map((block) => ({ ...block, createdAt })),
+      sourceVersion: document.textVersionId,
+      rebuildToken: DOCUMENT_CHUNK_REBUILD_TOKEN,
+      idForIndex: () => this.ids.generate(),
+    })
+
+    try {
+      await this.importRepository.replaceChunks(input.documentId, chunks)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+
+    return toDocumentChunks(chunks)
+  }
+}
+
+export class SearchDocumentChunks {
+  public constructor(private readonly importRepository: DocumentImportRepositoryPort) {}
+
+  public async execute(input: SearchDocumentChunksInput): Promise<readonly DocumentChunk[]> {
+    let query: string
+    try {
+      query = normalizeSearchQuery(input.query)
+    } catch (error) {
+      throw validationError(error)
+    }
+
+    try {
+      return toDocumentChunks(
+        await this.importRepository.searchChunks({
+          documentId: input.documentId,
+          query,
+          limit: input.limit ?? DEFAULT_CHUNK_SEARCH_LIMIT,
+        }),
+      )
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+  }
+}
+
+export class AssembleLessonContext {
+  public constructor(
+    private readonly documentRepository: DocumentRepositoryPort,
+    private readonly importRepository: DocumentImportRepositoryPort,
+  ) {}
+
+  public async execute(
+    input: AssembleLessonContextInput,
+  ): Promise<{ chunks: readonly DocumentChunk[]; degradedToSnippetOnly: boolean }> {
+    let document: StoredDocumentDetail | undefined
+    try {
+      document = await this.documentRepository.findById(input.documentId)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (!document) {
+      throw new DocumentUseCaseError('DOCUMENT_NOT_FOUND', 'The document was not found.', false)
+    }
+
+    let query: string
+    try {
+      query = normalizeSearchQuery(input.query)
+    } catch (error) {
+      throw validationError(error)
+    }
+
+    let hasFreshChunks: boolean
+    try {
+      hasFreshChunks = await this.importRepository.hasFreshChunks(
+        input.documentId,
+        document.textVersionId,
+        DOCUMENT_CHUNK_REBUILD_TOKEN,
+      )
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+
+    if (!hasFreshChunks) {
+      return { chunks: [], degradedToSnippetOnly: true }
+    }
+
+    let searchedChunks: readonly StoredDocumentChunk[]
+    try {
+      searchedChunks = await this.importRepository.searchChunks({
+        documentId: input.documentId,
+        query,
+        limit: DEFAULT_CHUNK_SEARCH_LIMIT,
+      })
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+
+    return {
+      chunks: selectBudgetedChunks(toDocumentChunks(searchedChunks), DEFAULT_CONTEXT_BUDGET),
+      degradedToSnippetOnly: false,
     }
   }
 }

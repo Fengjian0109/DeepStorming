@@ -13,6 +13,7 @@ import type {
   StoredDocumentDetail,
 } from './document-ports'
 import {
+  AssembleLessonContext,
   CreateDocumentFromText,
   DeleteDocument,
   DocumentUseCaseError,
@@ -22,6 +23,8 @@ import {
   ImportPdfDocument,
   ListDocuments,
   PdfTextExtractionError,
+  RebuildDocumentChunks,
+  SearchDocumentChunks,
   SearchDocuments,
 } from './document-use-cases'
 import { DuplicateDocumentError } from './document-ports'
@@ -182,8 +185,7 @@ class FakeDocumentImportRepository implements DocumentImportRepositoryPort {
     return (
       chunks.length > 0 &&
       chunks.every(
-        (chunk) =>
-          chunk.sourceVersion === sourceVersion && chunk.rebuildToken === rebuildToken,
+        (chunk) => chunk.sourceVersion === sourceVersion && chunk.rebuildToken === rebuildToken,
       )
     )
   }
@@ -551,5 +553,100 @@ describe('document use cases', () => {
     await expect(
       new GetDocumentPageBlocks(importRepo).execute({ documentId: ids[0]!, pageNumber: 1 }),
     ).resolves.toEqual([expect.objectContaining({ blockIndex: 0, text: 'Page text' })])
+  })
+
+  it('rebuilds chunks from imported page blocks', async () => {
+    importRepo.blocks.set(ids[0]!, [
+      {
+        id: ids[2]!,
+        documentId: ids[0]!,
+        pageId: ids[1]!,
+        pageNumber: 1,
+        blockIndex: 0,
+        text: 'Alpha evidence.',
+        createdAt: now,
+      },
+      {
+        id: ids[3]!,
+        documentId: ids[0]!,
+        pageId: ids[1]!,
+        pageNumber: 1,
+        blockIndex: 1,
+        text: 'Beta detail.',
+        createdAt: now,
+      },
+    ])
+    importRepo.pages.set(ids[0]!, [
+      {
+        id: ids[1]!,
+        documentId: ids[0]!,
+        pageNumber: 1,
+        width: 612,
+        height: 792,
+        text: 'Alpha evidence.\n\nBeta detail.',
+        textHash: 'b'.repeat(64),
+        createdAt: now,
+      },
+    ])
+    repo.records.set(ids[0]!, {
+      id: ids[0]!,
+      textVersionId: ids[4]!,
+      documentType: 'paper',
+      title: 'Paper',
+      plainText: 'Alpha evidence.\n\nBeta detail.',
+      sourceKind: 'text_file',
+      contentHash: 'c'.repeat(64),
+      characterCount: 29,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    const chunks = await new RebuildDocumentChunks(repo, importRepo, clock, idGenerator).execute({
+      documentId: ids[0]!,
+    })
+
+    expect(chunks).toEqual([
+      {
+        id: ids[0],
+        documentId: ids[0],
+        pageNumberStart: 1,
+        pageNumberEnd: 1,
+        blockIds: [ids[2], ids[3]],
+        text: 'Alpha evidence.\n\nBeta detail.',
+        charCount: 29,
+        sourceVersion: ids[4],
+        rebuildToken: expect.any(String),
+      },
+    ])
+    await expect(importRepo.listChunks(ids[0]!)).resolves.toHaveLength(1)
+  })
+
+  it('rejects blank chunk searches before calling storage', async () => {
+    await expect(
+      new SearchDocumentChunks(importRepo).execute({ documentId: ids[0]!, query: '  ' }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_VALIDATION_FAILED' })
+  })
+
+  it('returns snippet-only context when chunks are stale or absent', async () => {
+    repo.records.set(ids[0]!, {
+      id: ids[0]!,
+      textVersionId: ids[1]!,
+      documentType: 'paper',
+      title: 'Paper',
+      plainText: 'evidence snippet',
+      sourceKind: 'text_file',
+      contentHash: 'd'.repeat(64),
+      characterCount: 16,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    expect(
+      await new AssembleLessonContext(repo, importRepo).execute({
+        documentId: ids[0]!,
+        query: 'evidence snippet',
+        fallbackSnippet: 'evidence snippet',
+      }),
+    ).toMatchObject({ chunks: [], degradedToSnippetOnly: true })
   })
 })
