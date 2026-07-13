@@ -61,9 +61,11 @@ export type DocumentEvidenceFocus = Readonly<{
 export const DocumentLibrary = ({
   onLessonStarted,
   focusTarget,
+  onFocusConsumed,
 }: {
   onLessonStarted?: (lessonId: string) => void
   focusTarget?: DocumentEvidenceFocus | undefined
+  onFocusConsumed?: () => void
 }): React.JSX.Element => {
   const [listState, setListState] = useState<ListState>({ status: 'loading' })
   const [asyncState, setAsyncState] = useState<AsyncState>({ status: 'idle' })
@@ -79,6 +81,7 @@ export const DocumentLibrary = ({
   const detailRequestSequence = useRef(0)
   const searchRequestSequence = useRef(0)
   const operationSequence = useRef(0)
+  const consumedFocusKey = useRef<string | undefined>(undefined)
 
   const loadDocuments = useCallback(async () => {
     const requestSequence = listRequestSequence.current + 1
@@ -146,13 +149,21 @@ export const DocumentLibrary = ({
   }, [])
 
   useEffect(() => {
-    if (focusTarget === undefined || listState.status !== 'ready') return
+    if (focusTarget === undefined) {
+      consumedFocusKey.current = undefined
+      return
+    }
+    if (listState.status !== 'ready') return
     const summary = listState.documents.find((document) => document.id === focusTarget.documentId)
     if (summary === undefined) return
+    const key = `${focusTarget.documentId}:${focusTarget.pageNumber}:${focusTarget.blockId}`
+    if (consumedFocusKey.current === key) return
     void loadDetail(summary).then(() => {
+      consumedFocusKey.current = key
       setSelectedPdfTarget({ pageNumber: focusTarget.pageNumber, blockId: focusTarget.blockId })
+      onFocusConsumed?.()
     })
-  }, [focusTarget, listState, loadDetail])
+  }, [focusTarget, listState, loadDetail, onFocusConsumed])
 
   const searchDocuments = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()

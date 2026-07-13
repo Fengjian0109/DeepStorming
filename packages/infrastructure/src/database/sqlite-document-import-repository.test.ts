@@ -51,9 +51,7 @@ const importJob = (overrides: Partial<DocumentImportJob> = {}): DocumentImportJo
   ...overrides,
 })
 
-const documentChunk = (
-  overrides: Partial<StoredDocumentChunk> = {},
-): StoredDocumentChunk => ({
+const documentChunk = (overrides: Partial<StoredDocumentChunk> = {}): StoredDocumentChunk => ({
   id: chunkId1,
   documentId,
   chunkIndex: 0,
@@ -210,10 +208,7 @@ describe('SqliteDocumentImportRepository', () => {
         chunkIndex: 1,
         pageNumberStart: 2,
         pageNumberEnd: 3,
-        blockIds: [
-          '00000000-0000-4000-8000-000000000402',
-          '00000000-0000-4000-8000-000000000403',
-        ],
+        blockIds: ['00000000-0000-4000-8000-000000000402', '00000000-0000-4000-8000-000000000403'],
         text: 'Gradient descent converges with a stable step size.',
         charCount: 52,
         createdAt: '2026-07-12T00:02:01.000Z',
@@ -239,10 +234,7 @@ describe('SqliteDocumentImportRepository', () => {
       expect.objectContaining({
         id: chunkId2,
         chunkIndex: 1,
-        blockIds: [
-          '00000000-0000-4000-8000-000000000402',
-          '00000000-0000-4000-8000-000000000403',
-        ],
+        blockIds: ['00000000-0000-4000-8000-000000000402', '00000000-0000-4000-8000-000000000403'],
       }),
       expect.objectContaining({
         id: chunkId3,
@@ -310,6 +302,24 @@ describe('SqliteDocumentImportRepository', () => {
     ])
   })
 
+  it('searches chunks with natural language punctuation safely', async () => {
+    await documentRepo.create(document())
+    await repo.replaceChunks(documentId, [documentChunk()])
+
+    await expect(
+      repo.searchChunks({
+        documentId,
+        query: 'Gradient descent, so I would verify behavior.',
+        limit: 5,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: chunkId1,
+        text: 'Gradient descent converges with a stable step size.',
+      }),
+    ])
+  })
+
   it('detects whether stored chunks are fresh for a document version and rebuild token', async () => {
     await documentRepo.create(document())
     await repo.replaceChunks(documentId, [documentChunk()])
@@ -349,7 +359,9 @@ describe('SqliteDocumentImportRepository', () => {
       }),
     ).resolves.toEqual([])
     expect(
-      db.prepare('SELECT count(*) count FROM document_chunks_fts WHERE document_id=?').get(documentId),
+      db
+        .prepare('SELECT count(*) count FROM document_chunks_fts WHERE document_id=?')
+        .get(documentId),
     ).toEqual({ count: 0 })
   })
 })

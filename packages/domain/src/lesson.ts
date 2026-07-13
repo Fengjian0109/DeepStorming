@@ -148,10 +148,7 @@ export const normalizeLessonContextChunkSummary = (
   if (!Number.isInteger(summary.pageNumberStart) || summary.pageNumberStart < 1) {
     throw new Error('Lesson context chunk page range is invalid')
   }
-  if (
-    !Number.isInteger(summary.pageNumberEnd) ||
-    summary.pageNumberEnd < summary.pageNumberStart
-  ) {
+  if (!Number.isInteger(summary.pageNumberEnd) || summary.pageNumberEnd < summary.pageNumberStart) {
     throw new Error('Lesson context chunk page range is invalid')
   }
   if (!Number.isInteger(summary.charCount) || summary.charCount < 0) {
@@ -165,7 +162,10 @@ export const normalizeLessonModelRunInputSummary = (
   summary: LessonModelRunInputSummary,
 ): LessonModelRunInputSummary => {
   if (!UUID.test(summary.documentId)) throw new Error('Lesson model run document id is invalid')
-  if (summary.sourceAnchorIds.length === 0 || summary.sourceAnchorIds.some((id) => !UUID.test(id))) {
+  if (
+    summary.sourceAnchorIds.length === 0 ||
+    summary.sourceAnchorIds.some((id) => !UUID.test(id))
+  ) {
     throw new Error('Lesson model run source anchors are invalid')
   }
   if (
@@ -188,7 +188,8 @@ export const normalizeLessonModelRunInputSummary = (
   }
   if (
     summary.learnerReplyCharacterCount !== undefined &&
-    (!Number.isInteger(summary.learnerReplyCharacterCount) || summary.learnerReplyCharacterCount < 0)
+    (!Number.isInteger(summary.learnerReplyCharacterCount) ||
+      summary.learnerReplyCharacterCount < 0)
   ) {
     throw new Error('Lesson learner reply character count is invalid')
   }

@@ -94,7 +94,9 @@ const createMockTutorFollowUp = (
     .replace('{{snippet}}', snippet)
     .replace(
       '{{context}}',
-      contextChunks.length === 0 ? '无额外上下文' : contextChunks.map((chunk) => chunk.text).join('；'),
+      contextChunks.length === 0
+        ? '无额外上下文'
+        : contextChunks.map((chunk) => chunk.text).join('；'),
     )
 
 const localTutorReply = (input: LessonTutorReplyRequest): LessonTutorReplyResult => ({
@@ -336,7 +338,9 @@ const toTutorContextChunk = (chunk: {
 })
 
 const latestTutorQuestionForReply = (session: StoredLessonSession): string => {
-  const latestTutorMessage = [...session.messages].reverse().find((message) => message.role === 'tutor')
+  const latestTutorMessage = [...session.messages]
+    .reverse()
+    .find((message) => message.role === 'tutor')
   if (latestTutorMessage === undefined) throw internalError()
   return latestTutorMessage.content
 }

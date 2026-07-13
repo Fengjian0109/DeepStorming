@@ -75,6 +75,12 @@ type ChunkRow = {
   created_at: string
 }
 
+const toFtsQuery = (query: string): string | undefined => {
+  const tokens = query.match(/[\p{L}\p{N}]+/gu) ?? []
+  if (tokens.length === 0) return undefined
+  return tokens.map((token) => `"${token.replaceAll('"', '""')}"`).join(' OR ')
+}
+
 const parseError = (value: string | null): DocumentImportError | null => {
   if (value === null) return null
   const parsed: unknown = JSON.parse(value)
@@ -460,6 +466,8 @@ export class SqliteDocumentImportRepository implements DocumentImportRepositoryP
     query: string
     limit: number
   }): Promise<readonly StoredDocumentChunk[]> {
+    const ftsQuery = toFtsQuery(input.query)
+    if (ftsQuery === undefined) return []
     return this.safe(() =>
       (
         this.db
@@ -472,7 +480,7 @@ export class SqliteDocumentImportRepository implements DocumentImportRepositoryP
              ORDER BY bm25(document_chunks_fts), c.chunk_index, c.id
              LIMIT ?`,
           )
-          .all(input.documentId, input.query, input.limit) as ChunkRow[]
+          .all(input.documentId, ftsQuery, input.limit) as ChunkRow[]
       ).map(mapChunk),
     )
   }

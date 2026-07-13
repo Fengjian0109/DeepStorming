@@ -493,6 +493,11 @@ h2 {
   font-weight: 700;
 }
 
+.lesson-run .lesson-context-fallback {
+  color: #65766d;
+  font-weight: 500;
+}
+
 .lesson-run footer {
   margin-top: 8px;
   color: #65766d;

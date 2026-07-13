@@ -27,10 +27,10 @@
 
 这些字段可作为后续 `SourceAnchor` / chunk / 课堂引用的最小输入。
 
-## 当前非目标
+## 当时非目标
 
-- FTS5 / BM25 排序。
-- chunking 与 embeddings。
+- FTS5 / BM25 排序（已在后续 D4 以 `document_chunks_fts` 派生索引补齐）。
+- chunking（已在后续 D4 补齐）与 embeddings（仍未实现）。
 - PDF 页码、坐标和高亮。
 - AI 课堂状态机。
 - 论文阅读专属工作区。
@@ -45,4 +45,4 @@
 
 1. 把搜索结果升级为 `SourceAnchor` 领域模型，并在详情页支持根据 offset 定位或高亮。
 2. 为课堂建立最小 `LessonSession`：从一个文档搜索结果或文档详情启动，保存学习会话和首轮上下文。
-3. 后续再把 SQLite LIKE 搜索替换或扩展为 FTS5/BM25，并保留当前 contracts 的稳定字段。
+3. 状态更新：D4 已为课堂上下文新增独立 chunk/FTS 检索层；文档库搜索仍保留 Phase 4 的稳定 contract 与 SQLite LIKE 实现。

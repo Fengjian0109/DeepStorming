@@ -233,7 +233,9 @@ test('posts lesson tutor prompt and returns first assistant message content', as
 test('posts first-question tutor prompt with chunk context', async () => {
   await startServer((_request, response) => {
     response.setHeader('content-type', 'application/json')
-    response.end(JSON.stringify({ choices: [{ message: { content: '这段证据想解释什么问题？' } }] }))
+    response.end(
+      JSON.stringify({ choices: [{ message: { content: '这段证据想解释什么问题？' } }] }),
+    )
   })
 
   const result = await new OpenAICompatibleGateway(baseUrl).generateLessonTutorFirstQuestion(

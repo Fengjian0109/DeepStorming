@@ -493,6 +493,7 @@ describe('DocumentLibrary', () => {
 
   it('reopens the same focused PDF evidence target after navigating away', async () => {
     const user = userEvent.setup()
+    const onFocusConsumed = vi.fn()
     const pdfDocument = {
       ...document,
       documentType: 'paper' as const,
@@ -554,19 +555,24 @@ describe('DocumentLibrary', () => {
       pageNumber: 1,
       blockId: '00000000-0000-4000-8000-000000000311',
     }
-    const { rerender } = render(<DocumentLibrary focusTarget={focusTarget} />)
+    const { rerender } = render(
+      <DocumentLibrary focusTarget={focusTarget} onFocusConsumed={onFocusConsumed} />,
+    )
 
     expect(await screen.findByRole('heading', { name: 'Evidence PDF', level: 2 })).toBeTruthy()
     expect(globalThis.document.querySelector('.pdf-block-active')?.textContent).toContain('Block 1')
+    expect(onFocusConsumed).toHaveBeenCalledTimes(1)
 
     await user.click((await screen.findAllByRole('button', { name: '查看详情' }))[1]!)
     expect(await screen.findByRole('heading', { name: 'Draft 2', level: 2 })).toBeTruthy()
 
-    rerender(<DocumentLibrary focusTarget={{ ...focusTarget }} />)
+    rerender(<DocumentLibrary focusTarget={undefined} onFocusConsumed={onFocusConsumed} />)
+    rerender(<DocumentLibrary focusTarget={{ ...focusTarget }} onFocusConsumed={onFocusConsumed} />)
 
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Evidence PDF', level: 2 })).toBeTruthy(),
     )
     expect(globalThis.document.querySelector('.pdf-block-active')?.textContent).toContain('Block 1')
+    expect(onFocusConsumed).toHaveBeenCalledTimes(2)
   })
 })

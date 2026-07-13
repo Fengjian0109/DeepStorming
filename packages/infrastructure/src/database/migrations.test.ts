@@ -110,7 +110,9 @@ test('applies migrations three and four and creates lesson tables', async () => 
     expect.arrayContaining(['chunk_index', 'block_ids_json', 'source_version', 'rebuild_token']),
   )
   expect(
-    db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='document_chunks_fts'").get(),
+    db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='document_chunks_fts'")
+      .get(),
   ).toEqual({ name: 'document_chunks_fts' })
   const triggers = db
     .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='document_chunks'")
@@ -278,9 +280,9 @@ test('upgrades a database with published v10 chunks to add v11 fts sync triggers
 
   await migrateDatabase(db, { databasePath: path, userDataPath: dir })
 
-  expect(db.prepare('SELECT version,name FROM schema_migrations ORDER BY version DESC LIMIT 1').get()).toEqual(
-    { version: 11, name: 'document_chunk_fts_sync' },
-  )
+  expect(
+    db.prepare('SELECT version,name FROM schema_migrations ORDER BY version DESC LIMIT 1').get(),
+  ).toEqual({ version: 11, name: 'document_chunk_fts_sync' })
   const triggers = db
     .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='document_chunks'")
     .all() as Array<{ name: string }>
@@ -292,12 +294,14 @@ test('upgrades a database with published v10 chunks to add v11 fts sync triggers
     ]),
   )
   expect(
-    db.prepare(
-      `SELECT chunk_id,document_id,body
+    db
+      .prepare(
+        `SELECT chunk_id,document_id,body
        FROM document_chunks_fts
        WHERE document_id=?
        ORDER BY rowid`,
-    ).all('00000000-0000-4000-8000-000000000101'),
+      )
+      .all('00000000-0000-4000-8000-000000000101'),
   ).toEqual([
     {
       chunk_id: '00000000-0000-4000-8000-000000000501',
@@ -306,13 +310,15 @@ test('upgrades a database with published v10 chunks to add v11 fts sync triggers
     },
   ])
   expect(
-    db.prepare(
-      `SELECT c.id
+    db
+      .prepare(
+        `SELECT c.id
        FROM document_chunks_fts f
        INNER JOIN document_chunks c ON c.id = f.chunk_id
        WHERE f.document_id=? AND document_chunks_fts MATCH ?
        ORDER BY bm25(document_chunks_fts), c.chunk_index, c.id`,
-    ).all('00000000-0000-4000-8000-000000000101', 'gradient descent'),
+      )
+      .all('00000000-0000-4000-8000-000000000101', 'gradient descent'),
   ).toEqual([{ id: '00000000-0000-4000-8000-000000000501' }])
 
   db.close()

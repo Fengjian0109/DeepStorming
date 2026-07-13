@@ -259,7 +259,7 @@ describe('LessonWorkspace', () => {
     ).toBeTruthy()
     expect(screen.getByText('mock-local · succeeded')).toBeTruthy()
     expect(screen.getByText('上下文证据')).toBeTruthy()
-    expect(screen.getByText('第 1-1 页 · 312 字')).toBeTruthy()
+    expect(screen.getByText('第 1 页 · 312 字')).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: '打开 Paper Map 课堂' }))
     await waitFor(() => expect(window.deepstorming.lessons.get).toHaveBeenCalledWith(session.id))

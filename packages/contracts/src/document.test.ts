@@ -361,11 +361,11 @@ describe('document contracts', () => {
       }).success,
     ).toBe(false)
 
-    expect(documentContextBudgetSchema.safeParse({ maxChunks: 4, maxCharacters: 2400 }).success).toBe(
-      true,
-    )
-    expect(documentContextBudgetSchema.safeParse({ maxChunks: 0, maxCharacters: 2400 }).success).toBe(
-      false,
-    )
+    expect(
+      documentContextBudgetSchema.safeParse({ maxChunks: 4, maxCharacters: 2400 }).success,
+    ).toBe(true)
+    expect(
+      documentContextBudgetSchema.safeParse({ maxChunks: 0, maxCharacters: 2400 }).success,
+    ).toBe(false)
   })
 })

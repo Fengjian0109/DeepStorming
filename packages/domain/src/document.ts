@@ -162,7 +162,10 @@ export const normalizeDocumentChunk = (chunk: DocumentChunk): DocumentChunk => {
   if (!Number.isInteger(chunk.pageNumberEnd) || chunk.pageNumberEnd < chunk.pageNumberStart) {
     throw new Error('Document chunk page range is invalid')
   }
-  if (chunk.blockIds.length === 0 || chunk.blockIds.some((blockId) => blockId.trim().length === 0)) {
+  if (
+    chunk.blockIds.length === 0 ||
+    chunk.blockIds.some((blockId) => blockId.trim().length === 0)
+  ) {
     throw new Error('Document chunk block ids are invalid')
   }
   const text = normalizeNonBlank(chunk.text, 'Document chunk text must not be blank')
@@ -173,7 +176,10 @@ export const normalizeDocumentChunk = (chunk: DocumentChunk): DocumentChunk => {
   return {
     ...chunk,
     text,
-    sourceVersion: normalizeNonBlank(chunk.sourceVersion, 'Document chunk source version is invalid'),
+    sourceVersion: normalizeNonBlank(
+      chunk.sourceVersion,
+      'Document chunk source version is invalid',
+    ),
     rebuildToken: normalizeNonBlank(chunk.rebuildToken, 'Document chunk rebuild token is invalid'),
   }
 }

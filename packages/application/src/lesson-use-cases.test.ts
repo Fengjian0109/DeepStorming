@@ -131,11 +131,7 @@ class FakeLessonContextAssembler {
     snippetFallback: null as Readonly<{ snippet: string }> | null,
   }
 
-  async execute(input: {
-    documentId: string
-    query: string
-    fallbackSnippet: string
-  }) {
+  async execute(input: { documentId: string; query: string; fallbackSnippet: string }) {
     this.calls.push(input)
     return this.nextResult
   }

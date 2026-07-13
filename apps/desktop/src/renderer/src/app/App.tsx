@@ -88,6 +88,7 @@ export const App = (): React.JSX.Element => {
         {page === 'documents' && (
           <DocumentLibrary
             focusTarget={focusTarget}
+            onFocusConsumed={() => setFocusTarget(undefined)}
             onLessonStarted={(lessonId) => {
               setSelectedLessonId(lessonId)
               setPage('lessons')

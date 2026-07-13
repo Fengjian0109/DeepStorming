@@ -193,7 +193,7 @@ erDiagram
 | end_offset   | INTEGER | NOT NULL, `CHECK (end_offset > start_offset)` | 当前文本版本中的结束字符位置 |
 | snippet      | TEXT    | NOT NULL                                      | 创建会话时使用的来源片段     |
 
-当前最小切片只保存文本 offset 与 snippet；PDF 页码、block、chunk、bounding box 和引用高亮属于后续扩展。
+当前课堂来源锚点仍保留文本 offset 与 snippet 作为稳定审计字段；PDF 页码与 block 已在后续 D3 写入 `lesson_source_anchors`，chunk 检索证据已在后续 D4 写入 `lesson_model_runs.input_summary_json`。精确 bounding box 高亮仍属于后续扩展。
 
 ### 5.0.5 `lesson_messages`（Migration 4）
 
@@ -266,7 +266,7 @@ Migration 7 (`lesson_model_run_error_summary`) 为 `lesson_model_runs` 追加 `e
 
 Migration 8 (`pdf_document_foundation`) 在现有 `learning_documents` 上追加 PDF 导入状态、文件、页面和文本块持久化。该切片仍复用 Phase 3 的 `learning_documents` 聚合根，不启用下述 5.1 的完整 `documents` 蓝图表。
 
-当前实现使用 `pdf-parse@2.4.5` 提取文本层 PDF：导入成功后会把全文写入 `learning_documents` / `document_text_versions`，并把每页文本与页面内文本块写入下列表。扫描 PDF/OCR、页面渲染资产、精确 bbox 高亮和 chunk/FTS 索引仍属于后续 D3/D4。
+当前实现使用 `pdf-parse@2.4.5` 提取文本层 PDF：导入成功后会把全文写入 `learning_documents` / `document_text_versions`，并把每页文本与页面内文本块写入下列表。D4 已在此事实层之上补充 `document_chunks` / `document_chunks_fts` 派生索引，用于课堂上下文检索；扫描 PDF/OCR、页面渲染资产和精确 bbox 高亮仍属于后续扩展。
 
 #### `document_import_jobs`
 

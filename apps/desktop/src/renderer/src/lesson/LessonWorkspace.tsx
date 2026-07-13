@@ -24,6 +24,15 @@ type RunRetryState =
   | { status: 'success'; message: string }
   | { status: 'error'; message: string }
 
+const formatContextChunkLabel = (chunk: {
+  pageNumberStart: number
+  pageNumberEnd: number
+  charCount: number
+}): string =>
+  chunk.pageNumberStart === chunk.pageNumberEnd
+    ? `第 ${chunk.pageNumberStart} 页 · ${chunk.charCount} 字`
+    : `第 ${chunk.pageNumberStart}-${chunk.pageNumberEnd} 页 · ${chunk.charCount} 字`
+
 export const LessonWorkspace = ({
   selectedLessonId,
   onReturnToEvidence,
@@ -331,14 +340,11 @@ export const LessonWorkspace = ({
                       {modelRun.inputSummary.contextChunks.length > 0 ? (
                         <ul>
                           {modelRun.inputSummary.contextChunks.map((chunk) => (
-                            <li key={chunk.chunkId}>
-                              第 {chunk.pageNumberStart}-{chunk.pageNumberEnd} 页 ·{' '}
-                              {chunk.charCount} 字
-                            </li>
+                            <li key={chunk.chunkId}>{formatContextChunkLabel(chunk)}</li>
                           ))}
                         </ul>
                       ) : (
-                        <p>课堂仍可继续（已降级为 snippet）</p>
+                        <p className="lesson-context-fallback">课堂仍可继续（已降级为 snippet）</p>
                       )}
                     </div>
                     {modelRun.errorSummary !== null && (

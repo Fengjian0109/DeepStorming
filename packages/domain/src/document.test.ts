@@ -205,8 +205,8 @@ describe('document domain', () => {
       maxCharacters: 2400,
     })
 
-    expect(() =>
-      normalizeDocumentContextBudget({ maxChunks: 0, maxCharacters: 2400 }),
-    ).toThrow('Document context chunk budget is invalid')
+    expect(() => normalizeDocumentContextBudget({ maxChunks: 0, maxCharacters: 2400 })).toThrow(
+      'Document context chunk budget is invalid',
+    )
   })
 })

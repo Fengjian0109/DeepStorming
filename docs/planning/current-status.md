@@ -114,7 +114,7 @@
 ## 当前范围与非目标
 
 - 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化，以及安全错误摘要持久化与展示。
-- 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、FTS5/BM25、chunking、embeddings、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
+- 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、embeddings、语义检索、流式课堂、完整 TutorAction 状态机、论文工作区、后台导入任务。
 
 ## 当前门禁
 
