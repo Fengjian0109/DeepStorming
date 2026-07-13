@@ -232,6 +232,49 @@ test('upgrades a database with published v10 chunks to add v11 fts sync triggers
     userDataPath: dir,
     migrations: MIGRATIONS.filter((migration) => migration.version <= 10),
   })
+  db.prepare(
+    `INSERT INTO learning_documents
+     (id,document_type,title,source_kind,original_file_name,content_hash,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+  ).run(
+    '00000000-0000-4000-8000-000000000101',
+    'paper',
+    'Migrated paper',
+    'text_file',
+    'paper.pdf',
+    'hash-migrated-paper',
+    '2026-07-12T00:00:00.000Z',
+    '2026-07-12T00:00:00.000Z',
+  )
+  db.prepare(
+    `INSERT INTO document_text_versions
+     (id,document_id,plain_text,character_count,created_at)
+     VALUES (?,?,?,?,?)`,
+  ).run(
+    '00000000-0000-4000-8000-000000000102',
+    '00000000-0000-4000-8000-000000000101',
+    'Migrated text',
+    13,
+    '2026-07-12T00:00:00.000Z',
+  )
+  db.prepare(
+    `INSERT INTO document_chunks
+     (id,document_id,chunk_index,page_number_start,page_number_end,block_ids_json,text,char_count,source_version,rebuild_token,created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+  ).run(
+    '00000000-0000-4000-8000-000000000501',
+    '00000000-0000-4000-8000-000000000101',
+    0,
+    1,
+    1,
+    '["00000000-0000-4000-8000-000000000401"]',
+    'Gradient descent migrated from v10 data.',
+    39,
+    'page-text:v1',
+    'chunk-rule:v1',
+    '2026-07-12T00:02:00.000Z',
+  )
+  expect(db.prepare('SELECT count(*) count FROM document_chunks_fts').get()).toEqual({ count: 0 })
 
   await migrateDatabase(db, { databasePath: path, userDataPath: dir })
 
@@ -248,6 +291,29 @@ test('upgrades a database with published v10 chunks to add v11 fts sync triggers
       'document_chunks_fts_update',
     ]),
   )
+  expect(
+    db.prepare(
+      `SELECT chunk_id,document_id,body
+       FROM document_chunks_fts
+       WHERE document_id=?
+       ORDER BY rowid`,
+    ).all('00000000-0000-4000-8000-000000000101'),
+  ).toEqual([
+    {
+      chunk_id: '00000000-0000-4000-8000-000000000501',
+      document_id: '00000000-0000-4000-8000-000000000101',
+      body: 'Gradient descent migrated from v10 data.',
+    },
+  ])
+  expect(
+    db.prepare(
+      `SELECT c.id
+       FROM document_chunks_fts f
+       INNER JOIN document_chunks c ON c.id = f.chunk_id
+       WHERE f.document_id=? AND document_chunks_fts MATCH ?
+       ORDER BY bm25(document_chunks_fts), c.chunk_index, c.id`,
+    ).all('00000000-0000-4000-8000-000000000101', 'gradient descent'),
+  ).toEqual([{ id: '00000000-0000-4000-8000-000000000501' }])
 
   db.close()
 })

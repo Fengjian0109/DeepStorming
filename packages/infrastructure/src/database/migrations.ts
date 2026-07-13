@@ -211,7 +211,10 @@ CREATE TRIGGER document_chunks_fts_update AFTER UPDATE ON document_chunks BEGIN
   DELETE FROM document_chunks_fts WHERE rowid = old.rowid;
   INSERT INTO document_chunks_fts(rowid,chunk_id,document_id,body)
   VALUES (new.rowid,new.id,new.document_id,new.text);
-END;`
+END;
+INSERT INTO document_chunks_fts(rowid,chunk_id,document_id,body)
+SELECT rowid,id,document_id,text
+FROM document_chunks;`
 
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
