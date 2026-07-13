@@ -637,7 +637,7 @@ describe('lesson use cases', () => {
         content:
           '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“Why What；How Evidence”。下一步你会如何验证这个判断？',
         sourceAnchorIds: [anchorId],
-        promptVersion: 'mock-tutor-follow-up-v1',
+        promptVersion: 'mock-tutor-follow-up-v2',
         createdAt: now,
       },
     ])
@@ -650,8 +650,8 @@ describe('lesson use cases', () => {
       status: 'succeeded',
       promptManifest: {
         key: 'lesson.mockTutor.followUp',
-        version: 1,
-        hash: 'sha256:e9fdc89091ea362a238d87daa6f1fd75a8866698de8a9094e786414f5d3863f8',
+        version: 2,
+        hash: 'sha256:ad9d6476b98dc6a93a16144bb3ba2a79f7be4e9741176c1e564e0b02ab49265b',
       },
       inputSummary: {
         documentId,
@@ -1192,7 +1192,7 @@ describe('lesson use cases', () => {
       content:
         '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“无额外上下文”。下一步你会如何验证这个判断？',
       sourceAnchorIds: [anchorId],
-      promptVersion: 'mock-tutor-follow-up-v1',
+      promptVersion: 'mock-tutor-follow-up-v2',
       createdAt: now,
     })
     expect(retried.modelRuns.at(-1)).toMatchObject({

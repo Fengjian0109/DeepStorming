@@ -73,10 +73,10 @@ const MOCK_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE =
   '你刚才提到：“{{learnerReply}}”。我们把它和证据“{{snippet}}”连起来，参考这些上下文：“{{context}}”。下一步你会如何验证这个判断？'
 const MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST: LessonPromptManifest = {
   key: 'lesson.mockTutor.followUp',
-  version: 1,
-  hash: 'sha256:e9fdc89091ea362a238d87daa6f1fd75a8866698de8a9094e786414f5d3863f8',
+  version: 2,
+  hash: 'sha256:ad9d6476b98dc6a93a16144bb3ba2a79f7be4e9741176c1e564e0b02ab49265b',
 }
-const MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION = 'mock-tutor-follow-up-v1'
+const MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION = 'mock-tutor-follow-up-v2'
 const LEARNER_INPUT_PROMPT_VERSION = 'learner-input-v1'
 
 const createMockTutorFirstQuestion = (documentTitle: string, snippet: string): string =>

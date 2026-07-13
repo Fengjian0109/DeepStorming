@@ -71,7 +71,7 @@ export class MockProviderGateway implements ProviderGatewayPort {
     await this.testConnection({ modelName: input.modelName }, token)
     if (input.modelName === 'mock-delay') await waitForDelay(this.options.delayMs ?? 1_000, token)
     return {
-      content: `你刚才提到：“${input.learnerReply}”。我们把它和证据“${input.sourceSnippet}”连起来：下一步你会如何验证这个判断？`,
+      content: `你刚才提到：“${input.learnerReply}”。我们把它和证据“${input.sourceSnippet}”连起来，参考这些上下文：“${input.contextChunks.length === 0 ? '无额外上下文' : input.contextChunks.map((chunk) => chunk.text).join('；')}”。下一步你会如何验证这个判断？`,
     }
   }
 

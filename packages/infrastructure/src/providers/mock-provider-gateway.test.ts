@@ -49,14 +49,22 @@ test('generates deterministic lesson tutor replies from source evidence and lear
         modelName: 'mock-success',
         documentTitle: 'Research Notes',
         sourceSnippet: 'Evidence',
-        contextChunks: [],
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            text: 'Prior context',
+            pageNumberStart: 1,
+            pageNumberEnd: 1,
+            charCount: 13,
+          },
+        ],
         learnerReply: '它在说明证据如何支撑判断。',
       },
       liveToken(),
     ),
   ).resolves.toEqual({
     content:
-      '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来：下一步你会如何验证这个判断？',
+      '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“Prior context”。下一步你会如何验证这个判断？',
   })
 })
 

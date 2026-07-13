@@ -192,7 +192,7 @@ describe('SqliteLessonRepository', () => {
           content:
             '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来：下一步你会如何验证这个判断？',
           sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
-          promptVersion: 'mock-tutor-follow-up-v1',
+          promptVersion: 'mock-tutor-follow-up-v2',
           createdAt: '2026-07-11T00:01:00.000Z',
         },
       ],
@@ -207,8 +207,8 @@ describe('SqliteLessonRepository', () => {
           status: 'succeeded',
           promptManifest: {
             key: 'lesson.mockTutor.followUp',
-            version: 1,
-            hash: 'sha256:e9fdc89091ea362a238d87daa6f1fd75a8866698de8a9094e786414f5d3863f8',
+            version: 2,
+            hash: 'sha256:ad9d6476b98dc6a93a16144bb3ba2a79f7be4e9741176c1e564e0b02ab49265b',
           },
           inputSummary: {
             documentId: '00000000-0000-4000-8000-000000000201',
