@@ -278,7 +278,7 @@ export const lessonSessionSchema = z
     status: lessonSessionStatusSchema,
     documentId: documentIdSchema,
     documentTitle: requiredTextSchema,
-    sourceAnchors: z.array(lessonSourceAnchorSchema),
+    sourceAnchors: z.array(lessonSourceAnchorSchema).min(1),
     messages: z.array(lessonMessageSchema),
     modelRuns: z.array(lessonModelRunSchema),
     currentState: lessonStateSchema,

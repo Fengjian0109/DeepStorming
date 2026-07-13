@@ -311,7 +311,16 @@ describe('lesson contracts', () => {
         status: 'active',
         documentId: '00000000-0000-4000-8000-000000000201',
         documentTitle: 'Paper Map',
-        sourceAnchors: [],
+        sourceAnchors: [
+          {
+            id: '00000000-0000-4000-8000-000000000301',
+            documentId: '00000000-0000-4000-8000-000000000201',
+            startOffset: 4,
+            endOffset: 12,
+            snippet: 'Evidence',
+            target: { kind: 'text_range' },
+          },
+        ],
         messages: [],
         modelRuns: [],
         currentState: 'opening',
