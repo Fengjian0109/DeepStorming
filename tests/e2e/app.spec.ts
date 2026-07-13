@@ -203,7 +203,8 @@ test('creates text documents and persists them across restart', async () => {
         .fill('Evidence connects a claim to observable behavior, so I would verify behavior.')
       await page.getByRole('button', { name: '提交回答' }).click()
       await expect(page.getByText('回答已提交。')).toBeVisible()
-      await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
+      await expect(page.getByText(/你会怎样概括论文的问题定义、关键假设或方法线索/)).toBeVisible()
+      await expect(page.getByText('paper-tutor-follow-up-v1')).toBeVisible()
       await expect(
         page.locator('.lesson-mastery-diagnosis').getByText('学习诊断').first(),
       ).toBeVisible()
@@ -420,6 +421,52 @@ test('creates lesson review tasks, records review results, and persists them acr
       await expect(
         page.getByText('复习：请重新解释这段课堂证据，并说明你的判断依据。'),
       ).toBeVisible()
+    } finally {
+      await second.close()
+    }
+  } finally {
+    rmSync(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('starts a paper lesson, advances the paper stage, and restores it after restart', async () => {
+  const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-paper-e2e-user-'))
+  const pdfFixturePath = path.join(userDataDir, 'Paper Map.pdf')
+
+  writeFileSync(pdfFixturePath, pdfStringWith('Why What How Evidence Limits Next'), 'utf8')
+
+  try {
+    const first = await launchDevApp(userDataDir)
+    try {
+      const page = await first.firstWindow()
+      await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
+
+      await page.getByLabel('导入 PDF').setInputFiles(pdfFixturePath)
+      await expect(page.getByText('PDF 已导入。')).toBeVisible()
+      await expect(
+        page.locator('.document-detail').getByRole('heading', { name: 'Paper Map' }),
+      ).toBeVisible()
+
+      await page.getByRole('button', { name: '开始课堂' }).click()
+      await expect(page.getByText('当前论文阶段')).toBeVisible()
+      await expect(page.getByText('整体定位')).toBeVisible()
+
+      await page
+        .getByLabel('你的回答')
+        .fill('I think the paper is solving how evidence supports model behavior.')
+      await page.getByRole('button', { name: '提交回答' }).click()
+
+      await expect(page.getByText('问题定位')).toBeVisible()
+    } finally {
+      await first.close()
+    }
+
+    const second = await launchDevApp(userDataDir)
+    try {
+      const page = await second.firstWindow()
+      await page.locator('nav').getByRole('button', { name: '课堂' }).click()
+      await page.getByRole('button', { name: '打开 Paper Map 课堂' }).click()
+      await expect(page.getByText('问题定位')).toBeVisible()
     } finally {
       await second.close()
     }

@@ -1,8 +1,8 @@
 # DeepStorming 软件设计收敛路线图
 
-- 日期：2026-07-13
+- 日期：2026-07-14
 - 目标：把当前已完成的 Provider / 文本文档 / LessonSession 基线，收敛到可发布 MVP 所需的剩余软件设计与实施顺序。
-- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位、D4 检索上下文、D5 TutorAction / LessonState 状态机，以及 D6 Review Scheduler MVP 已完成；下一阶段进入真实云 Provider 手动验收、发布准备和更完整的论文工作流。
+- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位、D4 检索上下文、D5 TutorAction / LessonState 状态机、D6 Review Scheduler MVP，以及 D7 Paper Lesson Mode MVP 已完成；下一阶段进入 D1 真实云 Provider 手动验收与 D8 发布候选准备，并保留更完整的论文工作流扩展。
 
 ## 1. 当前设计基线
 
@@ -24,6 +24,7 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 5. LessonState / LessonStep 状态机审计：每次首问、追问、失败、取消和重试都有可恢复的状态转移记录。
 6. D6-MVP 学习诊断：成功课堂回答会生成可持久化的 MasteryEvidence；卡住表达会生成 MisconceptionSignal；课堂页和重启恢复都能展示“学习诊断”。
 7. D6 Review Scheduler MVP：`suggestedReview` 的诊断会自动生成 lesson-scoped `ReviewItem`，课堂页可记录 `ReviewEvent` 并更新下一次复习时间。
+8. D7 Paper Lesson Mode MVP：PDF 导入文档默认进入 `lessonMode='paper'`，课堂可展示论文阶段卡片、使用 paper tutor prompts，并在回答后推进/恢复 `paperProfile`。
 
 ## 2. 剩余软件设计队列
 
@@ -157,11 +158,20 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 
 目的：支持论文结构、贡献、方法、证据、局限、研究启发的专用阅读路径。
 
-设计范围：
+已完成的 D7-MVP：
 
-- PaperProfile。
-- Section / Claim / Evidence / Limitation。
+- PaperProfile / `lessonMode='paper'`。
+- PDF 导入文档默认进入论文课堂模式。
+- 论文专用首问/追问 prompt。
+- `orientation -> problem_framing` 的最小阶段推进与重启恢复。
+- 课堂页“当前论文阶段”展示。
+
+剩余 D7 工作：
+
+- Section / Claim / Evidence / Limitation 的结构化抽取与持久化。
 - Why → What → How → Evidence → Limits → Next 地图。
+- 更细粒度的 paper stage（方法、实验、局限、启发）推进规则。
+- 跨论文工作区与论文专用复习聚合视图。
 
 ### D8. 发布候选
 
@@ -178,7 +188,7 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 ## 3. 推荐实施顺序
 
 ```text
-D1 真实云 Provider 手动验收（可与 D3 并行手动验收）
+D1 真实云 Provider 手动验收与发布前收尾
   ↓
 D2 PDF 文档底座（已完成）
   ↓
@@ -190,12 +200,12 @@ D5 TutorAction / LessonState（已完成）
   ↓
 D6 Mastery Evidence / Misconception + Review Scheduler（已完成）
   ↓
-D7 论文工作流
+D7 Paper Lesson Mode MVP（已完成）→ D7 论文工作流扩展
   ↓
 D8 发布候选
 ```
 
-这个顺序的核心理由是：先验证真实 Provider，再让 PDF 进入系统；先保存 page/block 事实，再做阅读器、检索和课堂引用；先有可恢复课堂状态机，再让评分和复习写入长期学习记录。
+这个顺序的核心理由是：先完成真实 Provider 验收与发布前风险收敛，再基于已完成的 PDF / lesson / review 基线推进发布候选；论文工作流已经有 MVP 级课堂模式，后续扩展应围绕结构化论文地图与跨论文体验，而不是回退基础课堂闭环。
 
 ## 4. 设计完成定义
 
