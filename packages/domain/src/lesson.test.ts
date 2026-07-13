@@ -140,6 +140,22 @@ describe('lesson domain', () => {
         createdAt: '2026-07-11T00:01:00.000Z',
       }),
     ).toThrow('Mastery confidence is invalid')
+
+    expect(() =>
+      normalizeMasteryEvidence({
+        id: '00000000-0000-4000-8000-000000000801',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        stepId: '00000000-0000-4000-8000-000000000701',
+        learnerMessageId: '00000000-0000-4000-8000-000000000402',
+        tutorMessageId: '00000000-0000-4000-8000-000000000403',
+        kind: 'teach_back',
+        judgement: 'partial_understanding',
+        confidence: 0.55,
+        rationale: 'a'.repeat(281),
+        suggestedReview: false,
+        createdAt: '2026-07-11T00:01:00.000Z',
+      }),
+    ).toThrow('Mastery rationale is too long')
   })
 
   it('normalizes misconception signal severity and rejects blank labels', () => {
@@ -166,6 +182,30 @@ describe('lesson domain', () => {
         createdAt: '2026-07-11T00:01:00.000Z',
       }),
     ).toThrow('Misconception label is required')
+
+    expect(() =>
+      normalizeMisconceptionSignal({
+        id: '00000000-0000-4000-8000-000000000901',
+        evidenceId: '00000000-0000-4000-8000-000000000801',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        label: 'a'.repeat(81),
+        severity: 'medium',
+        rationale: 'Learner explicitly said they were stuck.',
+        createdAt: '2026-07-11T00:01:00.000Z',
+      }),
+    ).toThrow('Misconception label is too long')
+
+    expect(() =>
+      normalizeMisconceptionSignal({
+        id: '00000000-0000-4000-8000-000000000901',
+        evidenceId: '00000000-0000-4000-8000-000000000801',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        label: '学习者表达卡住',
+        severity: 'medium',
+        rationale: 'a'.repeat(281),
+        createdAt: '2026-07-11T00:01:00.000Z',
+      }),
+    ).toThrow('Misconception rationale is too long')
   })
 
   it('validates lesson state transitions', () => {

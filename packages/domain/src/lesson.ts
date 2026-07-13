@@ -349,10 +349,8 @@ export const normalizeMasteryEvidence = (evidence: MasteryEvidence): MasteryEvid
   ) {
     throw new Error('Mastery confidence is invalid')
   }
-  const rationale = normalizeNonBlank(evidence.rationale, 'Mastery rationale is required').slice(
-    0,
-    280,
-  )
+  const rationale = normalizeNonBlank(evidence.rationale, 'Mastery rationale is required')
+  if (rationale.length > 280) throw new Error('Mastery rationale is too long')
 
   return { ...evidence, rationale }
 }
@@ -362,11 +360,10 @@ export const normalizeMisconceptionSignal = (signal: MisconceptionSignal): Misco
   if (!UUID.test(signal.evidenceId)) throw new Error('Misconception evidence id is invalid')
   if (!UUID.test(signal.lessonId)) throw new Error('Misconception lesson id is invalid')
   assertMisconceptionSeverity(signal.severity)
-  const label = normalizeNonBlank(signal.label, 'Misconception label is required').slice(0, 80)
-  const rationale = normalizeNonBlank(
-    signal.rationale,
-    'Misconception rationale is required',
-  ).slice(0, 280)
+  const label = normalizeNonBlank(signal.label, 'Misconception label is required')
+  if (label.length > 80) throw new Error('Misconception label is too long')
+  const rationale = normalizeNonBlank(signal.rationale, 'Misconception rationale is required')
+  if (rationale.length > 280) throw new Error('Misconception rationale is too long')
 
   return { ...signal, label, rationale }
 }
