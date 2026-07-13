@@ -5,6 +5,8 @@ import type {
   LessonRepositoryPort,
   StoredMasteryEvidence,
   StoredMisconceptionSignal,
+  StoredReviewEvent,
+  StoredReviewItem,
   StoredLessonSession,
   StoredLessonSourceAnchor,
 } from '@deepstorming/application'
@@ -97,6 +99,31 @@ type MisconceptionSignalRow = {
   label: string
   severity: StoredMisconceptionSignal['severity']
   rationale: string
+  created_at: string
+}
+
+type ReviewItemRow = {
+  id: string
+  lesson_id: string
+  mastery_evidence_id: string
+  misconception_signal_id: string | null
+  prompt: string
+  answer_outline_json: string
+  status: StoredReviewItem['status']
+  due_at: string
+  created_at: string
+  updated_at: string
+}
+
+type ReviewEventRow = {
+  id: string
+  review_item_id: string
+  lesson_id: string
+  rating: StoredReviewEvent['rating']
+  response: string
+  previous_due_at: string
+  next_due_at: string | null
+  reviewed_at: string
   created_at: string
 }
 
@@ -194,6 +221,31 @@ const mapMisconceptionSignal = (row: MisconceptionSignalRow): StoredMisconceptio
   createdAt: row.created_at,
 })
 
+const mapReviewItem = (row: ReviewItemRow): StoredReviewItem => ({
+  id: row.id,
+  lessonId: row.lesson_id,
+  masteryEvidenceId: row.mastery_evidence_id,
+  misconceptionSignalId: row.misconception_signal_id,
+  prompt: row.prompt,
+  answerOutline: parseSourceAnchorIds(row.answer_outline_json),
+  status: row.status,
+  dueAt: row.due_at,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapReviewEvent = (row: ReviewEventRow): StoredReviewEvent => ({
+  id: row.id,
+  reviewItemId: row.review_item_id,
+  lessonId: row.lesson_id,
+  rating: row.rating,
+  response: row.response,
+  previousDueAt: row.previous_due_at,
+  nextDueAt: row.next_due_at,
+  reviewedAt: row.reviewed_at,
+  createdAt: row.created_at,
+})
+
 const mapSession = (
   row: LessonRow,
   sourceAnchors: readonly StoredLessonSourceAnchor[],
@@ -202,6 +254,8 @@ const mapSession = (
   steps: readonly StoredLessonStep[],
   masteryEvidence: readonly StoredMasteryEvidence[],
   misconceptionSignals: readonly StoredMisconceptionSignal[],
+  reviewItems: readonly StoredReviewItem[],
+  reviewEvents: readonly StoredReviewEvent[],
 ): StoredLessonSession => ({
   id: row.id,
   title: row.title,
@@ -215,6 +269,8 @@ const mapSession = (
   steps,
   masteryEvidence,
   misconceptionSignals,
+  reviewItems,
+  reviewEvents,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -346,6 +402,44 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
     return signals
   }
 
+  private reviewItemsFor(lessonIds: readonly string[]): Map<string, StoredReviewItem[]> {
+    const items = new Map<string, StoredReviewItem[]>()
+    if (lessonIds.length === 0) return items
+    const placeholders = lessonIds.map(() => '?').join(',')
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM lesson_review_items
+         WHERE lesson_id IN (${placeholders})
+         ORDER BY lesson_id,due_at,created_at,id`,
+      )
+      .all(...lessonIds) as ReviewItemRow[]
+    for (const row of rows) {
+      const existing = items.get(row.lesson_id) ?? []
+      existing.push(mapReviewItem(row))
+      items.set(row.lesson_id, existing)
+    }
+    return items
+  }
+
+  private reviewEventsFor(lessonIds: readonly string[]): Map<string, StoredReviewEvent[]> {
+    const events = new Map<string, StoredReviewEvent[]>()
+    if (lessonIds.length === 0) return events
+    const placeholders = lessonIds.map(() => '?').join(',')
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM lesson_review_events
+         WHERE lesson_id IN (${placeholders})
+         ORDER BY lesson_id,reviewed_at,id`,
+      )
+      .all(...lessonIds) as ReviewEventRow[]
+    for (const row of rows) {
+      const existing = events.get(row.lesson_id) ?? []
+      existing.push(mapReviewEvent(row))
+      events.set(row.lesson_id, existing)
+    }
+    return events
+  }
+
   private insertMasteryEvidence(session: StoredLessonSession): void {
     const insertEvidence = this.db.prepare(
       `INSERT INTO lesson_mastery_evidence
@@ -386,6 +480,47 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
     }
   }
 
+  private insertReviewData(session: StoredLessonSession): void {
+    const insertReviewItem = this.db.prepare(
+      `INSERT INTO lesson_review_items
+       (id,lesson_id,mastery_evidence_id,misconception_signal_id,prompt,answer_outline_json,status,due_at,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    )
+    for (const item of session.reviewItems) {
+      insertReviewItem.run(
+        item.id,
+        session.id,
+        item.masteryEvidenceId,
+        item.misconceptionSignalId,
+        item.prompt,
+        JSON.stringify(item.answerOutline),
+        item.status,
+        item.dueAt,
+        item.createdAt,
+        item.updatedAt,
+      )
+    }
+
+    const insertReviewEvent = this.db.prepare(
+      `INSERT INTO lesson_review_events
+       (id,review_item_id,lesson_id,rating,response,previous_due_at,next_due_at,reviewed_at,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+    )
+    for (const event of session.reviewEvents) {
+      insertReviewEvent.run(
+        event.id,
+        event.reviewItemId,
+        session.id,
+        event.rating,
+        event.response,
+        event.previousDueAt,
+        event.nextDueAt,
+        event.reviewedAt,
+        event.createdAt,
+      )
+    }
+  }
+
   public async list(): Promise<readonly StoredLessonSession[]> {
     return this.safe(() => {
       const rows = this.db
@@ -398,6 +533,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
       const steps = this.stepsFor(lessonIds)
       const masteryEvidence = this.masteryEvidenceFor(lessonIds)
       const misconceptionSignals = this.misconceptionSignalsFor(lessonIds)
+      const reviewItems = this.reviewItemsFor(lessonIds)
+      const reviewEvents = this.reviewEventsFor(lessonIds)
       return rows.map((row) =>
         mapSession(
           row,
@@ -407,6 +544,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
           steps.get(row.id) ?? [],
           masteryEvidence.get(row.id) ?? [],
           misconceptionSignals.get(row.id) ?? [],
+          reviewItems.get(row.id) ?? [],
+          reviewEvents.get(row.id) ?? [],
         ),
       )
     })
@@ -423,6 +562,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
       const steps = this.stepsFor([id])
       const masteryEvidence = this.masteryEvidenceFor([id])
       const misconceptionSignals = this.misconceptionSignalsFor([id])
+      const reviewItems = this.reviewItemsFor([id])
+      const reviewEvents = this.reviewEventsFor([id])
       return mapSession(
         row,
         anchors.get(id) ?? [],
@@ -431,6 +572,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
         steps.get(id) ?? [],
         masteryEvidence.get(id) ?? [],
         misconceptionSignals.get(id) ?? [],
+        reviewItems.get(id) ?? [],
+        reviewEvents.get(id) ?? [],
       )
     })
   }
@@ -531,6 +674,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
           )
         }
         this.insertMasteryEvidence(session)
+        this.insertReviewData(session)
         return session
       })(),
     )
@@ -544,6 +688,12 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             'UPDATE lesson_sessions SET title=?,status=?,current_state=?,updated_at=? WHERE id=?',
           )
           .run(session.title, session.status, session.currentState, session.updatedAt, session.id)
+        this.db
+          .prepare('DELETE FROM lesson_review_events WHERE lesson_id=?')
+          .run(session.id)
+        this.db
+          .prepare('DELETE FROM lesson_review_items WHERE lesson_id=?')
+          .run(session.id)
         this.db
           .prepare('DELETE FROM lesson_misconception_signals WHERE lesson_id=?')
           .run(session.id)
@@ -615,6 +765,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
           )
         }
         this.insertMasteryEvidence(session)
+        this.insertReviewData(session)
 
         return session
       })(),

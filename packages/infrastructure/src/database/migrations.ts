@@ -272,6 +272,36 @@ CREATE TABLE lesson_misconception_signals (
 );
 CREATE INDEX lesson_misconception_signals_lesson_created ON lesson_misconception_signals(lesson_id, created_at);`
 
+const LESSON_REVIEW_SCHEDULER_SQL = `
+CREATE TABLE lesson_review_items (
+ id TEXT PRIMARY KEY,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ mastery_evidence_id TEXT NOT NULL REFERENCES lesson_mastery_evidence(id) ON DELETE CASCADE,
+ misconception_signal_id TEXT REFERENCES lesson_misconception_signals(id) ON DELETE SET NULL,
+ prompt TEXT NOT NULL,
+ answer_outline_json TEXT NOT NULL,
+ status TEXT NOT NULL CHECK (status IN ('active','completed','suspended')),
+ due_at TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ UNIQUE(mastery_evidence_id)
+);
+CREATE INDEX lesson_review_items_lesson_due ON lesson_review_items(lesson_id, status, due_at);
+CREATE INDEX lesson_review_items_due ON lesson_review_items(status, due_at);
+CREATE TABLE lesson_review_events (
+ id TEXT PRIMARY KEY,
+ review_item_id TEXT NOT NULL REFERENCES lesson_review_items(id) ON DELETE CASCADE,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ rating TEXT NOT NULL CHECK (rating IN ('remembered','forgot')),
+ response TEXT NOT NULL,
+ previous_due_at TEXT NOT NULL,
+ next_due_at TEXT,
+ reviewed_at TEXT NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX lesson_review_events_item_reviewed ON lesson_review_events(review_item_id, reviewed_at);
+CREATE INDEX lesson_review_events_lesson_reviewed ON lesson_review_events(lesson_id, reviewed_at);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -286,6 +316,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 11, name: 'document_chunk_fts_sync', sql: DOCUMENT_CHUNK_FTS_SYNC_SQL },
   { version: 12, name: 'lesson_state_machine', sql: LESSON_STATE_MACHINE_SQL },
   { version: 13, name: 'lesson_mastery_evidence', sql: LESSON_MASTERY_EVIDENCE_SQL },
+  { version: 14, name: 'lesson_review_scheduler', sql: LESSON_REVIEW_SCHEDULER_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')
