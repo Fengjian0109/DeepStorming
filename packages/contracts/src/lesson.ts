@@ -44,6 +44,25 @@ export const masteryJudgementSchema = z.enum([
 export const misconceptionSeveritySchema = z.enum(['low', 'medium', 'high'])
 export const reviewItemStatusSchema = z.enum(['active', 'completed', 'suspended'])
 export const reviewRatingSchema = z.enum(['remembered', 'forgot'])
+export const lessonModeSchema = z.enum(['standard', 'paper'])
+export const paperReadingStageSchema = z.enum([
+  'orientation',
+  'problem_framing',
+  'method_intuition',
+  'method_mechanics',
+  'evidence_check',
+  'critical_review',
+  'transfer',
+  'synthesis',
+])
+export const paperLessonProfileSchema = z
+  .object({
+    currentStage: paperReadingStageSchema,
+    stageSummary: z.string().max(500).nullable(),
+    termsIntroduced: z.array(z.string().trim().min(1).max(120)).max(24),
+    citedAnchorIds: z.array(z.string().uuid()).max(24),
+  })
+  .strict()
 export const lessonSourceTargetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('text_range') }).strict(),
   z
@@ -259,7 +278,7 @@ export const lessonSessionSchema = z
     status: lessonSessionStatusSchema,
     documentId: documentIdSchema,
     documentTitle: requiredTextSchema,
-    sourceAnchors: z.array(lessonSourceAnchorSchema).min(1),
+    sourceAnchors: z.array(lessonSourceAnchorSchema),
     messages: z.array(lessonMessageSchema),
     modelRuns: z.array(lessonModelRunSchema),
     currentState: lessonStateSchema,
@@ -268,6 +287,8 @@ export const lessonSessionSchema = z
     misconceptionSignals: z.array(lessonMisconceptionSignalSchema),
     reviewItems: z.array(lessonReviewItemSchema),
     reviewEvents: z.array(lessonReviewEventSchema),
+    lessonMode: lessonModeSchema.default('standard'),
+    paperProfile: paperLessonProfileSchema.nullable().default(null),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -278,6 +299,7 @@ export const lessonStartDraftSchema = z
     documentId: documentIdSchema,
     documentTitle: requiredTextSchema,
     title: requiredTextSchema.optional(),
+    lessonMode: lessonModeSchema.optional(),
     source: z
       .object({
         startOffset: z.number().int().nonnegative(),

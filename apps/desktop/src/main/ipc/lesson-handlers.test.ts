@@ -91,6 +91,8 @@ const session = {
   misconceptionSignals: [],
   reviewItems: [],
   reviewEvents: [],
+  lessonMode: 'standard' as const,
+  paperProfile: null,
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 }

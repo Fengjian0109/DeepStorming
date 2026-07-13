@@ -3,6 +3,7 @@ import {
   LESSON_MESSAGE_ROLES,
   LESSON_MODEL_RUN_STATUSES,
   LESSON_SESSION_STATUSES,
+  normalizeLessonSession,
   normalizeMasteryEvidence,
   normalizeMisconceptionSignal,
   normalizeReviewEvent,
@@ -102,6 +103,67 @@ describe('lesson domain', () => {
 
   it('defines the accepted lesson model run statuses', () => {
     expect(LESSON_MODEL_RUN_STATUSES).toEqual(['started', 'succeeded', 'failed', 'cancelled'])
+  })
+
+  it('normalizes paper lesson profiles for paper lessons', () => {
+    const session = normalizeLessonSession({
+      id: '00000000-0000-4000-8000-000000000101',
+      title: 'Paper Map 课堂',
+      status: 'active',
+      documentId: '00000000-0000-4000-8000-000000000201',
+      documentTitle: 'Paper Map',
+      sourceAnchors: [],
+      messages: [],
+      modelRuns: [],
+      currentState: 'opening',
+      steps: [],
+      masteryEvidence: [],
+      misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+        stageSummary: 'We established the paper problem and the learner background.',
+        termsIntroduced: ['Transformer'],
+        citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      },
+      createdAt: '2026-07-13T00:00:00.000Z',
+      updatedAt: '2026-07-13T00:00:00.000Z',
+    })
+
+    expect(session.paperProfile?.currentStage).toBe('orientation')
+    expect(session.lessonMode).toBe('paper')
+  })
+
+  it('rejects mismatched lessonMode and paperProfile', () => {
+    expect(() =>
+      normalizeLessonSession({
+        id: '00000000-0000-4000-8000-000000000101',
+        title: 'Notes 课堂',
+        status: 'active',
+        documentId: '00000000-0000-4000-8000-000000000201',
+        documentTitle: 'Notes',
+        sourceAnchors: [],
+        messages: [],
+        modelRuns: [],
+        currentState: 'opening',
+        steps: [],
+        masteryEvidence: [],
+        misconceptionSignals: [],
+        reviewItems: [],
+        reviewEvents: [],
+        lessonMode: 'standard',
+        paperProfile: {
+          currentStage: 'orientation',
+          stageSummary: null,
+          termsIntroduced: [],
+          citedAnchorIds: [],
+        },
+        createdAt: '2026-07-13T00:00:00.000Z',
+        updatedAt: '2026-07-13T00:00:00.000Z',
+      }),
+    ).toThrow('Paper lesson profile is invalid')
   })
 
   it('normalizes mastery evidence rationale and rejects invalid confidence', () => {

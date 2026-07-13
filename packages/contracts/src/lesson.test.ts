@@ -303,6 +303,36 @@ describe('lesson contracts', () => {
     ).toBe(false)
   })
 
+  it('validates paper lesson dto payloads', () => {
+    expect(
+      lessonSessionSchema.parse({
+        id: '00000000-0000-4000-8000-000000000101',
+        title: 'Paper Map 课堂',
+        status: 'active',
+        documentId: '00000000-0000-4000-8000-000000000201',
+        documentTitle: 'Paper Map',
+        sourceAnchors: [],
+        messages: [],
+        modelRuns: [],
+        currentState: 'opening',
+        steps: [],
+        masteryEvidence: [],
+        misconceptionSignals: [],
+        reviewItems: [],
+        reviewEvents: [],
+        lessonMode: 'paper',
+        paperProfile: {
+          currentStage: 'orientation',
+          stageSummary: 'The learner has only a rough intuition so far.',
+          termsIntroduced: ['Transformer'],
+          citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+        },
+        createdAt: '2026-07-13T00:00:00.000Z',
+        updatedAt: '2026-07-13T00:00:00.000Z',
+      }).lessonMode,
+    ).toBe('paper')
+  })
+
   it('validates review item and review event dto payloads', () => {
     expect(
       lessonReviewItemSchema.parse({

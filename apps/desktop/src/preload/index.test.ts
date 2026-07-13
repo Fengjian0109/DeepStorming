@@ -225,6 +225,8 @@ const lessonSession: LessonSessionDto = {
   misconceptionSignals: [],
   reviewItems: [],
   reviewEvents: [],
+  lessonMode: 'standard',
+  paperProfile: null,
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 }

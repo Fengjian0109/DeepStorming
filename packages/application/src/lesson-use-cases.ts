@@ -76,6 +76,8 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   misconceptionSignals: session.misconceptionSignals,
   reviewItems: session.reviewItems,
   reviewEvents: session.reviewEvents,
+  lessonMode: 'standard',
+  paperProfile: null,
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })

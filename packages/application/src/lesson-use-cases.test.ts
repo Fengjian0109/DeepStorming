@@ -529,6 +529,8 @@ describe('lesson use cases', () => {
       misconceptionSignals: [],
       reviewItems: [],
       reviewEvents: [],
+      lessonMode: 'standard',
+      paperProfile: null,
       createdAt: now,
       updatedAt: now,
     })

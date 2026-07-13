@@ -19,6 +19,17 @@ export const MASTERY_JUDGEMENTS = ['insufficient', 'partial_understanding', 'nee
 export const MISCONCEPTION_SEVERITIES = ['low', 'medium', 'high'] as const
 export const REVIEW_ITEM_STATUSES = ['active', 'completed', 'suspended'] as const
 export const REVIEW_RATINGS = ['remembered', 'forgot'] as const
+export const LESSON_MODES = ['standard', 'paper'] as const
+export const PAPER_READING_STAGES = [
+  'orientation',
+  'problem_framing',
+  'method_intuition',
+  'method_mechanics',
+  'evidence_check',
+  'critical_review',
+  'transfer',
+  'synthesis',
+] as const
 
 export type LessonSessionStatus = (typeof LESSON_SESSION_STATUSES)[number]
 export type LessonMessageRole = (typeof LESSON_MESSAGE_ROLES)[number]
@@ -31,6 +42,15 @@ export type MasteryJudgement = (typeof MASTERY_JUDGEMENTS)[number]
 export type MisconceptionSeverity = (typeof MISCONCEPTION_SEVERITIES)[number]
 export type ReviewItemStatus = (typeof REVIEW_ITEM_STATUSES)[number]
 export type ReviewRating = (typeof REVIEW_RATINGS)[number]
+export type LessonMode = (typeof LESSON_MODES)[number]
+export type PaperReadingStage = (typeof PAPER_READING_STAGES)[number]
+
+export type PaperLessonProfile = Readonly<{
+  currentStage: PaperReadingStage
+  stageSummary: string | null
+  termsIntroduced: readonly string[]
+  citedAnchorIds: readonly string[]
+}>
 
 export type LessonSourceTarget =
   | Readonly<{ kind: 'text_range' }>
@@ -65,6 +85,8 @@ export type LessonSession = Readonly<{
   misconceptionSignals: readonly MisconceptionSignal[]
   reviewItems: readonly ReviewItem[]
   reviewEvents: readonly ReviewEvent[]
+  lessonMode: LessonMode
+  paperProfile: PaperLessonProfile | null
   createdAt: string
   updatedAt: string
 }>
@@ -227,6 +249,9 @@ export type LessonStartDraft = Readonly<{
   }>
 }>
 
+export type LegacyLessonSession = Omit<LessonSession, 'lessonMode' | 'paperProfile'> &
+  Partial<Pick<LessonSession, 'lessonMode' | 'paperProfile'>>
+
 export type NormalizedLessonStartDraft = Readonly<{
   documentId: string
   documentTitle: string
@@ -296,9 +321,45 @@ const assertReviewRating = (rating: ReviewRating): void => {
   if (!includes(REVIEW_RATINGS, rating)) throw new Error('Review rating is invalid')
 }
 
+const assertLessonMode = (lessonMode: LessonMode): void => {
+  if (!includes(LESSON_MODES, lessonMode)) throw new Error('Lesson mode is invalid')
+}
+
 const assertIsoTimestamp = (value: string, message: string): string => {
   if (Number.isNaN(Date.parse(value))) throw new Error(message)
   return value
+}
+
+const assertUuid = (value: string, message: string): string => {
+  if (!UUID.test(value)) throw new Error(message)
+  return value
+}
+
+const normalizePaperLessonProfile = (
+  profile: PaperLessonProfile | null,
+  lessonMode: LessonMode,
+): PaperLessonProfile | null => {
+  if (lessonMode === 'standard') {
+    if (profile !== null) throw new Error('Paper lesson profile is invalid')
+    return null
+  }
+  if (profile === null) throw new Error('Paper lesson profile is invalid')
+  if (!includes(PAPER_READING_STAGES, profile.currentStage)) {
+    throw new Error('Paper reading stage is invalid')
+  }
+  return {
+    currentStage: profile.currentStage,
+    stageSummary:
+      profile.stageSummary === null
+        ? null
+        : normalizeNonBlank(profile.stageSummary, 'Paper stage summary is invalid').slice(0, 500),
+    termsIntroduced: profile.termsIntroduced.map((term) =>
+      normalizeNonBlank(term, 'Paper term is invalid').slice(0, 120),
+    ),
+    citedAnchorIds: profile.citedAnchorIds.map((id) =>
+      assertUuid(id, 'Paper cited anchor id is invalid'),
+    ),
+  }
 }
 
 const normalizeReviewAnswerOutline = (answerOutline: readonly string[]): readonly string[] => {
@@ -536,6 +597,30 @@ export const normalizeLessonModelRunInputSummary = (
       'Lesson model run document title must not be blank',
     ),
     contextChunks: normalizedContextChunks,
+  }
+}
+
+export const normalizeLessonSession = (session: LegacyLessonSession): LessonSession => {
+  const lessonMode = session.lessonMode ?? 'standard'
+  assertUuid(session.id, 'Lesson session id is invalid')
+  assertLessonMode(lessonMode)
+  if (!includes(LESSON_SESSION_STATUSES, session.status)) {
+    throw new Error('Lesson session status is invalid')
+  }
+  assertUuid(session.documentId, 'Lesson session document id is invalid')
+  assertLessonState(session.currentState, 'Lesson state is invalid')
+
+  return {
+    ...session,
+    title: normalizeNonBlank(session.title, 'Lesson session title must not be blank'),
+    documentTitle: normalizeNonBlank(
+      session.documentTitle,
+      'Lesson session document title must not be blank',
+    ),
+    lessonMode,
+    paperProfile: normalizePaperLessonProfile(session.paperProfile ?? null, lessonMode),
+    createdAt: assertIsoTimestamp(session.createdAt, 'Lesson session created timestamp is invalid'),
+    updatedAt: assertIsoTimestamp(session.updatedAt, 'Lesson session updated timestamp is invalid'),
   }
 }
 
