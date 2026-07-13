@@ -79,7 +79,6 @@ export const DocumentLibrary = ({
   const detailRequestSequence = useRef(0)
   const searchRequestSequence = useRef(0)
   const operationSequence = useRef(0)
-  const focusSequence = useRef<string | undefined>(undefined)
 
   const loadDocuments = useCallback(async () => {
     const requestSequence = listRequestSequence.current + 1
@@ -150,9 +149,6 @@ export const DocumentLibrary = ({
     if (focusTarget === undefined || listState.status !== 'ready') return
     const summary = listState.documents.find((document) => document.id === focusTarget.documentId)
     if (summary === undefined) return
-    const key = `${focusTarget.documentId}:${focusTarget.pageNumber}:${focusTarget.blockId}`
-    if (focusSequence.current === key) return
-    focusSequence.current = key
     void loadDetail(summary).then(() => {
       setSelectedPdfTarget({ pageNumber: focusTarget.pageNumber, blockId: focusTarget.blockId })
     })

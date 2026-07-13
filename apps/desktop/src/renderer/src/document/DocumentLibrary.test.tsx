@@ -73,6 +73,8 @@ const lessonSession = {
         sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
         sourceCharacterRange: { startOffset: 0, endOffset: 4 },
         snippetCharacterCount: 4,
+        contextCharacterCount: 0,
+        contextChunks: [],
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
       outputMessageId: '00000000-0000-4000-8000-000000000401',
@@ -487,5 +489,84 @@ describe('DocumentLibrary', () => {
     })
     expect(await screen.findByText('课堂已创建。')).toBeTruthy()
     expect(onLessonStarted).toHaveBeenCalledWith(lessonSession.id)
+  })
+
+  it('reopens the same focused PDF evidence target after navigating away', async () => {
+    const user = userEvent.setup()
+    const pdfDocument = {
+      ...document,
+      documentType: 'paper' as const,
+      sourceKind: 'text_file' as const,
+      title: 'Evidence PDF',
+    }
+    window.deepstorming.documents.list = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [pdfDocument, documentTwo],
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.documents.get = vi.fn().mockImplementation(async (documentId: string) =>
+      documentId === pdfDocument.id
+        ? {
+            ok: true as const,
+            data: { ...pdfDocument, plainText: 'Evidence PDF body' },
+            requestId: crypto.randomUUID(),
+          }
+        : {
+            ok: true as const,
+            data: { ...documentTwo, plainText: 'draft 2 body' },
+            requestId: crypto.randomUUID(),
+          },
+    )
+    window.deepstorming.documents.getPages = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          id: '00000000-0000-4000-8000-000000000211',
+          documentId: pdfDocument.id,
+          pageNumber: 1,
+          width: 612,
+          height: 792,
+          text: 'Evidence PDF body',
+          textHash: 'b'.repeat(64),
+          createdAt: pdfDocument.createdAt,
+        },
+      ],
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.documents.getPageBlocks = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          id: '00000000-0000-4000-8000-000000000311',
+          documentId: pdfDocument.id,
+          pageId: '00000000-0000-4000-8000-000000000211',
+          pageNumber: 1,
+          blockIndex: 0,
+          text: 'Evidence PDF body',
+          createdAt: pdfDocument.createdAt,
+        },
+      ],
+      requestId: crypto.randomUUID(),
+    })
+
+    const focusTarget = {
+      documentId: pdfDocument.id,
+      pageNumber: 1,
+      blockId: '00000000-0000-4000-8000-000000000311',
+    }
+    const { rerender } = render(<DocumentLibrary focusTarget={focusTarget} />)
+
+    expect(await screen.findByRole('heading', { name: 'Evidence PDF', level: 2 })).toBeTruthy()
+    expect(globalThis.document.querySelector('.pdf-block-active')?.textContent).toContain('Block 1')
+
+    await user.click((await screen.findAllByRole('button', { name: '查看详情' }))[1]!)
+    expect(await screen.findByRole('heading', { name: 'Draft 2', level: 2 })).toBeTruthy()
+
+    rerender(<DocumentLibrary focusTarget={{ ...focusTarget }} />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Evidence PDF', level: 2 })).toBeTruthy(),
+    )
+    expect(globalThis.document.querySelector('.pdf-block-active')?.textContent).toContain('Block 1')
   })
 })

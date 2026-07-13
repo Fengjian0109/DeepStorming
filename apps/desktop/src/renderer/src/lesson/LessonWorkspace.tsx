@@ -326,6 +326,21 @@ export const LessonWorkspace = ({
                     <footer>
                       {modelRun.promptManifest.key} v{modelRun.promptManifest.version}
                     </footer>
+                    <div className="lesson-context-chunks">
+                      <h4>上下文证据</h4>
+                      {modelRun.inputSummary.contextChunks.length > 0 ? (
+                        <ul>
+                          {modelRun.inputSummary.contextChunks.map((chunk) => (
+                            <li key={chunk.chunkId}>
+                              第 {chunk.pageNumberStart}-{chunk.pageNumberEnd} 页 ·{' '}
+                              {chunk.charCount} 字
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>课堂仍可继续（已降级为 snippet）</p>
+                      )}
+                    </div>
                     {modelRun.errorSummary !== null && (
                       <p className="error-state">{modelRun.errorSummary.message}</p>
                     )}

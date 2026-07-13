@@ -52,6 +52,15 @@ const session = {
         sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
         sourceCharacterRange: { startOffset: 4, endOffset: 12 },
         snippetCharacterCount: 8,
+        contextCharacterCount: 144,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000601',
+            pageNumberStart: 1,
+            pageNumberEnd: 1,
+            charCount: 144,
+          },
+        ],
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
       outputMessageId: '00000000-0000-4000-8000-000000000401',

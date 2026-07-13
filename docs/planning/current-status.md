@@ -1,9 +1,9 @@
 # DeepStorming 当前开发状态
 
-- 更新时间：2026-07-12
+- 更新时间：2026-07-13
 - 当前分支：`main`
-- 当前阶段：Phase 6 PDF 文档底座 + D3 文档阅读器与证据定位
-- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、桌面 PDF 导入 UI 与 E2E 已完成
+- 当前阶段：Phase 6 D4 Chunk / 检索 / 上下文预算
+- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位，以及 D4 chunk 检索上下文展示与 snippet 降级闭环已完成
 
 ## 已完成
 
@@ -105,6 +105,11 @@
   - PDF 文本解析：锁定 `pdf-parse@2.4.5`；Infrastructure 通过动态导入和最小 pdf.js geometry globals 避免 Electron main 静态加载失败，Desktop 将 `pdf-parse` 声明为运行时依赖以保证打包/运行路径可解析。
   - Renderer 安全边界：Preload 通过 Electron `webUtils.getPathForFile(file)` 暴露窄文件路径 helper；Renderer 不直接导入 Electron/Node，也不暴露泛用 IPC。
   - E2E：文档/课堂持久化流程新增确定性最小 PDF fixture，覆盖 PDF 导入、详情页面正文、页面/Block 预览、从 PDF 片段启动课堂、重启后 PDF 文档与 page/block 仍可读取。
+- Phase 6 D4 Chunk / 检索 / 上下文预算：
+  - Application / Infrastructure：课堂首问与 follow-up 已持久化 `inputSummary.contextChunks` 与 `contextCharacterCount`，并在 chunk 缺失时稳定降级为 snippet-only。
+  - Renderer：课堂详情的每条生成记录下新增“上下文证据”区块，展示命中的页码范围与字符数；没有 chunk 时明确标注“课堂仍可继续（已降级为 snippet）”。
+  - 文档 / 课堂联动：文档库重新允许同一 PDF 证据目标被重复聚焦，支持多次从课堂回到同一 block。
+  - E2E：桌面主流程新增 PDF block 课堂首问/追问两轮上下文证据断言，并在重启前清空 `document_chunks` fixture，验证 chunk 缺失后课堂仍可继续。
 
 ## 当前范围与非目标
 
@@ -113,8 +118,8 @@
 
 ## 当前门禁
 
-1. `pnpm check`：通过；Prettier、全 workspace typecheck、40 个测试文件 / 457 个测试，以及桌面端构建全部通过。
-2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 覆盖 `.md` 导入、PDF 导入、PDF 页面/Block 预览、正文搜索、从 PDF-derived snippet 与搜索结果启动课堂、首条 Mock Tutor 提问、生成记录、提交学习者回复、下一轮 Mock Tutor 追问，以及重启后文档、PDF page/block、课堂来源片段/多轮消息/生成记录仍可读取；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
+1. `pnpm check`：通过；Prettier、全 workspace typecheck、测试与桌面端构建全部通过。
+2. `pnpm test:e2e`：通过；开发版 Provider lifecycle 和文档/课堂重启持久化 2 个 E2E 通过，其中文档 E2E 现覆盖 `.md` 导入、PDF 导入、PDF 页面/Block 预览、从 PDF block 启动课堂后的上下文证据展示、学习者回复后的 follow-up 上下文证据、正文搜索、从搜索结果启动课堂，以及重启后 chunk 索引缺失时的 snippet-only 降级继续课堂；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
 5. 原生模块证据：`Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node` 为 Mach-O 64-bit arm64 bundle；使用该目录包的 Electron runtime 从 `app.asar` 加载模块并完成临时 SQLite 的 create/insert/select，输出 `{"value":"ok"}`。
@@ -134,4 +139,4 @@ pnpm package:dir
 
 ## 下一步
 
-D3 已完成：详情页内嵌文本层 PDF reader，支持页码浏览、block 搜索/高亮、从 block 启动课堂、页码/block 来源展示和回到证据。下一步进入 D4 Chunk / 检索 / 上下文预算；发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。
+D4 已完成：chunk 检索结果已进入课堂 model run 审计，桌面端可展示上下文证据，并在 chunk 缺失时稳定降级为 snippet-only。下一步进入 D5 TutorAction / LessonState 状态机；发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。

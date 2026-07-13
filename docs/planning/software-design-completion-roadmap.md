@@ -1,8 +1,8 @@
 # DeepStorming 软件设计收敛路线图
 
-- 日期：2026-07-12
+- 日期：2026-07-13
 - 目标：把当前已完成的 Provider / 文本文档 / LessonSession 基线，收敛到可发布 MVP 所需的剩余软件设计与实施顺序。
-- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座与 D3 文档阅读器/证据定位已完成；下一阶段进入 D4 检索上下文、真实云 Provider 手动验收和发布准备。
+- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位与 D4 检索上下文已完成；下一阶段进入 D5 TutorAction / LessonState、真实云 Provider 手动验收和发布准备。
 
 ## 1. 当前设计基线
 
@@ -99,6 +99,16 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 - lesson generator 输入预算：最大 snippet 数、字符数、来源排序、摘要策略。
 - 不把完整文档正文发送给 Provider。
 
+当前状态：已完成。
+
+完成结果：
+
+- `document_chunks` 已作为可重建派生层进入文档导入流水线，并支撑课堂检索上下文。
+- lesson model run 已持久化 `contextChunks` / `contextCharacterCount` 审计摘要。
+- Renderer 已在每条生成记录下展示“上下文证据”页码范围与字符数。
+- chunk 索引缺失时，课堂会稳定降级为 snippet-only，并在桌面端明确提示。
+- E2E 已覆盖 PDF block 首问/追问两轮上下文证据，以及清空 `document_chunks` 后继续课堂的降级路径。
+
 ### D5. TutorAction / LessonState 状态机
 
 目的：把当前“导师追问字符串”升级为可解释、可恢复、可测试的课堂状态机。
@@ -150,9 +160,9 @@ D1 真实云 Provider 手动验收（可与 D3 并行手动验收）
   ↓
 D2 PDF 文档底座（已完成）
   ↓
-D3 阅读器与证据定位
+D3 阅读器与证据定位（已完成）
   ↓
-D4 Chunk / 检索 / 上下文预算
+D4 Chunk / 检索 / 上下文预算（已完成）
   ↓
 D5 TutorAction / LessonState
   ↓

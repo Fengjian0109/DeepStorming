@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -29,6 +30,13 @@ const launchDevApp = async (userDataDir: string): Promise<ElectronApplication> =
     args: [...sandboxArgs(), path.join(process.cwd(), 'apps/desktop/out/main/index.js')],
     env: launchEnvironment(path.join(userDataDir, 'runtime')),
   })
+
+const clearPersistedContextChunks = (userDataDir: string): void => {
+  execFileSync('/opt/miniconda3/bin/sqlite3', [
+    path.join(userDataDir, 'runtime', 'deepstorming.sqlite3'),
+    'DELETE FROM document_chunks;',
+  ])
+}
 
 const pdfStringWith = (text: string): string => {
   const escaped = text.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)')
@@ -137,7 +145,7 @@ test('boots securely and covers the mock provider lifecycle', async () => {
 test('creates text documents and persists them across restart', async () => {
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-doc-e2e-user-'))
   const pdfFixturePath = path.join(userDataDir, 'evidence.pdf')
-  const pdfFixtureText = 'Evidence connects a claim to observable behavior.'
+  const pdfFixtureText = 'Evidence connects a claim to observable behavior'
   writeFileSync(pdfFixturePath, pdfStringWith(pdfFixtureText), 'utf8')
 
   try {
@@ -179,6 +187,14 @@ test('creates text documents and persists them across restart', async () => {
       await expect(page.locator('#lesson-title')).toHaveText('课堂')
       await expect(page.locator('.lesson-anchor').getByText(pdfFixtureText)).toBeVisible()
       await expect(page.getByText('第 1 页 · Block 1')).toBeVisible()
+      await expect(page.getByRole('heading', { name: '上下文证据' })).toHaveCount(1)
+      await expect(page.getByText('第 1-1 页')).toBeVisible()
+      await page.getByLabel('你的回答').fill('这段证据把结论和可观察行为连起来了。')
+      await page.getByRole('button', { name: '提交回答' }).click()
+      await expect(page.getByText('回答已提交。')).toBeVisible()
+      await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
+      await expect(page.getByRole('heading', { name: '上下文证据' })).toHaveCount(2)
+      await expect(page.getByText('第 1-1 页')).toBeVisible()
       await page.getByRole('button', { name: '回到证据' }).click()
       await expect(
         page.locator('.document-detail').getByRole('heading', { name: 'evidence' }),
@@ -210,7 +226,7 @@ test('creates text documents and persists them across restart', async () => {
           .getByText('它在说明证据如何支撑判断。'),
       ).toBeVisible()
       await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
-      await expect(page.getByText('lesson.mockTutor.followUp v1')).toBeVisible()
+      await expect(page.getByText('lesson.mockTutor.followUp v2')).toBeVisible()
       await page.getByRole('button', { name: '文档库' }).click()
 
       await page.getByRole('button', { name: '删除 Socratic Notes' }).click()
@@ -220,6 +236,8 @@ test('creates text documents and persists them across restart', async () => {
     } finally {
       await first.close()
     }
+
+    clearPersistedContextChunks(userDataDir)
 
     const second = await launchDevApp(userDataDir)
     try {
@@ -260,8 +278,16 @@ test('creates text documents and persists them across restart', async () => {
           .getByText('它在说明证据如何支撑判断。'),
       ).toBeVisible()
       await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
-      await expect(page.getByText('lesson.mockTutor.followUp v1')).toBeVisible()
+      await expect(page.getByText('lesson.mockTutor.followUp v2')).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Socratic Notes' })).not.toBeVisible()
+      await page
+        .locator('.document-card')
+        .filter({ hasText: 'evidence 课堂' })
+        .getByRole('button', { name: '打开 evidence 课堂' })
+        .click()
+      await page.getByLabel('你的回答').fill('我会继续检查缺少 chunk 时还能否只靠 snippet 追问。')
+      await page.getByRole('button', { name: '提交回答' }).click()
+      await expect(page.getByText('课堂仍可继续（已降级为 snippet）')).toBeVisible()
     } finally {
       await second.close()
     }

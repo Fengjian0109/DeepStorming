@@ -53,6 +53,15 @@ const session = {
         sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
         sourceCharacterRange: { startOffset: 4, endOffset: 12 },
         snippetCharacterCount: 8,
+        contextCharacterCount: 312,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000601',
+            pageNumberStart: 1,
+            pageNumberEnd: 1,
+            charCount: 312,
+          },
+        ],
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
       outputMessageId: '00000000-0000-4000-8000-000000000401',
@@ -111,6 +120,15 @@ const repliedSession = {
         sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
         sourceCharacterRange: { startOffset: 4, endOffset: 12 },
         snippetCharacterCount: 8,
+        contextCharacterCount: 186,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000602',
+            pageNumberStart: 2,
+            pageNumberEnd: 3,
+            charCount: 186,
+          },
+        ],
         learnerReplyCharacterCount: 13,
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
@@ -180,6 +198,15 @@ const retriedSession = {
         sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
         sourceCharacterRange: { startOffset: 4, endOffset: 12 },
         snippetCharacterCount: 8,
+        contextCharacterCount: 186,
+        contextChunks: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000603',
+            pageNumberStart: 2,
+            pageNumberEnd: 3,
+            charCount: 186,
+          },
+        ],
         learnerReplyCharacterCount: 13,
       },
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
@@ -231,6 +258,8 @@ describe('LessonWorkspace', () => {
       screen.getByText((_content, node) => node?.textContent === '导师 · Prompt mock-tutor-v1'),
     ).toBeTruthy()
     expect(screen.getByText('mock-local · succeeded')).toBeTruthy()
+    expect(screen.getByText('上下文证据')).toBeTruthy()
+    expect(screen.getByText('第 1-1 页 · 312 字')).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: '打开 Paper Map 课堂' }))
     await waitFor(() => expect(window.deepstorming.lessons.get).toHaveBeenCalledWith(session.id))
@@ -290,6 +319,31 @@ describe('LessonWorkspace', () => {
     expect(await screen.findByText('它在说明证据如何支撑判断。')).toBeTruthy()
     expect(await screen.findByText(/下一步你会如何验证这个判断/)).toBeTruthy()
     expect(screen.getByText('lesson.mockTutor.followUp v1')).toBeTruthy()
+    expect(screen.getByText('第 2-3 页 · 186 字')).toBeTruthy()
+  })
+
+  it('shows snippet fallback when a lesson run has no retrieval chunks', async () => {
+    const degradedSession = {
+      ...session,
+      modelRuns: session.modelRuns.map((run) => ({
+        ...run,
+        inputSummary: {
+          ...run.inputSummary,
+          contextCharacterCount: 0,
+          contextChunks: [],
+        },
+      })),
+    }
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [degradedSession], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: degradedSession, requestId: crypto.randomUUID() })
+
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    expect(await screen.findByText('课堂仍可继续（已降级为 snippet）')).toBeTruthy()
   })
 
   it('cancels an in-flight learner reply generation', async () => {
