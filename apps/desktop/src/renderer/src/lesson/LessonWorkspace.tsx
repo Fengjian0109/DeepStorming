@@ -1,4 +1,8 @@
-import type { LessonSessionDto, LessonStateDto } from '@deepstorming/contracts'
+import type {
+  LessonMasteryEvidenceDto,
+  LessonSessionDto,
+  LessonStateDto,
+} from '@deepstorming/contracts'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 type LessonListState =
@@ -45,8 +49,19 @@ const lessonStateLabels: Record<LessonStateDto, string> = {
   error: '待恢复',
 }
 
+const masteryJudgementLabels: Record<LessonMasteryEvidenceDto['judgement'], string> = {
+  insufficient: '证据不足',
+  partial_understanding: '部分理解',
+  needs_review: '建议复习',
+}
+
 const stepForRun = (session: LessonSessionDto, modelRunId: string) =>
   session.steps.find((step) => step.modelRunId === modelRunId)
+
+const latestMasteryEvidence = (session: LessonSessionDto): LessonMasteryEvidenceDto | undefined =>
+  [...session.masteryEvidence].sort((left, right) =>
+    right.createdAt.localeCompare(left.createdAt),
+  )[0]
 
 export const LessonWorkspace = ({
   selectedLessonId,
@@ -423,6 +438,47 @@ export const LessonWorkspace = ({
                   </p>
                 )}
               </div>
+              {(() => {
+                const evidence = latestMasteryEvidence(detailState.session)
+                const matchingSignals =
+                  evidence === undefined
+                    ? []
+                    : detailState.session.misconceptionSignals.filter(
+                        (signal) => signal.evidenceId === evidence.id,
+                      )
+
+                return (
+                  <section
+                    className="lesson-mastery-diagnosis"
+                    aria-labelledby="lesson-mastery-title"
+                  >
+                    <h3 id="lesson-mastery-title">学习诊断</h3>
+                    {evidence === undefined ? (
+                      <p className="muted-state">还没有学习诊断。</p>
+                    ) : (
+                      <article className="lesson-mastery-card">
+                        <p className="lesson-mastery-summary">
+                          {masteryJudgementLabels[evidence.judgement]} ·{' '}
+                          {Math.round(evidence.confidence * 100)}%
+                        </p>
+                        <p>{evidence.rationale}</p>
+                        {evidence.suggestedReview && (
+                          <p className="lesson-review-suggestion">建议加入后续复习</p>
+                        )}
+                        {matchingSignals.length > 0 && (
+                          <ul className="lesson-misconception-list">
+                            {matchingSignals.map((signal) => (
+                              <li key={signal.id}>
+                                可能误区：{signal.label} · {signal.severity}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </article>
+                    )}
+                  </section>
+                )
+              })()}
               <form className="lesson-reply-form" onSubmit={(event) => void submitReply(event)}>
                 <label htmlFor="lesson-reply">你的回答</label>
                 <textarea

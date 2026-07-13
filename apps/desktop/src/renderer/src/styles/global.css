@@ -515,6 +515,48 @@ h2 {
   font-size: 0.8rem;
 }
 
+.lesson-mastery-diagnosis {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.lesson-mastery-diagnosis h3 {
+  margin: 0;
+}
+
+.lesson-mastery-card {
+  padding: 14px;
+  border: 1px solid rgb(74 139 104 / 24%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 72%);
+}
+
+.lesson-mastery-card p {
+  margin: 0;
+}
+
+.lesson-mastery-card p + p,
+.lesson-misconception-list {
+  margin-top: 8px;
+}
+
+.lesson-mastery-summary {
+  color: #375346;
+  font-weight: 800;
+}
+
+.lesson-review-suggestion {
+  color: #8a5a16;
+  font-weight: 700;
+}
+
+.lesson-misconception-list {
+  padding-left: 20px;
+  color: #65766d;
+  font-size: 0.9rem;
+}
+
 .lesson-reply-form {
   display: grid;
   gap: 10px;

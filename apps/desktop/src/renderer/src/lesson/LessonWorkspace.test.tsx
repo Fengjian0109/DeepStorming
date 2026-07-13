@@ -88,6 +88,8 @@ const session = {
       finishedAt: '2026-07-11T00:00:00.000Z',
     },
   ],
+  masteryEvidence: [],
+  misconceptionSignals: [],
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
@@ -175,7 +177,54 @@ const repliedSession = {
       finishedAt: '2026-07-11T00:01:00.000Z',
     },
   ],
+  masteryEvidence: [
+    {
+      id: '00000000-0000-4000-8000-000000000701',
+      lessonId: session.id,
+      stepId: '00000000-0000-4000-8000-000000000502',
+      learnerMessageId: '00000000-0000-4000-8000-000000000402',
+      tutorMessageId: '00000000-0000-4000-8000-000000000403',
+      kind: 'teach_back' as const,
+      judgement: 'partial_understanding' as const,
+      confidence: 0.55,
+      rationale: 'Learner gave a source-grounded answer that can support follow-up.',
+      suggestedReview: false,
+      createdAt: '2026-07-11T00:01:00.000Z',
+    },
+  ],
+  misconceptionSignals: [],
   updatedAt: '2026-07-11T00:01:00.000Z',
+}
+
+const stuckSession = {
+  ...repliedSession,
+  masteryEvidence: [
+    ...repliedSession.masteryEvidence,
+    {
+      id: '00000000-0000-4000-8000-000000000702',
+      lessonId: session.id,
+      stepId: '00000000-0000-4000-8000-000000000502',
+      learnerMessageId: '00000000-0000-4000-8000-000000000402',
+      tutorMessageId: '00000000-0000-4000-8000-000000000403',
+      kind: 'stuck_signal' as const,
+      judgement: 'needs_review' as const,
+      confidence: 0.75,
+      rationale: 'Learner explicitly signaled they are stuck or unsure.',
+      suggestedReview: true,
+      createdAt: '2026-07-11T00:02:00.000Z',
+    },
+  ],
+  misconceptionSignals: [
+    {
+      id: '00000000-0000-4000-8000-000000000801',
+      evidenceId: '00000000-0000-4000-8000-000000000702',
+      lessonId: session.id,
+      label: '学习者表达卡住',
+      severity: 'medium' as const,
+      rationale: 'Learner used language that indicates confusion or being stuck.',
+      createdAt: '2026-07-11T00:02:00.000Z',
+    },
+  ],
 }
 
 const failedSession = {
@@ -390,10 +439,15 @@ describe('LessonWorkspace', () => {
     expect(screen.getByText('lesson.mockTutor.followUp v1')).toBeTruthy()
     expect(screen.getByText('动作：ask · probing → probing')).toBeTruthy()
     expect(screen.getByText('第 2-3 页 · 186 字')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '学习诊断' })).toBeTruthy()
+    expect(screen.getByText('部分理解 · 55%')).toBeTruthy()
+    expect(
+      screen.getByText('Learner gave a source-grounded answer that can support follow-up.'),
+    ).toBeTruthy()
   })
 
   it('keeps historical sessions readable before step records exist', async () => {
-    const legacySession = { ...session, steps: [] }
+    const legacySession = { ...session, steps: [], masteryEvidence: [], misconceptionSignals: [] }
     window.deepstorming.lessons.list = vi
       .fn()
       .mockResolvedValue({ ok: true, data: [legacySession], requestId: crypto.randomUUID() })
@@ -404,6 +458,23 @@ describe('LessonWorkspace', () => {
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
     expect(await screen.findByText('状态机记录尚未生成')).toBeTruthy()
+    expect(screen.getByText('还没有学习诊断。')).toBeTruthy()
+  })
+
+  it('shows matching misconception signals and suggested review for the latest diagnosis', async () => {
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [stuckSession], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: stuckSession, requestId: crypto.randomUUID() })
+
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    expect(await screen.findByText('建议复习 · 75%')).toBeTruthy()
+    expect(screen.getByText('Learner explicitly signaled they are stuck or unsure.')).toBeTruthy()
+    expect(screen.getByText('可能误区：学习者表达卡住 · medium')).toBeTruthy()
+    expect(screen.getByText('建议加入后续复习')).toBeTruthy()
   })
 
   it('shows snippet fallback when a lesson run has no retrieval chunks', async () => {
