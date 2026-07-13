@@ -635,7 +635,7 @@ describe('lesson use cases', () => {
         modelRunId: followUpRunId,
         role: 'tutor',
         content:
-          '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来：下一步你会如何验证这个判断？',
+          '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“Why What；How Evidence”。下一步你会如何验证这个判断？',
         sourceAnchorIds: [anchorId],
         promptVersion: 'mock-tutor-follow-up-v1',
         createdAt: now,
@@ -690,6 +690,67 @@ describe('lesson use cases', () => {
       },
     ])
     expect(JSON.stringify(updated)).not.toContain('plainText')
+  })
+
+  it('uses assembled chunk text in the local follow-up fallback path', async () => {
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+    const replyAssembler = new FakeLessonContextAssembler()
+    replyAssembler.nextResult = {
+      chunks: [
+        {
+          id: '00000000-0000-4000-8000-000000000901',
+          documentId,
+          pageNumberStart: 1,
+          pageNumberEnd: 1,
+          blockIds: ['block-1'],
+          text: 'Context A',
+          charCount: 9,
+          sourceVersion: 'text-version-1',
+          rebuildToken: 'document.chunk.rebuild.v1',
+        },
+      ],
+      degradedToSnippetOnly: false,
+      snippetFallback: null,
+    }
+
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      replyAssembler,
+    ).execute({
+      lessonId: created.id,
+      content: '它在说明证据如何支撑判断。',
+    })
+
+    expect(updated.messages.at(-1)).toMatchObject({
+      id: followUpMessageId,
+      content:
+        '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“Context A”。下一步你会如何验证这个判断？',
+    })
+    expect(updated.modelRuns.at(-1)?.inputSummary.contextChunks).toEqual([
+      {
+        chunkId: '00000000-0000-4000-8000-000000000901',
+        pageNumberStart: 1,
+        pageNumberEnd: 1,
+        charCount: 9,
+      },
+    ])
   })
 
   it('degrades stale lesson context to snippet-only without aborting lesson start', async () => {
@@ -1129,7 +1190,7 @@ describe('lesson use cases', () => {
       modelRunId: retryRunId,
       role: 'tutor',
       content:
-        '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来：下一步你会如何验证这个判断？',
+        '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“无额外上下文”。下一步你会如何验证这个判断？',
       sourceAnchorIds: [anchorId],
       promptVersion: 'mock-tutor-follow-up-v1',
       createdAt: now,

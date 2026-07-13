@@ -70,7 +70,7 @@ const MOCK_TUTOR_PROMPT_MANIFEST: LessonPromptManifest = {
 }
 const MOCK_TUTOR_PROMPT_VERSION = 'mock-tutor-v1'
 const MOCK_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE =
-  '你刚才提到：“{{learnerReply}}”。我们把它和证据“{{snippet}}”连起来：下一步你会如何验证这个判断？'
+  '你刚才提到：“{{learnerReply}}”。我们把它和证据“{{snippet}}”连起来，参考这些上下文：“{{context}}”。下一步你会如何验证这个判断？'
 const MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST: LessonPromptManifest = {
   key: 'lesson.mockTutor.followUp',
   version: 1,
@@ -85,14 +85,20 @@ const createMockTutorFirstQuestion = (documentTitle: string, snippet: string): s
     snippet,
   )
 
-const createMockTutorFollowUp = (learnerReply: string, snippet: string): string =>
-  MOCK_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE.replace('{{learnerReply}}', learnerReply).replace(
-    '{{snippet}}',
-    snippet,
-  )
+const createMockTutorFollowUp = (
+  learnerReply: string,
+  snippet: string,
+  contextChunks: LessonTutorReplyRequest['contextChunks'],
+): string =>
+  MOCK_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE.replace('{{learnerReply}}', learnerReply)
+    .replace('{{snippet}}', snippet)
+    .replace(
+      '{{context}}',
+      contextChunks.length === 0 ? '无额外上下文' : contextChunks.map((chunk) => chunk.text).join('；'),
+    )
 
-const localTutorReply = (learnerReply: string, snippet: string): LessonTutorReplyResult => ({
-  content: createMockTutorFollowUp(learnerReply, snippet),
+const localTutorReply = (input: LessonTutorReplyRequest): LessonTutorReplyResult => ({
+  content: createMockTutorFollowUp(input.learnerReply, input.sourceSnippet, input.contextChunks),
   providerId: null,
   modelName: 'mock-local',
 })
@@ -270,7 +276,7 @@ const generateTutorReply = async (
   token: CancellationToken,
 ): Promise<LessonTutorReplyResult> => {
   if (token.cancelled) throw cancelledError()
-  if (generator === undefined) return localTutorReply(input.learnerReply, input.sourceSnippet)
+  if (generator === undefined) return localTutorReply(input)
   try {
     return await generator.generateFollowUp(input, token)
   } catch (error) {
@@ -972,7 +978,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       throw asDatabaseError(error)
     }
     if (activeProvider === undefined) {
-      return localTutorReply(input.learnerReply, input.sourceSnippet)
+      return localTutorReply(input)
     }
 
     let apiKey: string | undefined
