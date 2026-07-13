@@ -474,6 +474,9 @@ describe('LessonWorkspace', () => {
     expect(await screen.findByText('建议复习 · 75%')).toBeTruthy()
     expect(screen.getByText('Learner explicitly signaled they are stuck or unsure.')).toBeTruthy()
     expect(screen.getByText('可能误区：学习者表达卡住 · medium')).toBeTruthy()
+    expect(
+      screen.getByText('Learner used language that indicates confusion or being stuck.'),
+    ).toBeTruthy()
     expect(screen.getByText('建议加入后续复习')).toBeTruthy()
   })
 

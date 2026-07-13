@@ -557,6 +557,10 @@ h2 {
   font-size: 0.9rem;
 }
 
+.lesson-misconception-rationale {
+  margin-top: 4px;
+}
+
 .lesson-reply-form {
   display: grid;
   gap: 10px;

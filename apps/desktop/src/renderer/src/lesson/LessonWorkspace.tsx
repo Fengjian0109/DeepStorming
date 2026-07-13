@@ -469,7 +469,12 @@ export const LessonWorkspace = ({
                           <ul className="lesson-misconception-list">
                             {matchingSignals.map((signal) => (
                               <li key={signal.id}>
-                                可能误区：{signal.label} · {signal.severity}
+                                <span>
+                                  可能误区：{signal.label} · {signal.severity}
+                                </span>
+                                <p className="lesson-misconception-rationale">
+                                  {signal.rationale}
+                                </p>
                               </li>
                             ))}
                           </ul>
