@@ -159,6 +159,9 @@ export const createLessonIpcHandlers = (
           documentId: request.lesson.documentId,
           documentTitle: request.lesson.documentTitle,
           ...(request.lesson.title === undefined ? {} : { title: request.lesson.title }),
+          ...(request.lesson.lessonMode === undefined
+            ? {}
+            : { lessonMode: request.lesson.lessonMode }),
           source: request.lesson.source,
         }),
     ),

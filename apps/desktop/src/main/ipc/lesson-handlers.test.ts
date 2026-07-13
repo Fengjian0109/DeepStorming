@@ -129,6 +129,7 @@ describe('lesson IPC handlers', () => {
       lesson: {
         documentId,
         documentTitle: 'Paper Map',
+        lessonMode: 'paper',
         source: { startOffset: 4, endOffset: 12, snippet: 'Evidence' },
       },
     })
@@ -137,6 +138,7 @@ describe('lesson IPC handlers', () => {
     expect(deps.startLessonFromDocument.execute).toHaveBeenCalledWith({
       documentId,
       documentTitle: 'Paper Map',
+      lessonMode: 'paper',
       source: { startOffset: 4, endOffset: 12, snippet: 'Evidence' },
     })
   })

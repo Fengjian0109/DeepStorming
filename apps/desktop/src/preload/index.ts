@@ -169,7 +169,16 @@ const api: DeepStormingBootstrapApi = {
       const requestId = globalThis.crypto.randomUUID()
       return invokeValidated(
         LESSON_CHANNELS.startFromDocument,
-        { requestId, lesson },
+        {
+          requestId,
+          lesson: {
+            documentId: lesson.documentId,
+            documentTitle: lesson.documentTitle,
+            ...(lesson.title === undefined ? {} : { title: lesson.title }),
+            ...(lesson.lessonMode === undefined ? {} : { lessonMode: lesson.lessonMode }),
+            source: lesson.source,
+          },
+        },
         lessonSessionResultSchema,
       )
     },

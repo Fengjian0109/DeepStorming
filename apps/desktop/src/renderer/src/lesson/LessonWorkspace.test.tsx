@@ -92,8 +92,21 @@ const session = {
   misconceptionSignals: [],
   reviewItems: [],
   reviewEvents: [],
+  lessonMode: 'standard' as const,
+  paperProfile: null,
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
+}
+
+const paperSession = {
+  ...session,
+  id: '00000000-0000-4000-8000-000000000111',
+  title: 'Paper Map 论文课堂',
+  lessonMode: 'paper' as const,
+  paperProfile: {
+    currentStage: 'problem_framing' as const,
+    stageSummary: 'The learner is still orienting around the paper.',
+  },
 }
 
 const repliedSession = {
@@ -385,6 +398,28 @@ afterEach(() => {
 })
 
 describe('LessonWorkspace', () => {
+  it('renders paper stage and summary for paper lessons', async () => {
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [paperSession], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: paperSession, requestId: crypto.randomUUID() })
+
+    render(<LessonWorkspace selectedLessonId={paperSession.id} />)
+
+    expect(await screen.findByText('当前论文阶段')).toBeTruthy()
+    expect(screen.getByText('问题定位')).toBeTruthy()
+    expect(screen.getByText('The learner is still orienting around the paper.')).toBeTruthy()
+  })
+
+  it('does not render paper metadata for standard lessons', async () => {
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    expect(await screen.findByRole('heading', { name: '课堂' })).toBeTruthy()
+    expect(screen.queryByText('当前论文阶段')).toBeNull()
+  })
+
   it('lists lesson sessions and opens a selected session', async () => {
     const user = userEvent.setup()
     render(<LessonWorkspace selectedLessonId={session.id} />)

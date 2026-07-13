@@ -49,6 +49,20 @@ const lessonStateLabels: Record<LessonStateDto, string> = {
   error: '待恢复',
 }
 
+const paperStageLabels: Record<
+  NonNullable<LessonSessionDto['paperProfile']>['currentStage'],
+  string
+> = {
+  orientation: '整体定位',
+  problem_framing: '问题定位',
+  method_intuition: '方法直觉',
+  method_mechanics: '方法细节',
+  evidence_check: '证据核验',
+  critical_review: '批判审视',
+  transfer: '迁移延伸',
+  synthesis: '复盘整合',
+}
+
 const masteryJudgementLabels: Record<LessonMasteryEvidenceDto['judgement'], string> = {
   insufficient: '证据不足',
   partial_understanding: '部分理解',
@@ -357,6 +371,16 @@ export const LessonWorkspace = ({
               <p className="lesson-state-pill">
                 当前阶段：{lessonStateLabels[detailState.session.currentState]}
               </p>
+              {detailState.session.lessonMode === 'paper' &&
+              detailState.session.paperProfile !== null ? (
+                <section className="lesson-paper-stage">
+                  <h3>当前论文阶段</h3>
+                  <p>{paperStageLabels[detailState.session.paperProfile.currentStage]}</p>
+                  {detailState.session.paperProfile.stageSummary !== null ? (
+                    <p>{detailState.session.paperProfile.stageSummary}</p>
+                  ) : null}
+                </section>
+              ) : null}
               <div className="lesson-anchor-list">
                 {detailState.session.sourceAnchors.map((anchor) => (
                   <blockquote key={anchor.id} className="lesson-anchor">

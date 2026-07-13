@@ -133,6 +133,7 @@ const documentTextBlock: DocumentTextBlockDto = {
 const lessonDraft: LessonStartDraftDto = {
   documentId: documentSummary.id,
   documentTitle: documentSummary.title,
+  lessonMode: 'paper',
   source: {
     startOffset: 0,
     endOffset: 4,
