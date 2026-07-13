@@ -501,6 +501,24 @@ describe('lesson use cases', () => {
           finishedAt: now,
         },
       ],
+      currentState: 'probing',
+      steps: [
+        {
+          id: modelRunId,
+          lessonId,
+          sequenceNo: 0,
+          stateBefore: 'opening',
+          stateAfter: 'probing',
+          actionType: 'ask',
+          status: 'succeeded',
+          modelRunId,
+          messageId,
+          rationale: 'Started with a source-grounded opening question.',
+          errorSummary: null,
+          createdAt: now,
+          finishedAt: now,
+        },
+      ],
       createdAt: now,
       updatedAt: now,
     })
@@ -678,6 +696,20 @@ describe('lesson use cases', () => {
       startedAt: now,
       finishedAt: now,
     })
+    expect(updated.currentState).toBe('probing')
+    expect(updated.steps.at(-1)).toMatchObject({
+      id: followUpRunId,
+      sequenceNo: 1,
+      stateBefore: 'probing',
+      stateAfter: 'probing',
+      actionType: 'ask',
+      status: 'succeeded',
+      modelRunId: followUpRunId,
+      messageId: followUpMessageId,
+      rationale: 'Continue probing with source-grounded question.',
+      errorSummary: null,
+      finishedAt: now,
+    })
     expect(replyAssembler.calls).toEqual([
       {
         documentId,
@@ -686,6 +718,44 @@ describe('lesson use cases', () => {
       },
     ])
     expect(JSON.stringify(updated)).not.toContain('plainText')
+  })
+
+  it('routes stuck learner replies into the hinting state', async () => {
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+
+    const hinting = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
+    ).execute({
+      lessonId: created.id,
+      content: '我不懂，卡住了。',
+    })
+
+    expect(hinting.currentState).toBe('hinting')
+    expect(hinting.steps.at(-1)).toMatchObject({
+      id: followUpRunId,
+      actionType: 'hint',
+      stateBefore: 'probing',
+      stateAfter: 'hinting',
+      status: 'succeeded',
+    })
   })
 
   it('uses assembled chunk text in the local follow-up fallback path', async () => {
@@ -1016,6 +1086,22 @@ describe('lesson use cases', () => {
       id: followUpRunId,
       status: 'failed',
       outputMessageId: null,
+      errorSummary: {
+        code: 'INTERNAL_ERROR',
+        message: 'The lesson operation could not be completed.',
+        retryable: true,
+      },
+      finishedAt: now,
+    })
+    expect(failed?.currentState).toBe('probing')
+    expect(failed?.steps.at(-1)).toMatchObject({
+      id: followUpRunId,
+      stateBefore: 'probing',
+      stateAfter: 'probing',
+      actionType: 'ask',
+      status: 'failed',
+      modelRunId: followUpRunId,
+      messageId: null,
       errorSummary: {
         code: 'INTERNAL_ERROR',
         message: 'The lesson operation could not be completed.',

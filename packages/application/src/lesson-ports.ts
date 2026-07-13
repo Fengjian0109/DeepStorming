@@ -6,6 +6,7 @@ import type {
   LessonSession,
   LessonSourceAnchor,
   LessonSessionStatus,
+  TutorActionType,
 } from '@deepstorming/domain'
 import type { StoredDocumentTextBlock } from './document-ports'
 import type { CancellationToken } from './provider-ports'
@@ -57,6 +58,9 @@ export type LessonTutorReplyResult = Readonly<{
   content: string
   providerId: string | null
   modelName: string
+  actionType?: TutorActionType
+  stateAfter?: LessonState
+  rationale?: string
 }>
 
 export type LessonTutorContextChunk = Readonly<{

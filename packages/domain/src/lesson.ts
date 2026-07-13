@@ -49,6 +49,8 @@ export type LessonSession = Readonly<{
   sourceAnchors: readonly LessonSourceAnchor[]
   messages: readonly LessonMessage[]
   modelRuns: readonly LessonModelRun[]
+  currentState: LessonState
+  steps: readonly LessonStep[]
   createdAt: string
   updatedAt: string
 }>

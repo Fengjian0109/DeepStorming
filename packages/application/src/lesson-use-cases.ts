@@ -1,13 +1,17 @@
 import {
+  normalizeLessonStep,
   normalizeLessonStartDraft,
+  normalizeTutorAction,
   type LessonPromptManifest,
   type LessonContextChunkSummary,
   type LessonReplyDraft,
   type LessonRunRetryDraft,
   type LessonModelRun,
   type LessonModelRunErrorSummary,
+  type LessonState,
   type LessonSession,
   type LessonStartDraft,
+  type TutorActionType,
 } from '@deepstorming/domain'
 import type { ClockPort, DocumentRepositoryPort, IdGeneratorPort } from './document-ports'
 import { DocumentUseCaseError, type AssembleLessonContext } from './document-use-cases'
@@ -57,6 +61,8 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   sourceAnchors: session.sourceAnchors,
   messages: session.messages,
   modelRuns: session.modelRuns,
+  currentState: session.currentState,
+  steps: session.steps,
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })
@@ -458,6 +464,111 @@ const failModelRun = (
   finishedAt,
 })
 
+const nextStepSequence = (session: StoredLessonSession): number => session.steps.length
+
+const classifyTutorAction = (
+  currentState: LessonState,
+  learnerReply: string,
+): Readonly<{ actionType: TutorActionType; stateAfter: LessonState; rationale: string }> => {
+  const normalized = learnerReply.toLowerCase()
+  const stuck = /不会|不懂|卡住|不知道|help|stuck|confused/u.test(normalized)
+  const summary = /总结|小结|summarize|summary/u.test(normalized)
+  const reflect = /复述|解释一下我理解|reflect/u.test(normalized)
+  if (summary) {
+    return {
+      actionType: 'summarize',
+      stateAfter: 'summarizing',
+      rationale: 'Learner requested a summary.',
+    }
+  }
+  if (reflect) {
+    return {
+      actionType: 'reflect',
+      stateAfter: 'reflecting',
+      rationale: 'Learner requested reflection.',
+    }
+  }
+  if (stuck && currentState === 'hinting') {
+    return {
+      actionType: 'explain',
+      stateAfter: 'explaining',
+      rationale: 'Learner remained stuck after a hint.',
+    }
+  }
+  if (stuck) {
+    return {
+      actionType: 'hint',
+      stateAfter: 'hinting',
+      rationale: 'Learner signaled confusion.',
+    }
+  }
+  return {
+    actionType: 'ask',
+    stateAfter: 'probing',
+    rationale: 'Continue probing with source-grounded question.',
+  }
+}
+
+const startedLessonStep = (input: {
+  modelRunId: string
+  lessonId: string
+  sequenceNo: number
+  stateBefore: LessonState
+  stateAfter: LessonState
+  actionType: TutorActionType
+  createdAt: string
+}): StoredLessonSession['steps'][number] =>
+  normalizeLessonStep({
+    id: input.modelRunId,
+    lessonId: input.lessonId,
+    sequenceNo: input.sequenceNo,
+    stateBefore: input.stateBefore,
+    stateAfter: input.stateAfter,
+    actionType: input.actionType,
+    status: 'started',
+    modelRunId: input.modelRunId,
+    messageId: null,
+    rationale: null,
+    errorSummary: null,
+    createdAt: input.createdAt,
+    finishedAt: null,
+  })
+
+const succeedLessonStep = (
+  step: StoredLessonSession['steps'][number],
+  input: Readonly<{
+    messageId: string
+    actionType: TutorActionType
+    stateAfter: LessonState
+    rationale: string
+    finishedAt: string
+  }>,
+): StoredLessonSession['steps'][number] =>
+  normalizeLessonStep({
+    ...step,
+    actionType: input.actionType,
+    stateAfter: input.stateAfter,
+    status: 'succeeded',
+    messageId: input.messageId,
+    rationale: input.rationale,
+    errorSummary: null,
+    finishedAt: input.finishedAt,
+  })
+
+const failLessonStep = (
+  step: StoredLessonSession['steps'][number],
+  error: LessonUseCaseError,
+  finishedAt: string,
+): StoredLessonSession['steps'][number] =>
+  normalizeLessonStep({
+    ...step,
+    status: error.code === 'OPERATION_CANCELLED' ? 'cancelled' : 'failed',
+    messageId: null,
+    rationale: null,
+    errorSummary: errorSummaryFrom(error),
+    finishedAt,
+  })
+
 const startOperation = (
   operations: LessonRunOperations | undefined,
   operationId: string | undefined,
@@ -636,8 +747,24 @@ export class StartLessonFromDocument {
           finishedAt: createdAt,
         },
       ],
-      currentState: 'opening',
-      steps: [],
+      currentState: 'probing',
+      steps: [
+        normalizeLessonStep({
+          id: modelRunId,
+          lessonId: sessionId,
+          sequenceNo: 0,
+          stateBefore: 'opening',
+          stateAfter: 'probing',
+          actionType: 'ask',
+          status: 'succeeded',
+          modelRunId,
+          messageId,
+          rationale: 'Started with a source-grounded opening question.',
+          errorSummary: null,
+          createdAt,
+          finishedAt: createdAt,
+        }),
+      ],
       createdAt,
       updatedAt: createdAt,
     }
@@ -711,6 +838,16 @@ export class SubmitLessonReply {
       contextCharacterCount: contextSummary.contextCharacterCount,
       startedAt: createdAt,
     })
+    const classifiedAction = classifyTutorAction(session.currentState, draft.content)
+    const startedStep = startedLessonStep({
+      modelRunId,
+      lessonId: session.id,
+      sequenceNo: nextStepSequence(session),
+      stateBefore: session.currentState,
+      stateAfter: classifiedAction.stateAfter,
+      actionType: classifiedAction.actionType,
+      createdAt,
+    })
     const pending: StoredLessonSession = {
       ...session,
       messages: [
@@ -727,6 +864,7 @@ export class SubmitLessonReply {
         },
       ],
       modelRuns: [...session.modelRuns, startedRun],
+      steps: [...session.steps, startedStep],
       updatedAt: createdAt,
     }
     await saveLesson(this.lessons, pending)
@@ -751,12 +889,23 @@ export class SubmitLessonReply {
         modelRuns: pending.modelRuns.map((run) =>
           run.id === modelRunId ? failModelRun(run, lessonError, createdAt) : run,
         ),
+        steps: pending.steps.map((step) =>
+          step.id === modelRunId ? failLessonStep(step, lessonError, createdAt) : step,
+        ),
       })
       throw lessonError
     } finally {
       completeOperation(this.operations, draft.operationId)
     }
 
+    const action = normalizeTutorAction({
+      actionType: tutorReply.actionType ?? classifiedAction.actionType,
+      stateBefore: startedStep.stateBefore,
+      stateAfter: tutorReply.stateAfter ?? classifiedAction.stateAfter,
+      utterance: tutorReply.content,
+      citedChunkIds: contextSummary.contextChunks.map((chunk) => chunk.chunkId),
+      rationale: tutorReply.rationale ?? classifiedAction.rationale,
+    })
     const updated: StoredLessonSession = {
       ...pending,
       messages: [
@@ -774,6 +923,18 @@ export class SubmitLessonReply {
       ],
       modelRuns: pending.modelRuns.map((run) =>
         run.id === modelRunId ? finishModelRun(run, tutorReply, tutorMessageId, createdAt) : run,
+      ),
+      currentState: action.stateAfter,
+      steps: pending.steps.map((step) =>
+        step.id === modelRunId
+          ? succeedLessonStep(step, {
+              messageId: tutorMessageId,
+              actionType: action.actionType,
+              stateAfter: action.stateAfter,
+              rationale: action.rationale,
+              finishedAt: createdAt,
+            })
+          : step,
       ),
       updatedAt: createdAt,
     }
