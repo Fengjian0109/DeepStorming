@@ -647,6 +647,10 @@ describe('document use cases', () => {
         query: 'evidence snippet',
         fallbackSnippet: 'evidence snippet',
       }),
-    ).toMatchObject({ chunks: [], degradedToSnippetOnly: true })
+    ).toMatchObject({
+      chunks: [],
+      degradedToSnippetOnly: true,
+      snippetFallback: { snippet: 'evidence snippet' },
+    })
   })
 })

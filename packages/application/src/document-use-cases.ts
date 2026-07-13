@@ -84,6 +84,11 @@ export type AssembleLessonContextInput = Readonly<{
   query: string
   fallbackSnippet: string
 }>
+export type LessonContextAssemblyResult = Readonly<{
+  chunks: readonly DocumentChunk[]
+  degradedToSnippetOnly: boolean
+  snippetFallback: Readonly<{ snippet: string }> | null
+}>
 export type DocumentSearchResult = Omit<LearningDocument, 'id'> &
   Readonly<{
     documentId: string
@@ -638,9 +643,7 @@ export class AssembleLessonContext {
     private readonly importRepository: DocumentImportRepositoryPort,
   ) {}
 
-  public async execute(
-    input: AssembleLessonContextInput,
-  ): Promise<{ chunks: readonly DocumentChunk[]; degradedToSnippetOnly: boolean }> {
+  public async execute(input: AssembleLessonContextInput): Promise<LessonContextAssemblyResult> {
     let document: StoredDocumentDetail | undefined
     try {
       document = await this.documentRepository.findById(input.documentId)
@@ -670,7 +673,11 @@ export class AssembleLessonContext {
     }
 
     if (!hasFreshChunks) {
-      return { chunks: [], degradedToSnippetOnly: true }
+      return {
+        chunks: [],
+        degradedToSnippetOnly: true,
+        snippetFallback: { snippet: input.fallbackSnippet.trim() },
+      }
     }
 
     let searchedChunks: readonly StoredDocumentChunk[]
@@ -687,6 +694,7 @@ export class AssembleLessonContext {
     return {
       chunks: selectBudgetedChunks(toDocumentChunks(searchedChunks), DEFAULT_CONTEXT_BUDGET),
       degradedToSnippetOnly: false,
+      snippetFallback: null,
     }
   }
 }

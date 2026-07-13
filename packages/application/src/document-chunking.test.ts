@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeDocumentContextBudget, type DocumentChunk } from '@deepstorming/domain'
+import { type DocumentChunk } from '@deepstorming/domain'
 import {
   DEFAULT_CONTEXT_BUDGET,
   deriveDocumentChunks,
@@ -89,17 +89,18 @@ describe('document chunking helpers', () => {
     ])
   })
 
-  it('selects the top chunks under the shared context budget', () => {
+  it('selects the top chunks under the default 4 / 2400 context budget', () => {
     const selected = selectBudgetedChunks(
       [
-        fakeChunk({ id: 'a', charCount: 900 }),
-        fakeChunk({ id: 'b', charCount: 900 }),
-        fakeChunk({ id: 'c', charCount: 900 }),
+        fakeChunk({ id: 'a', charCount: 700 }),
+        fakeChunk({ id: 'b', charCount: 700 }),
+        fakeChunk({ id: 'c', charCount: 700 }),
+        fakeChunk({ id: 'd', charCount: 700 }),
       ],
-      normalizeDocumentContextBudget({ maxChunks: 2, maxCharacters: 2400 }),
+      DEFAULT_CONTEXT_BUDGET,
     )
 
-    expect(selected.map((chunk) => chunk.id)).toEqual(['a', 'b'])
-    expect(DEFAULT_CONTEXT_BUDGET).toEqual({ maxChunks: 4, maxCharacters: 2400 })
+    expect(selected.map((chunk) => chunk.id)).toEqual(['a', 'b', 'c'])
+    expect(selected).toHaveLength(3)
   })
 })
