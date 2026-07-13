@@ -216,6 +216,33 @@ INSERT INTO document_chunks_fts(rowid,chunk_id,document_id,body)
 SELECT rowid,id,document_id,text
 FROM document_chunks;`
 
+const LESSON_STATE_MACHINE_SQL = `
+ALTER TABLE lesson_sessions ADD COLUMN current_state TEXT NOT NULL DEFAULT 'opening'
+ CHECK (current_state IN ('opening','probing','hinting','explaining','reflecting','summarizing','completed','paused','error'));
+CREATE TABLE lesson_steps (
+ id TEXT PRIMARY KEY,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ sequence_no INTEGER NOT NULL CHECK (sequence_no >= 0),
+ state_before TEXT NOT NULL CHECK (state_before IN ('opening','probing','hinting','explaining','reflecting','summarizing','completed','paused','error')),
+ state_after TEXT NOT NULL CHECK (state_after IN ('opening','probing','hinting','explaining','reflecting','summarizing','completed','paused','error')),
+ action_type TEXT NOT NULL CHECK (action_type IN ('ask','hint','explain','reflect','summarize')),
+ status TEXT NOT NULL CHECK (status IN ('started','succeeded','failed','cancelled')),
+ model_run_id TEXT NOT NULL REFERENCES lesson_model_runs(id) ON DELETE CASCADE,
+ message_id TEXT REFERENCES lesson_messages(id) ON DELETE SET NULL,
+ rationale TEXT,
+ error_summary_json TEXT,
+ created_at TEXT NOT NULL,
+ finished_at TEXT,
+ UNIQUE(lesson_id, sequence_no),
+ CHECK (
+   (status = 'succeeded' AND message_id IS NOT NULL AND rationale IS NOT NULL AND finished_at IS NOT NULL AND error_summary_json IS NULL)
+   OR (status = 'started' AND message_id IS NULL AND rationale IS NULL AND finished_at IS NULL AND error_summary_json IS NULL)
+   OR (status IN ('failed','cancelled') AND finished_at IS NOT NULL)
+ )
+);
+CREATE INDEX lesson_steps_lesson_sequence ON lesson_steps(lesson_id, sequence_no);
+CREATE INDEX lesson_steps_model_run ON lesson_steps(model_run_id);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -228,6 +255,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 9, name: 'lesson_source_target', sql: LESSON_SOURCE_TARGET_SQL },
   { version: 10, name: 'document_chunk_storage', sql: DOCUMENT_CHUNK_SQL },
   { version: 11, name: 'document_chunk_fts_sync', sql: DOCUMENT_CHUNK_FTS_SYNC_SQL },
+  { version: 12, name: 'lesson_state_machine', sql: LESSON_STATE_MACHINE_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

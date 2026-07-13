@@ -1,6 +1,8 @@
 import type {
   LessonMessage,
   LessonModelRun,
+  LessonState,
+  LessonStep,
   LessonSession,
   LessonSourceAnchor,
   LessonSessionStatus,
@@ -11,6 +13,7 @@ import type { CancellationToken } from './provider-ports'
 export type StoredLessonSourceAnchor = LessonSourceAnchor
 export type StoredLessonMessage = LessonMessage
 export type StoredLessonModelRun = LessonModelRun
+export type StoredLessonStep = LessonStep
 
 export interface DocumentSourceLocatorPort {
   findTextBlock(
@@ -29,6 +32,8 @@ export type StoredLessonSession = Readonly<{
   sourceAnchors: readonly StoredLessonSourceAnchor[]
   messages: readonly StoredLessonMessage[]
   modelRuns: readonly StoredLessonModelRun[]
+  currentState: LessonState
+  steps: readonly StoredLessonStep[]
   createdAt: string
   updatedAt: string
 }>

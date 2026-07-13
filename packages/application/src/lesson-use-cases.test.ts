@@ -1163,6 +1163,8 @@ describe('lesson use cases', () => {
     })
     lessons.records.set(lessonId, {
       ...replied,
+      currentState: 'opening',
+      steps: [],
       modelRuns: replied.modelRuns.map((run) =>
         run.id === followUpRunId
           ? { ...run, status: 'failed' as const, outputMessageId: null, finishedAt: now }

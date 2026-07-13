@@ -74,6 +74,24 @@ const session = (overrides: Partial<StoredLessonSession> = {}): StoredLessonSess
       finishedAt: '2026-07-11T00:00:00.000Z',
     },
   ],
+  currentState: 'probing',
+  steps: [
+    {
+      id: '00000000-0000-4000-8000-000000000701',
+      lessonId: '00000000-0000-4000-8000-000000000101',
+      sequenceNo: 0,
+      stateBefore: 'opening',
+      stateAfter: 'probing',
+      actionType: 'ask',
+      status: 'succeeded',
+      modelRunId: '00000000-0000-4000-8000-000000000501',
+      messageId: '00000000-0000-4000-8000-000000000401',
+      rationale: 'Started with a source-grounded question.',
+      errorSummary: null,
+      createdAt: '2026-07-11T00:00:00.000Z',
+      finishedAt: '2026-07-11T00:00:00.000Z',
+    },
+  ],
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
   ...overrides,
@@ -160,6 +178,15 @@ describe('SqliteLessonRepository', () => {
             outputMessageId: '00000000-0000-4000-8000-000000000402',
           },
         ],
+        steps: [
+          {
+            ...session().steps[0]!,
+            id: '00000000-0000-4000-8000-000000000702',
+            lessonId: '00000000-0000-4000-8000-000000000102',
+            modelRunId: '00000000-0000-4000-8000-000000000502',
+            messageId: '00000000-0000-4000-8000-000000000402',
+          },
+        ],
       }),
     )
 
@@ -234,6 +261,24 @@ describe('SqliteLessonRepository', () => {
           finishedAt: '2026-07-11T00:01:00.000Z',
         },
       ],
+      steps: [
+        ...session().steps,
+        {
+          id: '00000000-0000-4000-8000-000000000703',
+          lessonId: '00000000-0000-4000-8000-000000000101',
+          sequenceNo: 1,
+          stateBefore: 'probing',
+          stateAfter: 'probing',
+          actionType: 'ask',
+          status: 'succeeded',
+          modelRunId: '00000000-0000-4000-8000-000000000503',
+          messageId: '00000000-0000-4000-8000-000000000404',
+          rationale: 'Continued probing with source-grounded question.',
+          errorSummary: null,
+          createdAt: '2026-07-11T00:01:00.000Z',
+          finishedAt: '2026-07-11T00:01:00.000Z',
+        },
+      ],
       updatedAt: '2026-07-11T00:01:00.000Z',
     })
 
@@ -263,5 +308,43 @@ describe('SqliteLessonRepository', () => {
     await repo.create(failed)
 
     await expect(repo.findById(session().id)).resolves.toEqual(failed)
+  })
+
+  it('saves current state and replaces lesson steps transactionally', async () => {
+    await repo.create(session())
+
+    const updated = session({
+      currentState: 'hinting',
+      steps: [
+        ...session().steps,
+        {
+          id: '00000000-0000-4000-8000-000000000703',
+          lessonId: '00000000-0000-4000-8000-000000000101',
+          sequenceNo: 1,
+          stateBefore: 'probing',
+          stateAfter: 'hinting',
+          actionType: 'hint',
+          status: 'failed',
+          modelRunId: '00000000-0000-4000-8000-000000000501',
+          messageId: null,
+          rationale: null,
+          errorSummary: {
+            code: 'INTERNAL_ERROR',
+            message: 'The lesson operation could not be completed.',
+            retryable: true,
+          },
+          createdAt: '2026-07-11T00:01:00.000Z',
+          finishedAt: '2026-07-11T00:01:00.000Z',
+        },
+      ],
+      updatedAt: '2026-07-11T00:01:00.000Z',
+    })
+
+    await repo.save(updated)
+
+    await expect(repo.findById(session().id)).resolves.toEqual(updated)
+    expect(
+      db.prepare('SELECT count(*) count FROM lesson_steps WHERE lesson_id=?').get(session().id),
+    ).toEqual({ count: 2 })
   })
 })

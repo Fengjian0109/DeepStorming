@@ -66,6 +66,7 @@ test('applies migration two and creates document tables', async () => {
     { version: 9, name: 'lesson_source_target' },
     { version: 10, name: 'document_chunk_storage' },
     { version: 11, name: 'document_chunk_fts_sync' },
+    { version: 12, name: 'lesson_state_machine' },
   ])
 
   db.close()
@@ -97,6 +98,7 @@ test('applies migrations three and four and creates lesson tables', async () => 
     { version: 9, name: 'lesson_source_target' },
     { version: 10, name: 'document_chunk_storage' },
     { version: 11, name: 'document_chunk_fts_sync' },
+    { version: 12, name: 'lesson_state_machine' },
   ])
   const columns = db.prepare('PRAGMA table_info(lesson_model_runs)').all() as Array<{
     name: string
@@ -114,6 +116,33 @@ test('applies migrations three and four and creates lesson tables', async () => 
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='document_chunks_fts'")
       .get(),
   ).toEqual({ name: 'document_chunks_fts' })
+  expect(
+    db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='lesson_steps'").get(),
+  ).toEqual({ name: 'lesson_steps' })
+  const sessionColumns = db.prepare("PRAGMA table_info('lesson_sessions')").all() as Array<{
+    name: string
+  }>
+  expect(sessionColumns.map((column) => column.name)).toContain('current_state')
+  const stepColumns = db.prepare("PRAGMA table_info('lesson_steps')").all() as Array<{
+    name: string
+  }>
+  expect(stepColumns.map((column) => column.name)).toEqual(
+    expect.arrayContaining([
+      'id',
+      'lesson_id',
+      'sequence_no',
+      'state_before',
+      'state_after',
+      'action_type',
+      'status',
+      'model_run_id',
+      'message_id',
+      'rationale',
+      'error_summary_json',
+      'created_at',
+      'finished_at',
+    ]),
+  )
   const triggers = db
     .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='document_chunks'")
     .all() as Array<{ name: string }>
@@ -127,6 +156,140 @@ test('applies migrations three and four and creates lesson tables', async () => 
 
   db.close()
   rmSync(dir, { recursive: true, force: true })
+})
+
+test('enforces lesson state machine migration constraints', async () => {
+  const dir = await setup()
+  const path = join(dir, 'app.db')
+  const db = openDatabase(path)
+  await migrateDatabase(db, { databasePath: path, userDataPath: dir })
+
+  expect(MIGRATIONS.at(-1)).toMatchObject({
+    version: 12,
+    name: 'lesson_state_machine',
+  })
+  db.prepare(
+    `INSERT INTO learning_documents
+     (id,document_type,title,source_kind,original_file_name,content_hash,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+  ).run(
+    '00000000-0000-4000-8000-000000000201',
+    'generic',
+    'Paper Map',
+    'pasted_text',
+    null,
+    'hash-paper',
+    '2026-07-13T00:00:00.000Z',
+    '2026-07-13T00:00:00.000Z',
+  )
+  db.prepare(
+    `INSERT INTO lesson_sessions
+     (id,title,status,document_id,document_title,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?)`,
+  ).run(
+    '00000000-0000-4000-8000-000000000101',
+    'Paper Map 课堂',
+    'active',
+    '00000000-0000-4000-8000-000000000201',
+    'Paper Map',
+    '2026-07-13T00:00:00.000Z',
+    '2026-07-13T00:00:00.000Z',
+  )
+  db.prepare(
+    `INSERT INTO lesson_source_anchors
+     (id,lesson_id,document_id,start_offset,end_offset,snippet)
+     VALUES (?,?,?,?,?,?)`,
+  ).run(
+    '00000000-0000-4000-8000-000000000301',
+    '00000000-0000-4000-8000-000000000101',
+    '00000000-0000-4000-8000-000000000201',
+    0,
+    8,
+    'Evidence',
+  )
+  db.prepare(
+    `INSERT INTO lesson_messages
+     (id,lesson_id,role,content,source_anchor_ids_json,prompt_version,message_index,created_at,model_run_id)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+  ).run(
+    '00000000-0000-4000-8000-000000000401',
+    '00000000-0000-4000-8000-000000000101',
+    'tutor',
+    'Question',
+    '["00000000-0000-4000-8000-000000000301"]',
+    'mock-tutor-v1',
+    0,
+    '2026-07-13T00:00:00.000Z',
+    '00000000-0000-4000-8000-000000000501',
+  )
+  db.prepare(
+    `INSERT INTO lesson_model_runs
+     (id,lesson_id,provider_id,model_name,operation,status,prompt_manifest_json,input_summary_json,source_anchor_ids_json,output_message_id,started_at,finished_at,error_summary_json)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).run(
+    '00000000-0000-4000-8000-000000000501',
+    '00000000-0000-4000-8000-000000000101',
+    null,
+    'mock-local',
+    'lesson_tutor_first_question',
+    'succeeded',
+    '{"key":"lesson.mockTutor.firstQuestion","version":1,"hash":"sha256:035f771a5bb55108ad6e123a24d980c302bea46a6976322fefc7f5e81f6525ff"}',
+    '{"documentId":"00000000-0000-4000-8000-000000000201","documentTitle":"Paper Map","sourceAnchorIds":["00000000-0000-4000-8000-000000000301"],"sourceCharacterRange":{"startOffset":0,"endOffset":8},"snippetCharacterCount":8,"contextCharacterCount":0,"contextChunks":[]}',
+    '["00000000-0000-4000-8000-000000000301"]',
+    '00000000-0000-4000-8000-000000000401',
+    '2026-07-13T00:00:00.000Z',
+    '2026-07-13T00:00:00.000Z',
+    null,
+  )
+
+  expect(() =>
+    db
+      .prepare(
+        `INSERT INTO lesson_steps
+         (id,lesson_id,sequence_no,state_before,state_after,action_type,status,model_run_id,message_id,rationale,error_summary_json,created_at,finished_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        '00000000-0000-4000-8000-000000000701',
+        '00000000-0000-4000-8000-000000000101',
+        0,
+        'opening',
+        'probing',
+        'dance',
+        'succeeded',
+        '00000000-0000-4000-8000-000000000501',
+        '00000000-0000-4000-8000-000000000401',
+        'bad action',
+        null,
+        '2026-07-13T00:00:00.000Z',
+        '2026-07-13T00:00:00.000Z',
+      ),
+  ).toThrow()
+  expect(() =>
+    db
+      .prepare(
+        `INSERT INTO lesson_steps
+         (id,lesson_id,sequence_no,state_before,state_after,action_type,status,model_run_id,message_id,rationale,error_summary_json,created_at,finished_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        '00000000-0000-4000-8000-000000000702',
+        '00000000-0000-4000-8000-000000000101',
+        0,
+        'opening',
+        'probing',
+        'ask',
+        'done',
+        '00000000-0000-4000-8000-000000000501',
+        '00000000-0000-4000-8000-000000000401',
+        'bad status',
+        null,
+        '2026-07-13T00:00:00.000Z',
+        '2026-07-13T00:00:00.000Z',
+      ),
+  ).toThrow()
+
+  db.close()
 })
 
 test('rejects an applied migration checksum mismatch safely', async () => {
@@ -152,7 +315,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 12, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 13, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })
@@ -282,7 +445,7 @@ test('upgrades a database with published v10 chunks to add v11 fts sync triggers
 
   expect(
     db.prepare('SELECT version,name FROM schema_migrations ORDER BY version DESC LIMIT 1').get(),
-  ).toEqual({ version: 11, name: 'document_chunk_fts_sync' })
+  ).toEqual({ version: 12, name: 'lesson_state_machine' })
   const triggers = db
     .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='document_chunks'")
     .all() as Array<{ name: string }>

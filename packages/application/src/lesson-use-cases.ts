@@ -636,6 +636,8 @@ export class StartLessonFromDocument {
           finishedAt: createdAt,
         },
       ],
+      currentState: 'opening',
+      steps: [],
       createdAt,
       updatedAt: createdAt,
     }
