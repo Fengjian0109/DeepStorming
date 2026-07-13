@@ -197,7 +197,19 @@ CREATE VIRTUAL TABLE document_chunks_fts USING fts5(
  chunk_id UNINDEXED,
  document_id UNINDEXED,
  body
-);`
+);
+CREATE TRIGGER document_chunks_fts_insert AFTER INSERT ON document_chunks BEGIN
+  INSERT INTO document_chunks_fts(rowid,chunk_id,document_id,body)
+  VALUES (new.rowid,new.id,new.document_id,new.text);
+END;
+CREATE TRIGGER document_chunks_fts_delete AFTER DELETE ON document_chunks BEGIN
+  DELETE FROM document_chunks_fts WHERE rowid = old.rowid;
+END;
+CREATE TRIGGER document_chunks_fts_update AFTER UPDATE ON document_chunks BEGIN
+  DELETE FROM document_chunks_fts WHERE rowid = old.rowid;
+  INSERT INTO document_chunks_fts(rowid,chunk_id,document_id,body)
+  VALUES (new.rowid,new.id,new.document_id,new.text);
+END;`
 
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },

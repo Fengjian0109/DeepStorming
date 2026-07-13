@@ -19,6 +19,7 @@ const jobId = '00000000-0000-4000-8000-000000000201'
 const pageId = '00000000-0000-4000-8000-000000000301'
 const chunkId1 = '00000000-0000-4000-8000-000000000501'
 const chunkId2 = '00000000-0000-4000-8000-000000000502'
+const chunkId3 = '00000000-0000-4000-8000-000000000503'
 
 const document = (overrides: Partial<StoredDocumentDetail> = {}): StoredDocumentDetail => ({
   id: documentId,
@@ -198,7 +199,12 @@ describe('SqliteDocumentImportRepository', () => {
   it('replaces, lists, and lexically searches document chunks', async () => {
     await documentRepo.create(document())
     await repo.replaceChunks(documentId, [
-      documentChunk(),
+      documentChunk({
+        id: chunkId1,
+        chunkIndex: 0,
+        text: 'Gradient methods improve optimization stability before each descent step.',
+        charCount: 69,
+      }),
       documentChunk({
         id: chunkId2,
         chunkIndex: 1,
@@ -208,9 +214,19 @@ describe('SqliteDocumentImportRepository', () => {
           '00000000-0000-4000-8000-000000000402',
           '00000000-0000-4000-8000-000000000403',
         ],
+        text: 'Gradient descent converges with a stable step size.',
+        charCount: 52,
+        createdAt: '2026-07-12T00:02:01.000Z',
+      }),
+      documentChunk({
+        id: chunkId3,
+        chunkIndex: 2,
+        pageNumberStart: 4,
+        pageNumberEnd: 4,
+        blockIds: ['00000000-0000-4000-8000-000000000404'],
         text: 'Gradient descent also needs a gradient clipping strategy.',
         charCount: 58,
-        createdAt: '2026-07-12T00:02:01.000Z',
+        createdAt: '2026-07-12T00:02:02.000Z',
       }),
     ])
 
@@ -228,6 +244,11 @@ describe('SqliteDocumentImportRepository', () => {
           '00000000-0000-4000-8000-000000000403',
         ],
       }),
+      expect.objectContaining({
+        id: chunkId3,
+        chunkIndex: 2,
+        blockIds: ['00000000-0000-4000-8000-000000000404'],
+      }),
     ])
 
     await expect(
@@ -238,14 +259,53 @@ describe('SqliteDocumentImportRepository', () => {
       }),
     ).resolves.toEqual([
       expect.objectContaining({
-        id: chunkId1,
-        chunkIndex: 0,
-        text: 'Gradient descent converges with a stable step size.',
+        id: chunkId3,
+        chunkIndex: 2,
+        text: 'Gradient descent also needs a gradient clipping strategy.',
       }),
       expect.objectContaining({
         id: chunkId2,
         chunkIndex: 1,
-        text: 'Gradient descent also needs a gradient clipping strategy.',
+        text: 'Gradient descent converges with a stable step size.',
+      }),
+      expect.objectContaining({
+        id: chunkId1,
+        chunkIndex: 0,
+        text: 'Gradient methods improve optimization stability before each descent step.',
+      }),
+    ])
+  })
+
+  it('replaces an existing chunk set without leaving stale rows in storage or fts', async () => {
+    await documentRepo.create(document())
+    await repo.replaceChunks(documentId, [documentChunk()])
+
+    await repo.replaceChunks(documentId, [
+      documentChunk({
+        id: chunkId2,
+        chunkIndex: 0,
+        text: 'Bayesian updates replace the original gradient chunk.',
+        charCount: 53,
+      }),
+    ])
+
+    await expect(repo.listChunks(documentId)).resolves.toEqual([
+      expect.objectContaining({
+        id: chunkId2,
+        chunkIndex: 0,
+        text: 'Bayesian updates replace the original gradient chunk.',
+      }),
+    ])
+    await expect(
+      repo.searchChunks({
+        documentId,
+        query: 'gradient',
+        limit: 5,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: chunkId2,
+        text: 'Bayesian updates replace the original gradient chunk.',
       }),
     ])
   })
@@ -263,5 +323,33 @@ describe('SqliteDocumentImportRepository', () => {
     await expect(repo.hasFreshChunks(documentId, 'page-text:v1', 'chunk-rule:v2')).resolves.toBe(
       false,
     )
+  })
+
+  it('rejects replacing chunks that belong to a different document', async () => {
+    await documentRepo.create(document())
+
+    await expect(
+      repo.replaceChunks(documentId, [
+        documentChunk({ documentId: '00000000-0000-4000-8000-000000000999' }),
+      ]),
+    ).rejects.toThrow(/document/i)
+  })
+
+  it('removes chunk and fts rows when the owning document is deleted', async () => {
+    await documentRepo.create(document())
+    await repo.replaceChunks(documentId, [documentChunk()])
+
+    await expect(documentRepo.remove(documentId)).resolves.toBe(true)
+    await expect(repo.listChunks(documentId)).resolves.toEqual([])
+    await expect(
+      repo.searchChunks({
+        documentId,
+        query: 'gradient descent',
+        limit: 5,
+      }),
+    ).resolves.toEqual([])
+    expect(
+      db.prepare('SELECT count(*) count FROM document_chunks_fts WHERE document_id=?').get(documentId),
+    ).toEqual({ count: 0 })
   })
 })

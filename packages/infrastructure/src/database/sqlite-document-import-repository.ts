@@ -175,6 +175,17 @@ const mapChunk = (row: ChunkRow): StoredDocumentChunk => ({
   createdAt: row.created_at,
 })
 
+const validateChunkDocumentIds = (
+  documentId: string,
+  chunks: readonly StoredDocumentChunk[],
+): void => {
+  for (const chunk of chunks) {
+    if (chunk.documentId !== documentId) {
+      throw new Error('Document chunk documentId does not match replace target')
+    }
+  }
+}
+
 export class SqliteDocumentImportRepository implements DocumentImportRepositoryPort {
   public constructor(private readonly db: SqliteDatabase) {}
 
@@ -398,19 +409,15 @@ export class SqliteDocumentImportRepository implements DocumentImportRepositoryP
     documentId: string,
     chunks: readonly StoredDocumentChunk[],
   ): Promise<void> {
+    validateChunkDocumentIds(documentId, chunks)
     return this.safe(() =>
       this.db.transaction(() => {
-        this.db.prepare('DELETE FROM document_chunks_fts WHERE document_id=?').run(documentId)
         this.db.prepare('DELETE FROM document_chunks WHERE document_id=?').run(documentId)
 
         const insertChunk = this.db.prepare(
           `INSERT INTO document_chunks
            (id,document_id,chunk_index,page_number_start,page_number_end,block_ids_json,text,char_count,source_version,rebuild_token,created_at)
            VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-        )
-        const insertChunkFts = this.db.prepare(
-          `INSERT INTO document_chunks_fts (chunk_id,document_id,body)
-           VALUES (?,?,?)`,
         )
 
         for (const chunk of chunks) {
@@ -427,7 +434,6 @@ export class SqliteDocumentImportRepository implements DocumentImportRepositoryP
             chunk.rebuildToken,
             chunk.createdAt,
           )
-          insertChunkFts.run(chunk.id, chunk.documentId, chunk.text)
         }
       })(),
     )
@@ -463,7 +469,7 @@ export class SqliteDocumentImportRepository implements DocumentImportRepositoryP
              FROM document_chunks_fts f
              INNER JOIN document_chunks c ON c.id = f.chunk_id
              WHERE f.document_id=? AND document_chunks_fts MATCH ?
-             ORDER BY c.chunk_index, c.id
+             ORDER BY bm25(document_chunks_fts), c.chunk_index, c.id
              LIMIT ?`,
           )
           .all(input.documentId, input.query, input.limit) as ChunkRow[]
