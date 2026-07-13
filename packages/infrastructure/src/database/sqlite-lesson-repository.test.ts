@@ -177,6 +177,37 @@ describe('SqliteLessonRepository', () => {
     await expect(repo.findById(session().id)).resolves.toEqual(session())
   })
 
+  it('round-trips paper lesson metadata', async () => {
+    const paperSession = session({
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+        stageSummary: 'We established the paper problem and learner context.',
+        termsIntroduced: ['Transformer'],
+        citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      },
+    })
+
+    await repo.create(paperSession)
+
+    await expect(repo.findById(paperSession.id)).resolves.toEqual(paperSession)
+
+    const updatedPaperSession = {
+      ...paperSession,
+      paperProfile: {
+        currentStage: 'problem_framing' as const,
+        stageSummary: 'The learner can now state the paper problem clearly.',
+        termsIntroduced: ['Transformer', 'Attention'],
+        citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      },
+      updatedAt: '2026-07-11T00:02:00.000Z',
+    }
+
+    await repo.save(updatedPaperSession)
+
+    await expect(repo.findById(paperSession.id)).resolves.toEqual(updatedPaperSession)
+  })
+
   it('persists mastery evidence and misconception signals', async () => {
     const created = await repo.create(sessionWithMasteryEvidence())
 

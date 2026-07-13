@@ -302,6 +302,11 @@ CREATE TABLE lesson_review_events (
 CREATE INDEX lesson_review_events_item_reviewed ON lesson_review_events(review_item_id, reviewed_at);
 CREATE INDEX lesson_review_events_lesson_reviewed ON lesson_review_events(lesson_id, reviewed_at);`
 
+const PAPER_LESSON_METADATA_SQL = `
+ALTER TABLE lesson_sessions ADD COLUMN lesson_mode TEXT NOT NULL DEFAULT 'standard'
+ CHECK (lesson_mode IN ('standard','paper'));
+ALTER TABLE lesson_sessions ADD COLUMN paper_profile_json TEXT;`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -317,6 +322,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 12, name: 'lesson_state_machine', sql: LESSON_STATE_MACHINE_SQL },
   { version: 13, name: 'lesson_mastery_evidence', sql: LESSON_MASTERY_EVIDENCE_SQL },
   { version: 14, name: 'lesson_review_scheduler', sql: LESSON_REVIEW_SCHEDULER_SQL },
+  { version: 15, name: 'paper_lesson_metadata', sql: PAPER_LESSON_METADATA_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

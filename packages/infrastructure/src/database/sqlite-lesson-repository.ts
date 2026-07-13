@@ -20,6 +20,8 @@ type LessonRow = {
   current_state: StoredLessonSession['currentState']
   document_id: string
   document_title: string
+  lesson_mode: StoredLessonSession['lessonMode']
+  paper_profile_json: string | null
   created_at: string
   updated_at: string
 }
@@ -271,8 +273,11 @@ const mapSession = (
   misconceptionSignals,
   reviewItems,
   reviewEvents,
-  lessonMode: 'standard',
-  paperProfile: null,
+  lessonMode: row.lesson_mode,
+  paperProfile:
+    row.paper_profile_json === null
+      ? null
+      : parseJsonObject<StoredLessonSession['paperProfile']>(row.paper_profile_json),
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -586,8 +591,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
         this.db
           .prepare(
             `INSERT INTO lesson_sessions
-             (id,title,status,document_id,document_title,created_at,updated_at,current_state)
-             VALUES (?,?,?,?,?,?,?,?)`,
+             (id,title,status,document_id,document_title,created_at,updated_at,current_state,lesson_mode,paper_profile_json)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
           )
           .run(
             session.id,
@@ -598,6 +603,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             session.createdAt,
             session.updatedAt,
             session.currentState,
+            session.lessonMode,
+            session.paperProfile === null ? null : JSON.stringify(session.paperProfile),
           )
         const insertAnchor = this.db.prepare(
           `INSERT INTO lesson_source_anchors
@@ -687,9 +694,17 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
       this.db.transaction(() => {
         this.db
           .prepare(
-            'UPDATE lesson_sessions SET title=?,status=?,current_state=?,updated_at=? WHERE id=?',
+            'UPDATE lesson_sessions SET title=?,status=?,current_state=?,updated_at=?,lesson_mode=?,paper_profile_json=? WHERE id=?',
           )
-          .run(session.title, session.status, session.currentState, session.updatedAt, session.id)
+          .run(
+            session.title,
+            session.status,
+            session.currentState,
+            session.updatedAt,
+            session.lessonMode,
+            session.paperProfile === null ? null : JSON.stringify(session.paperProfile),
+            session.id,
+          )
         this.db.prepare('DELETE FROM lesson_review_events WHERE lesson_id=?').run(session.id)
         this.db.prepare('DELETE FROM lesson_review_items WHERE lesson_id=?').run(session.id)
         this.db
