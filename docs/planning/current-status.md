@@ -2,8 +2,8 @@
 
 - 更新时间：2026-07-13
 - 当前分支：`main`
-- 当前阶段：Phase 6 D6 Mastery Evidence / Misconception MVP
-- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环、D5 课堂状态机审计链路，以及 D6-MVP 学习诊断证据闭环已完成
+- 当前阶段：Phase 6 D6 Review Scheduler MVP
+- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环、D5 课堂状态机审计链路、D6-MVP 学习诊断证据闭环，以及 D6 Review Scheduler MVP 已完成
 
 ## 已完成
 
@@ -123,10 +123,17 @@
   - Renderer：课堂详情在生成记录后展示“学习诊断”，包含掌握判断、置信度、安全 rationale、复习建议，以及关联误区信号。
   - E2E：桌面主流程覆盖提交普通回答后的学习诊断展示、重启后诊断持久可见，以及 chunk 缺失降级继续课堂时诊断仍可见。
 
+- Phase 6 D6 Review Scheduler MVP：
+- Domain / Contracts：新增 `ReviewItem`、`ReviewEvent`、`ReviewRating`、`ReviewItemStatus`，课堂会话 DTO 随 session 返回 `reviewItems` 与 `reviewEvents`，并新增显式 `lessons:record-review` channel。
+- Infrastructure：Migration 14 新增 `lesson_review_items` 与 `lesson_review_events`，按课堂持久化复习任务、复习回答和下一次到期时间。
+- Application：成功课堂回答在 `suggestedReview = true` 时自动创建 review item；`RecordReviewEvent` 根据 `remembered` / `forgot` 更新 `dueAt` 为 `+3d` / `+1d` 并追加 review event。
+- Desktop：Preload 暴露 `window.deepstorming.lessons.recordReview(...)`；课堂详情在“学习诊断”下方新增“复习任务”，支持回答、保存、错误提示和 due date 刷新。
+- 验证：Domain / Contracts / Application / Infrastructure / IPC / Preload / Renderer 测试已覆盖 review loop。
+
 ## 当前范围与非目标
 
 - 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、首条 Mock Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Mock Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化、安全错误摘要持久化与展示、LessonState / LessonStep 状态机审计，以及 deterministic 学习诊断证据与误区信号展示。
-- 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、embeddings、语义检索、流式课堂、完整评分 rubric、ReviewItem / ReviewEvent / 复习调度、论文工作区、后台导入任务。
+- 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、embeddings、语义检索、流式课堂、完整评分 rubric、独立复习中心、通知/日历提醒、论文工作区、后台导入任务。
 
 ## 当前门禁
 
@@ -151,4 +158,4 @@ pnpm package:dir
 
 ## 下一步
 
-D6-MVP 已完成：课堂回答已经能生成、持久化并展示 deterministic 学习诊断与误区信号。下一步进入 ReviewItem / ReviewEvent / scheduler，把诊断结果转化为可执行的复习任务；发布侧继续处理真实云 Provider 手动验收、签名、图标与公证。
+D6 Review Scheduler MVP 已完成：课堂回答现在已经能生成、持久化并展示 deterministic 学习诊断与误区信号，并进一步转化为可执行的复习任务、记录复习结果和推进下一次到期时间。下一步进入真实云 Provider 手动验收、签名、图标与公证，以及更完整的复习中心 / 通知策略设计。

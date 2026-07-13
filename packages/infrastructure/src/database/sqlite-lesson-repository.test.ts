@@ -250,7 +250,9 @@ describe('SqliteLessonRepository', () => {
 
     const reloaded = await repo.findById(created.id)
     expect(reloaded?.reviewItems).toHaveLength(1)
-    expect(reloaded?.reviewItems[0]?.prompt).toBe('复习：请重新解释这段课堂证据，并说明你的判断依据。')
+    expect(reloaded?.reviewItems[0]?.prompt).toBe(
+      '复习：请重新解释这段课堂证据，并说明你的判断依据。',
+    )
     expect(reloaded?.reviewEvents[0]?.rating).toBe('forgot')
   })
 

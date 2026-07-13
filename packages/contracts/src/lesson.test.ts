@@ -147,7 +147,10 @@ const session = {
       masteryEvidenceId: evidenceId,
       misconceptionSignalId,
       prompt: '复习：学习者表达卡住。请重新解释这段证据想说明什么。',
-      answerOutline: ['Learner connected the answer to the cited evidence.', 'Learner explicitly said they were stuck.'],
+      answerOutline: [
+        'Learner connected the answer to the cited evidence.',
+        'Learner explicitly said they were stuck.',
+      ],
       status: 'active',
       dueAt: '2026-07-14T00:00:00.000Z',
       createdAt: '2026-07-11T00:01:00.000Z',

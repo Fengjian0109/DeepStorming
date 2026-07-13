@@ -2,7 +2,7 @@
 
 - 日期：2026-07-13
 - 目标：把当前已完成的 Provider / 文本文档 / LessonSession 基线，收敛到可发布 MVP 所需的剩余软件设计与实施顺序。
-- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位、D4 检索上下文、D5 TutorAction / LessonState 状态机，以及 D6-MVP Mastery Evidence / Misconception 已完成；下一阶段进入 ReviewItem / ReviewEvent / scheduler、真实云 Provider 手动验收和发布准备。
+- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位、D4 检索上下文、D5 TutorAction / LessonState 状态机，以及 D6 Review Scheduler MVP 已完成；下一阶段进入真实云 Provider 手动验收、发布准备和更完整的论文工作流。
 
 ## 1. 当前设计基线
 
@@ -23,6 +23,7 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 4. LessonSession 从文档证据启动、首问、学习者回答、Provider-backed follow-up、生成记录、失败/取消保存、重试和安全错误摘要。
 5. LessonState / LessonStep 状态机审计：每次首问、追问、失败、取消和重试都有可恢复的状态转移记录。
 6. D6-MVP 学习诊断：成功课堂回答会生成可持久化的 MasteryEvidence；卡住表达会生成 MisconceptionSignal；课堂页和重启恢复都能展示“学习诊断”。
+7. D6 Review Scheduler MVP：`suggestedReview` 的诊断会自动生成 lesson-scoped `ReviewItem`，课堂页可记录 `ReviewEvent` 并更新下一次复习时间。
 
 ## 2. 剩余软件设计队列
 
@@ -140,10 +141,16 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 - Deterministic 评分规则和安全错误边界。
 - 课堂页“学习诊断”展示与重启持久化。
 
-剩余 D6 工作：
+已完成的 D6 Review Scheduler MVP：
 
 - ReviewItem / ReviewEvent。
-- Scheduler：根据诊断结果创建、更新和调度复习任务。
+- Scheduler：根据诊断结果创建、更新和调度 lesson-scoped 复习任务。
+- 课堂页内的最小复习闭环：展示复习任务、记录 remembered / forgot、更新下一次 `dueAt`、重启后持久恢复。
+
+剩余 D6 工作：
+
+- 独立复习中心、跨课堂聚合、全局 due today 视图。
+- 通知 / 日历 / 后台提醒。
 - 更完整的评分 rubric，以及从 deterministic 规则升级到结构化诊断模型的边界。
 
 ### D7. 论文工作流
@@ -181,9 +188,7 @@ D4 Chunk / 检索 / 上下文预算（已完成）
   ↓
 D5 TutorAction / LessonState（已完成）
   ↓
-D6-MVP Mastery Evidence / Misconception（已完成）
-  ↓
-D6 ReviewItem / ReviewEvent / scheduler
+D6 Mastery Evidence / Misconception + Review Scheduler（已完成）
   ↓
 D7 论文工作流
   ↓

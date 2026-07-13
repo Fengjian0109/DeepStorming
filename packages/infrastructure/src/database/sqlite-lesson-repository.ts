@@ -688,12 +688,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             'UPDATE lesson_sessions SET title=?,status=?,current_state=?,updated_at=? WHERE id=?',
           )
           .run(session.title, session.status, session.currentState, session.updatedAt, session.id)
-        this.db
-          .prepare('DELETE FROM lesson_review_events WHERE lesson_id=?')
-          .run(session.id)
-        this.db
-          .prepare('DELETE FROM lesson_review_items WHERE lesson_id=?')
-          .run(session.id)
+        this.db.prepare('DELETE FROM lesson_review_events WHERE lesson_id=?').run(session.id)
+        this.db.prepare('DELETE FROM lesson_review_items WHERE lesson_id=?').run(session.id)
         this.db
           .prepare('DELETE FROM lesson_misconception_signals WHERE lesson_id=?')
           .run(session.id)

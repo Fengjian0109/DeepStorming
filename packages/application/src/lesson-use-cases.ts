@@ -22,6 +22,7 @@ import type { ClockPort, DocumentRepositoryPort, IdGeneratorPort } from './docum
 import { DocumentUseCaseError, type AssembleLessonContext } from './document-use-cases'
 import type {
   LessonRepositoryPort,
+  LessonSessionView,
   LessonTutorFirstQuestionRequest,
   LessonTutorReplyRequest,
   LessonTutorReplyGeneratorPort,

@@ -358,3 +358,72 @@ test('creates text documents and persists them across restart', async () => {
     rmSync(userDataDir, { recursive: true, force: true })
   }
 })
+
+test('creates lesson review tasks, records review results, and persists them across restart', async () => {
+  const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-review-e2e-user-'))
+
+  try {
+    const first = await launchDevApp(userDataDir)
+    let nextDueLabel = ''
+    try {
+      const page = await first.firstWindow()
+      await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
+
+      await page.getByRole('button', { name: '粘贴文本' }).click()
+      await page.getByLabel('标题').fill('Review Notes')
+      await page.getByLabel('正文').fill('Evidence supports the claim through observable behavior.')
+      await page.getByRole('button', { name: '保存文档' }).click()
+      await expect(
+        page.locator('.document-detail').getByRole('heading', { name: 'Review Notes' }),
+      ).toBeVisible()
+
+      await page.getByLabel('搜索文档内容').fill('Evidence')
+      await page.getByRole('button', { name: '搜索内容' }).click()
+      await page
+        .locator('.search-hit')
+        .filter({ hasText: 'Evidence supports the claim through observable behavior.' })
+        .getByRole('button', { name: '用此片段开始课堂' })
+        .click()
+
+      await expect(page.locator('#lesson-title')).toHaveText('课堂')
+      await page.getByLabel('你的回答').fill('是的')
+      await page.getByRole('button', { name: '提交回答' }).click()
+      await expect(page.getByText('回答已提交。')).toBeVisible()
+      await expect(page.getByRole('heading', { name: '复习任务' })).toBeVisible()
+      await expect(
+        page.getByText('复习：请重新解释这段课堂证据，并说明你的判断依据。'),
+      ).toBeVisible()
+      await expect(page.getByText(/下次复习：\d{4}-\d{2}-\d{2}/)).toBeVisible()
+
+      await page.getByLabel('这次复习回答').fill('我重新解释后，能说清这段证据和判断依据。')
+      await page.getByRole('button', { name: '记住了' }).click()
+      await expect(page.getByText('复习记录已保存。')).toBeVisible()
+
+      nextDueLabel = (await page.getByText(/下次复习：\d{4}-\d{2}-\d{2}/).textContent()) ?? ''
+      expect(nextDueLabel).not.toBe('')
+    } finally {
+      await first.close()
+    }
+
+    const second = await launchDevApp(userDataDir)
+    try {
+      const page = await second.firstWindow()
+      await page.locator('nav').getByRole('button', { name: '课堂' }).click()
+      await page
+        .locator('.document-card')
+        .filter({ hasText: 'Review Notes 课堂' })
+        .getByRole('button', { name: '打开 Review Notes 课堂' })
+        .click()
+
+      await expect(page.getByRole('heading', { name: '复习任务' })).toBeVisible()
+      await expect(page.getByText(nextDueLabel)).toBeVisible()
+      await expect(
+        page.getByText('复习：请重新解释这段课堂证据，并说明你的判断依据。'),
+      ).toBeVisible()
+    } finally {
+      await second.close()
+    }
+  } finally {
+    rmSync(userDataDir, { recursive: true, force: true })
+  }
+})
