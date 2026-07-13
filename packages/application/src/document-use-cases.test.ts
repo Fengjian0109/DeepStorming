@@ -653,4 +653,46 @@ describe('document use cases', () => {
       snippetFallback: { snippet: 'evidence snippet' },
     })
   })
+
+  it('returns snippet-only context when stored chunks are stale', async () => {
+    repo.records.set(ids[0]!, {
+      id: ids[0]!,
+      textVersionId: ids[1]!,
+      documentType: 'paper',
+      title: 'Paper',
+      plainText: 'evidence snippet',
+      sourceKind: 'text_file',
+      contentHash: 'd'.repeat(64),
+      characterCount: 16,
+      createdAt: now,
+      updatedAt: now,
+    })
+    importRepo.chunks.set(ids[0]!, [
+      {
+        id: ids[2]!,
+        documentId: ids[0]!,
+        chunkIndex: 0,
+        pageNumberStart: 1,
+        pageNumberEnd: 1,
+        blockIds: [ids[3]!],
+        text: 'evidence snippet',
+        charCount: 16,
+        sourceVersion: 'stale-text-version',
+        rebuildToken: 'chunk-rule:v1',
+        createdAt: now,
+      },
+    ])
+
+    expect(
+      await new AssembleLessonContext(repo, importRepo).execute({
+        documentId: ids[0]!,
+        query: 'evidence snippet',
+        fallbackSnippet: 'evidence snippet',
+      }),
+    ).toMatchObject({
+      chunks: [],
+      degradedToSnippetOnly: true,
+      snippetFallback: { snippet: 'evidence snippet' },
+    })
+  })
 })
