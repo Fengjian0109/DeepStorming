@@ -544,6 +544,75 @@ describe('lesson use cases', () => {
     expect(JSON.stringify(created)).not.toContain('plainText')
   })
 
+  it('starts paper documents in paper mode with orientation stage', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    expect(created.lessonMode).toBe('paper')
+    expect(created.paperProfile?.currentStage).toBe('orientation')
+    expect(created.modelRuns[0]?.promptManifest.key).toBe('lesson.paper.first_question')
+  })
+
+  it('rejects explicit paper mode for non-paper documents', async () => {
+    await expect(
+      new StartLessonFromDocument(
+        documents,
+        lessons,
+        clock,
+        idGenerator,
+        undefined,
+        createContextAssembler(),
+      ).execute({
+        documentId,
+        documentTitle: 'Paper Map',
+        lessonMode: 'paper',
+        source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+      }),
+    ).rejects.toMatchObject({ code: 'LESSON_VALIDATION_FAILED' })
+  })
+
+  it('advances paper stage after a successful follow-up', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    let replyIndex = 0
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
+    ).execute({
+      lessonId: created.id,
+      content: 'I think the paper is solving the gap between observed evidence and model behavior.',
+    })
+
+    expect(updated.paperProfile?.currentStage).toBe('problem_framing')
+  })
+
   it('requires a PDF block to belong to the source document', async () => {
     const locator = new FakeSourceLocator()
     await expect(
