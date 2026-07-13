@@ -20,8 +20,12 @@ const lessonId = '00000000-0000-4000-8000-000000000101'
 const documentId = '00000000-0000-4000-8000-000000000201'
 const anchorId = '00000000-0000-4000-8000-000000000301'
 const messageId = '00000000-0000-4000-8000-000000000401'
+const learnerMessageId = '00000000-0000-4000-8000-000000000402'
+const tutorMessageId = '00000000-0000-4000-8000-000000000403'
 const modelRunId = '00000000-0000-4000-8000-000000000501'
 const stepId = '00000000-0000-4000-8000-000000000701'
+const evidenceId = '00000000-0000-4000-8000-000000000801'
+const misconceptionSignalId = '00000000-0000-4000-8000-000000000901'
 
 const session = {
   id: lessonId,
@@ -103,6 +107,32 @@ const session = {
       errorSummary: null,
       createdAt: '2026-07-11T00:00:00.000Z',
       finishedAt: '2026-07-11T00:00:00.000Z',
+    },
+  ],
+  masteryEvidence: [
+    {
+      id: evidenceId,
+      lessonId,
+      stepId,
+      learnerMessageId,
+      tutorMessageId,
+      kind: 'teach_back',
+      judgement: 'partial_understanding',
+      confidence: 0.55,
+      rationale: 'Learner connected the answer to the cited evidence.',
+      suggestedReview: false,
+      createdAt: '2026-07-11T00:01:00.000Z',
+    },
+  ],
+  misconceptionSignals: [
+    {
+      id: misconceptionSignalId,
+      evidenceId,
+      lessonId,
+      label: '学习者表达卡住',
+      severity: 'medium',
+      rationale: 'Learner explicitly said they were stuck.',
+      createdAt: '2026-07-11T00:01:00.000Z',
     },
   ],
   createdAt: '2026-07-11T00:00:00.000Z',
@@ -193,6 +223,13 @@ describe('lesson contracts', () => {
   it('rejects full document text and SQLite internals on session DTOs', () => {
     expect(lessonSessionSchema.safeParse(session).success).toBe(true)
     expect(lessonSessionSchema.parse(session).currentState).toBe('probing')
+    expect(lessonSessionSchema.parse(session).masteryEvidence).toHaveLength(1)
+    expect(
+      lessonSessionSchema.safeParse({
+        ...session,
+        masteryEvidence: [{ ...session.masteryEvidence[0], confidence: 2 }],
+      }).success,
+    ).toBe(false)
     expect(
       lessonSessionSchema.safeParse({
         ...session,

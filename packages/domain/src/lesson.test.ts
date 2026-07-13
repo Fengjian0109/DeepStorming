@@ -3,6 +3,8 @@ import {
   LESSON_MESSAGE_ROLES,
   LESSON_MODEL_RUN_STATUSES,
   LESSON_SESSION_STATUSES,
+  normalizeMasteryEvidence,
+  normalizeMisconceptionSignal,
   normalizeLessonContextChunkSummary,
   normalizeLessonStep,
   normalizeLessonModelRunInputSummary,
@@ -98,6 +100,72 @@ describe('lesson domain', () => {
 
   it('defines the accepted lesson model run statuses', () => {
     expect(LESSON_MODEL_RUN_STATUSES).toEqual(['started', 'succeeded', 'failed', 'cancelled'])
+  })
+
+  it('normalizes mastery evidence rationale and rejects invalid confidence', () => {
+    expect(
+      normalizeMasteryEvidence({
+        id: '00000000-0000-4000-8000-000000000801',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        stepId: '00000000-0000-4000-8000-000000000701',
+        learnerMessageId: '00000000-0000-4000-8000-000000000402',
+        tutorMessageId: '00000000-0000-4000-8000-000000000403',
+        kind: 'teach_back',
+        judgement: 'partial_understanding',
+        confidence: 0.55,
+        rationale: '  Learner connected the answer to the cited evidence.  ',
+        suggestedReview: false,
+        createdAt: '2026-07-11T00:01:00.000Z',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        kind: 'teach_back',
+        judgement: 'partial_understanding',
+        rationale: 'Learner connected the answer to the cited evidence.',
+      }),
+    )
+
+    expect(() =>
+      normalizeMasteryEvidence({
+        id: '00000000-0000-4000-8000-000000000801',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        stepId: '00000000-0000-4000-8000-000000000701',
+        learnerMessageId: '00000000-0000-4000-8000-000000000402',
+        tutorMessageId: '00000000-0000-4000-8000-000000000403',
+        kind: 'teach_back',
+        judgement: 'partial_understanding',
+        confidence: 1.01,
+        rationale: 'Learner connected the answer to the cited evidence.',
+        suggestedReview: false,
+        createdAt: '2026-07-11T00:01:00.000Z',
+      }),
+    ).toThrow('Mastery confidence is invalid')
+  })
+
+  it('normalizes misconception signal severity and rejects blank labels', () => {
+    expect(
+      normalizeMisconceptionSignal({
+        id: '00000000-0000-4000-8000-000000000901',
+        evidenceId: '00000000-0000-4000-8000-000000000801',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        label: '学习者表达卡住',
+        severity: 'medium',
+        rationale: 'Learner explicitly said they were stuck.',
+        createdAt: '2026-07-11T00:01:00.000Z',
+      }),
+    ).toEqual(expect.objectContaining({ severity: 'medium' }))
+
+    expect(() =>
+      normalizeMisconceptionSignal({
+        id: '00000000-0000-4000-8000-000000000901',
+        evidenceId: '00000000-0000-4000-8000-000000000801',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        label: '   ',
+        severity: 'medium',
+        rationale: 'Learner explicitly said they were stuck.',
+        createdAt: '2026-07-11T00:01:00.000Z',
+      }),
+    ).toThrow('Misconception label is required')
   })
 
   it('validates lesson state transitions', () => {

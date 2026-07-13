@@ -519,6 +519,8 @@ describe('lesson use cases', () => {
           finishedAt: now,
         },
       ],
+      masteryEvidence: [],
+      misconceptionSignals: [],
       createdAt: now,
       updatedAt: now,
     })

@@ -14,6 +14,9 @@ export const LESSON_STATES = [
 ] as const
 export const TUTOR_ACTION_TYPES = ['ask', 'hint', 'explain', 'reflect', 'summarize'] as const
 export const LESSON_STEP_STATUSES = ['started', 'succeeded', 'failed', 'cancelled'] as const
+export const MASTERY_EVIDENCE_KINDS = ['teach_back', 'stuck_signal', 'self_report'] as const
+export const MASTERY_JUDGEMENTS = ['insufficient', 'partial_understanding', 'needs_review'] as const
+export const MISCONCEPTION_SEVERITIES = ['low', 'medium', 'high'] as const
 
 export type LessonSessionStatus = (typeof LESSON_SESSION_STATUSES)[number]
 export type LessonMessageRole = (typeof LESSON_MESSAGE_ROLES)[number]
@@ -21,6 +24,9 @@ export type LessonModelRunStatus = (typeof LESSON_MODEL_RUN_STATUSES)[number]
 export type LessonState = (typeof LESSON_STATES)[number]
 export type TutorActionType = (typeof TUTOR_ACTION_TYPES)[number]
 export type LessonStepStatus = (typeof LESSON_STEP_STATUSES)[number]
+export type MasteryEvidenceKind = (typeof MASTERY_EVIDENCE_KINDS)[number]
+export type MasteryJudgement = (typeof MASTERY_JUDGEMENTS)[number]
+export type MisconceptionSeverity = (typeof MISCONCEPTION_SEVERITIES)[number]
 
 export type LessonSourceTarget =
   | Readonly<{ kind: 'text_range' }>
@@ -51,8 +57,34 @@ export type LessonSession = Readonly<{
   modelRuns: readonly LessonModelRun[]
   currentState: LessonState
   steps: readonly LessonStep[]
+  masteryEvidence: readonly MasteryEvidence[]
+  misconceptionSignals: readonly MisconceptionSignal[]
   createdAt: string
   updatedAt: string
+}>
+
+export type MasteryEvidence = Readonly<{
+  id: string
+  lessonId: string
+  stepId: string
+  learnerMessageId: string
+  tutorMessageId: string
+  kind: MasteryEvidenceKind
+  judgement: MasteryJudgement
+  confidence: number
+  rationale: string
+  suggestedReview: boolean
+  createdAt: string
+}>
+
+export type MisconceptionSignal = Readonly<{
+  id: string
+  evidenceId: string
+  lessonId: string
+  label: string
+  severity: MisconceptionSeverity
+  rationale: string
+  createdAt: string
 }>
 
 export type LessonMessage = Readonly<{
@@ -211,6 +243,20 @@ const assertLessonStepStatus = (status: LessonStepStatus): void => {
   if (!includes(LESSON_STEP_STATUSES, status)) throw new Error('Lesson step status is invalid')
 }
 
+const assertMasteryEvidenceKind = (kind: MasteryEvidenceKind): void => {
+  if (!includes(MASTERY_EVIDENCE_KINDS, kind)) throw new Error('Mastery evidence kind is invalid')
+}
+
+const assertMasteryJudgement = (judgement: MasteryJudgement): void => {
+  if (!includes(MASTERY_JUDGEMENTS, judgement)) throw new Error('Mastery judgement is invalid')
+}
+
+const assertMisconceptionSeverity = (severity: MisconceptionSeverity): void => {
+  if (!includes(MISCONCEPTION_SEVERITIES, severity)) {
+    throw new Error('Misconception severity is invalid')
+  }
+}
+
 export const validateLessonStateTransition = (
   stateBefore: LessonState,
   stateAfter: LessonState,
@@ -283,6 +329,46 @@ export const normalizeLessonStep = (step: LessonStep): LessonStep => {
     normalizeNonBlank(step.errorSummary.message, 'Lesson step error message is invalid')
   }
   return step
+}
+
+export const normalizeMasteryEvidence = (evidence: MasteryEvidence): MasteryEvidence => {
+  if (!UUID.test(evidence.id)) throw new Error('Mastery evidence id is invalid')
+  if (!UUID.test(evidence.lessonId)) throw new Error('Mastery lesson id is invalid')
+  if (!UUID.test(evidence.stepId)) throw new Error('Mastery step id is invalid')
+  if (!UUID.test(evidence.learnerMessageId)) {
+    throw new Error('Mastery learner message id is invalid')
+  }
+  if (!UUID.test(evidence.tutorMessageId)) throw new Error('Mastery tutor message id is invalid')
+  assertMasteryEvidenceKind(evidence.kind)
+  assertMasteryJudgement(evidence.judgement)
+  if (
+    typeof evidence.confidence !== 'number' ||
+    !Number.isFinite(evidence.confidence) ||
+    evidence.confidence < 0 ||
+    evidence.confidence > 1
+  ) {
+    throw new Error('Mastery confidence is invalid')
+  }
+  const rationale = normalizeNonBlank(evidence.rationale, 'Mastery rationale is required').slice(
+    0,
+    280,
+  )
+
+  return { ...evidence, rationale }
+}
+
+export const normalizeMisconceptionSignal = (signal: MisconceptionSignal): MisconceptionSignal => {
+  if (!UUID.test(signal.id)) throw new Error('Misconception signal id is invalid')
+  if (!UUID.test(signal.evidenceId)) throw new Error('Misconception evidence id is invalid')
+  if (!UUID.test(signal.lessonId)) throw new Error('Misconception lesson id is invalid')
+  assertMisconceptionSeverity(signal.severity)
+  const label = normalizeNonBlank(signal.label, 'Misconception label is required').slice(0, 80)
+  const rationale = normalizeNonBlank(
+    signal.rationale,
+    'Misconception rationale is required',
+  ).slice(0, 280)
+
+  return { ...signal, label, rationale }
 }
 
 export const normalizeLessonContextChunkSummary = (

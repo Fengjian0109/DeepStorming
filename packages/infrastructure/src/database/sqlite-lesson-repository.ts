@@ -161,6 +161,8 @@ const mapSession = (
   messages,
   modelRuns,
   steps,
+  masteryEvidence: [],
+  misconceptionSignals: [],
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })

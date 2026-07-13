@@ -34,6 +34,13 @@ export const lessonStateSchema = z.enum([
 ])
 export const tutorActionTypeSchema = z.enum(['ask', 'hint', 'explain', 'reflect', 'summarize'])
 export const lessonStepStatusSchema = z.enum(['started', 'succeeded', 'failed', 'cancelled'])
+export const masteryEvidenceKindSchema = z.enum(['teach_back', 'stuck_signal', 'self_report'])
+export const masteryJudgementSchema = z.enum([
+  'insufficient',
+  'partial_understanding',
+  'needs_review',
+])
+export const misconceptionSeveritySchema = z.enum(['low', 'medium', 'high'])
 export const lessonSourceTargetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('text_range') }).strict(),
   z
@@ -185,6 +192,34 @@ export const lessonStepSchema = z
     message: 'finished step must have finishedAt',
   })
 
+export const lessonMasteryEvidenceSchema = z
+  .object({
+    id: z.string().uuid(),
+    lessonId: lessonIdSchema,
+    stepId: z.string().uuid(),
+    learnerMessageId: z.string().uuid(),
+    tutorMessageId: z.string().uuid(),
+    kind: masteryEvidenceKindSchema,
+    judgement: masteryJudgementSchema,
+    confidence: z.number().min(0).max(1),
+    rationale: requiredTextSchema.max(280),
+    suggestedReview: z.boolean(),
+    createdAt: timestampSchema,
+  })
+  .strict()
+
+export const lessonMisconceptionSignalSchema = z
+  .object({
+    id: z.string().uuid(),
+    evidenceId: z.string().uuid(),
+    lessonId: lessonIdSchema,
+    label: requiredTextSchema.max(80),
+    severity: misconceptionSeveritySchema,
+    rationale: requiredTextSchema.max(280),
+    createdAt: timestampSchema,
+  })
+  .strict()
+
 export const lessonSessionSchema = z
   .object({
     id: lessonIdSchema,
@@ -197,6 +232,8 @@ export const lessonSessionSchema = z
     modelRuns: z.array(lessonModelRunSchema),
     currentState: lessonStateSchema,
     steps: z.array(lessonStepSchema),
+    masteryEvidence: z.array(lessonMasteryEvidenceSchema),
+    misconceptionSignals: z.array(lessonMisconceptionSignalSchema),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -324,6 +361,8 @@ export type LessonModelRunInputSummaryDto = z.infer<typeof lessonModelRunInputSu
 export type LessonModelRunErrorSummaryDto = z.infer<typeof lessonModelRunErrorSummarySchema>
 export type LessonModelRunDto = z.infer<typeof lessonModelRunSchema>
 export type LessonStepDto = z.infer<typeof lessonStepSchema>
+export type LessonMasteryEvidenceDto = z.infer<typeof lessonMasteryEvidenceSchema>
+export type LessonMisconceptionSignalDto = z.infer<typeof lessonMisconceptionSignalSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
 export type LessonReplyDraftDto = z.infer<typeof lessonReplyDraftSchema>

@@ -63,6 +63,8 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   modelRuns: session.modelRuns,
   currentState: session.currentState,
   steps: session.steps,
+  masteryEvidence: session.masteryEvidence,
+  misconceptionSignals: session.misconceptionSignals,
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })
@@ -765,6 +767,8 @@ export class StartLessonFromDocument {
           finishedAt: createdAt,
         }),
       ],
+      masteryEvidence: [],
+      misconceptionSignals: [],
       createdAt,
       updatedAt: createdAt,
     }
