@@ -425,7 +425,7 @@ describe('LessonWorkspace', () => {
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
     expect(await screen.findByRole('heading', { name: '课堂' })).toBeTruthy()
-    expect(await screen.findAllByRole('heading', { name: 'Paper Map 课堂' })).toHaveLength(2)
+    expect(await screen.findAllByRole('heading', { name: 'Paper Map 课堂' })).toHaveLength(1)
     expect(screen.getByText('Evidence')).toBeTruthy()
     expect(screen.getByText(/你觉得它想解决的核心问题是什么/)).toBeTruthy()
     expect(
@@ -437,7 +437,7 @@ describe('LessonWorkspace', () => {
     expect(screen.getByText('上下文证据')).toBeTruthy()
     expect(screen.getByText('第 1 页 · 312 字')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: '打开 Paper Map 课堂' }))
+    await user.click(screen.getByRole('button', { name: 'Paper Map 课堂 · 进行中' }))
     await waitFor(() => expect(window.deepstorming.lessons.get).toHaveBeenCalledWith(session.id))
   })
 
