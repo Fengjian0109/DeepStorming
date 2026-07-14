@@ -42,6 +42,12 @@ describe('WorkspaceShell', () => {
     expect(screen.getByRole('navigation', { name: '主导航' })).toBeTruthy()
     expect(screen.getByText('主内容')).toBeTruthy()
     expect(await screen.findByRole('button', { name: '打开文档：Notes' })).toBeTruthy()
+    expect(screen.getByRole('complementary', { name: '主侧栏' }).className).toContain(
+      'workspace-primary',
+    )
+    expect(screen.getByRole('navigation', { name: '主导航' }).className).toContain(
+      'workspace-navigation',
+    )
   })
 
   it('collapses sidebars independently and restores previous states after collapse all', async () => {
@@ -99,5 +105,33 @@ describe('WorkspaceShell', () => {
 
     expect(screen.getByText('主内容')).toBeTruthy()
     expect(screen.getByRole('button', { name: '恢复侧栏' })).toBeTruthy()
+  })
+
+  it('defaults the contextual sidebar closed below 900px without overwriting saved preference', async () => {
+    const user = userEvent.setup()
+    renderShell(800)
+
+    expect(screen.queryByRole('complementary', { name: '文档导航' })).toBeNull()
+    expect(screen.getByRole('button', { name: '展开副侧栏' })).toBeTruthy()
+    expect(
+      globalThis.document.querySelector('[aria-label="调整副侧栏宽度"]')?.getAttribute('tabindex'),
+    ).toBe('-1')
+    await user.click(screen.getByRole('button', { name: '展开副侧栏' }))
+    expect(await screen.findByRole('complementary', { name: '文档导航' })).toBeTruthy()
+
+    cleanup()
+    window.localStorage.setItem(
+      WORKSPACE_LAYOUT_STORAGE_KEY,
+      JSON.stringify({
+        primaryWidth: 220,
+        contextualWidth: 300,
+        primaryCollapsed: false,
+        contextualCollapsed: false,
+        restorePrimaryCollapsed: false,
+        restoreContextualCollapsed: false,
+      }),
+    )
+    renderShell(800)
+    expect(await screen.findByRole('complementary', { name: '文档导航' })).toBeTruthy()
   })
 })

@@ -89,6 +89,11 @@ textarea {
   background: #f4f0e7;
 }
 
+.workspace-shell :focus-visible {
+  outline: 2px solid var(--color-accent, #4a8b68);
+  outline-offset: 2px;
+}
+
 .workspace-primary,
 .workspace-contextual {
   min-width: 0;
@@ -464,6 +469,15 @@ h2 {
   align-items: start;
   justify-content: space-between;
   gap: 24px;
+}
+
+.document-detail-summary > *,
+.document-main-panel,
+.lesson-chat-header > *,
+.lesson-composer-row > *,
+.lesson-message-bubble,
+.lesson-technical-run {
+  min-width: 0;
 }
 
 .document-detail-summary h2 {
@@ -1291,5 +1305,43 @@ h2 {
   .search-hit,
   .capability-list {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1000px) {
+  .lesson-info-drawer {
+    width: min(100%, 420px);
+  }
+}
+
+@media (max-width: 680px) {
+  .document-detail-summary,
+  .lesson-chat-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .document-detail-actions {
+    justify-content: flex-start;
+  }
+
+  .lesson-composer-row {
+    grid-template-columns: 1fr;
+  }
+
+  .lesson-composer-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .lesson-message-bubble,
+  .lesson-run-recovery {
+    max-width: 94%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell,
+  .lesson-info-drawer {
+    transition: none;
   }
 }

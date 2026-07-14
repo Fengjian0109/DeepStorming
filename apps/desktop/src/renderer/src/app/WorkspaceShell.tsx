@@ -6,6 +6,7 @@ import {
   MAX_COMBINED_SIDEBAR_RATIO,
   MIN_CONTEXTUAL_WIDTH,
   MIN_PRIMARY_WIDTH,
+  WORKSPACE_LAYOUT_STORAGE_KEY,
   fitWorkspaceLayoutToViewport,
   readWorkspaceLayout,
   resizeWorkspaceLayout,
@@ -50,6 +51,18 @@ const navigationLabels: Readonly<Record<WorkspacePage, string>> = {
   settings: '设置',
 }
 
+const COMPACT_WORKSPACE_WIDTH = 900
+
+const readInitialLayout = (viewportWidth: number): WorkspaceLayout => {
+  const stored = readWorkspaceLayout(window.localStorage)
+  try {
+    if (window.localStorage.getItem(WORKSPACE_LAYOUT_STORAGE_KEY) !== null) return stored
+  } catch {
+    return stored
+  }
+  return viewportWidth < COMPACT_WORKSPACE_WIDTH ? { ...stored, contextualCollapsed: true } : stored
+}
+
 export const WorkspaceShell = ({
   page,
   onNavigate,
@@ -58,8 +71,9 @@ export const WorkspaceShell = ({
   children,
   viewportWidth: controlledViewportWidth,
 }: WorkspaceShellProps): React.JSX.Element => {
+  const initialViewportWidth = controlledViewportWidth ?? window.innerWidth
   const [layout, setLayout] = useState<WorkspaceLayout>(() =>
-    readWorkspaceLayout(window.localStorage),
+    readInitialLayout(initialViewportWidth),
   )
   const [contextualRoot, setContextualRoot] = useState<HTMLDivElement | null>(null)
   const [measuredViewportWidth, setMeasuredViewportWidth] = useState(window.innerWidth)

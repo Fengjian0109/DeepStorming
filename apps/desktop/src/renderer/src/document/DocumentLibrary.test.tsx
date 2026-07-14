@@ -334,6 +334,7 @@ describe('DocumentLibrary', () => {
 
     await user.click(screen.getByRole('button', { name: '打开阅读器' }))
     expect(await screen.findByText(longText)).toBeTruthy()
+    expect(screen.getByText(longText).closest('.document-reader-body')).toBeTruthy()
     expect(window.deepstorming.documents.getPages).not.toHaveBeenCalled()
   })
 
