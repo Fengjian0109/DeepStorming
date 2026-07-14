@@ -398,6 +398,7 @@ class FakeGatewayFactory implements ProviderGatewayFactoryPort {
 }
 
 const createContextAssembler = () => new FakeLessonContextAssembler()
+const createTutorGenerator = () => new FakeTutorReplyGenerator()
 
 describe('lesson use cases', () => {
   let documents: FakeDocumentRepository
@@ -439,6 +440,7 @@ describe('lesson use cases', () => {
       idGenerator,
       undefined,
       assembler,
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -470,8 +472,7 @@ describe('lesson use cases', () => {
           lessonId,
           modelRunId,
           role: 'tutor',
-          content:
-            '我们先从《Paper Map》的这段证据开始：Evidence\n\n你觉得它想解决的核心问题是什么？',
+          content: 'Provider 首问：Evidence',
           sourceAnchorIds: [anchorId],
           promptVersion: 'mock-tutor-v1',
           createdAt: now,
@@ -481,8 +482,8 @@ describe('lesson use cases', () => {
         {
           id: modelRunId,
           lessonId,
-          providerId: null,
-          modelName: 'mock-local',
+          providerId: '00000000-0000-4000-8000-000000000501',
+          modelName: 'deepseek-chat',
           operation: 'lesson_tutor_first_question',
           status: 'succeeded',
           promptManifest: {
@@ -560,6 +561,7 @@ describe('lesson use cases', () => {
       idGenerator,
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -580,6 +582,7 @@ describe('lesson use cases', () => {
         idGenerator,
         undefined,
         createContextAssembler(),
+        createTutorGenerator(),
       ).execute({
         documentId,
         documentTitle: 'Paper Map',
@@ -598,6 +601,7 @@ describe('lesson use cases', () => {
       idGenerator,
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -611,6 +615,7 @@ describe('lesson use cases', () => {
       clock,
       { generate: () => replyIds[replyIndex++]! },
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       lessonId: created.id,
       content: 'I think the paper is solving the gap between observed evidence and model behavior.',
@@ -629,6 +634,7 @@ describe('lesson use cases', () => {
         idGenerator,
         locator,
         createContextAssembler(),
+        createTutorGenerator(),
       ).execute({
         documentId,
         documentTitle: 'Paper Map',
@@ -651,6 +657,7 @@ describe('lesson use cases', () => {
       idGenerator,
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -708,6 +715,7 @@ describe('lesson use cases', () => {
       { generate: () => startIds[startIndex++]! },
       undefined,
       startAssembler,
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -749,6 +757,7 @@ describe('lesson use cases', () => {
       clock,
       { generate: () => replyIds[replyIndex++]! },
       replyAssembler,
+      createTutorGenerator(),
     ).execute({
       lessonId: created.id,
       content: '它在说明证据如何支撑判断。',
@@ -770,8 +779,7 @@ describe('lesson use cases', () => {
         lessonId,
         modelRunId: followUpRunId,
         role: 'tutor',
-        content:
-          '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“Why What；How Evidence”。下一步你会如何验证这个判断？',
+        content: 'Provider 追问：它在说明证据如何支撑判断。 / Evidence',
         sourceAnchorIds: [anchorId],
         promptVersion: 'mock-tutor-follow-up-v2',
         createdAt: now,
@@ -780,8 +788,8 @@ describe('lesson use cases', () => {
     expect(updated.modelRuns.at(-1)).toEqual({
       id: followUpRunId,
       lessonId,
-      providerId: null,
-      modelName: 'mock-local',
+      providerId: '00000000-0000-4000-8000-000000000501',
+      modelName: 'deepseek-chat',
       operation: 'lesson_tutor_follow_up',
       status: 'succeeded',
       promptManifest: {
@@ -871,6 +879,7 @@ describe('lesson use cases', () => {
       { generate: () => startIds[startIndex++]! },
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -883,6 +892,7 @@ describe('lesson use cases', () => {
       clock,
       { generate: () => replyIds[replyIndex++]! },
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       lessonId: created.id,
       content: '是的',
@@ -939,6 +949,7 @@ describe('lesson use cases', () => {
       { generate: () => startIds[startIndex++]! },
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -951,6 +962,7 @@ describe('lesson use cases', () => {
       clock,
       { generate: () => replyIds[replyIndex++]! },
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       lessonId: created.id,
       content: '我不懂，卡住了。',
@@ -1095,7 +1107,7 @@ describe('lesson use cases', () => {
     ])
   })
 
-  it('uses assembled chunk text in the local follow-up fallback path', async () => {
+  it('passes assembled chunk text to the AI tutor follow-up', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
     const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
     let startIndex = 0
@@ -1106,6 +1118,7 @@ describe('lesson use cases', () => {
       { generate: () => startIds[startIndex++]! },
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -1131,11 +1144,13 @@ describe('lesson use cases', () => {
       snippetFallback: null,
     }
 
+    const generator = createTutorGenerator()
     const updated = await new SubmitLessonReply(
       lessons,
       clock,
       { generate: () => replyIds[replyIndex++]! },
       replyAssembler,
+      generator,
     ).execute({
       lessonId: created.id,
       content: '它在说明证据如何支撑判断。',
@@ -1143,9 +1158,9 @@ describe('lesson use cases', () => {
 
     expect(updated.messages.at(-1)).toMatchObject({
       id: followUpMessageId,
-      content:
-        '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“Context A”。下一步你会如何验证这个判断？',
+      content: 'Provider 追问：它在说明证据如何支撑判断。 / Evidence',
     })
+    expect(generator.calls[0]?.contextChunks[0]?.text).toBe('Context A')
     expect(updated.modelRuns.at(-1)?.inputSummary.contextChunks).toEqual([
       {
         chunkId: '00000000-0000-4000-8000-000000000901',
@@ -1171,6 +1186,7 @@ describe('lesson use cases', () => {
       idGenerator,
       undefined,
       assembler,
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -1199,6 +1215,7 @@ describe('lesson use cases', () => {
       { generate: () => startIds[startIndex++]! },
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -1361,6 +1378,7 @@ describe('lesson use cases', () => {
       { generate: () => startIds[startIndex++]! },
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -1378,7 +1396,7 @@ describe('lesson use cases', () => {
       expect(pending?.modelRuns.at(-1)).toMatchObject({
         id: followUpRunId,
         providerId: null,
-        modelName: 'mock-local',
+        modelName: 'pending-ai',
         status: 'started',
         outputMessageId: null,
         errorSummary: null,
@@ -1423,6 +1441,7 @@ describe('lesson use cases', () => {
       { generate: () => startIds[startIndex++]! },
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -1493,6 +1512,7 @@ describe('lesson use cases', () => {
       { generate: () => startIds[startIndex++]! },
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -1614,52 +1634,39 @@ describe('lesson use cases', () => {
     ])
   })
 
-  it('preserves paper-mode fallback when no active provider is configured', async () => {
+  it('requires an active provider instead of generating a local tutor fallback', async () => {
     const providers = new FakeProviderRepository([])
     const vault = new FakeVault()
     const factory = new FakeGatewayFactory()
 
-    const firstQuestion = await new ProviderLessonTutorReplyGenerator(
-      providers,
-      vault,
-      factory,
-    ).generateFirstQuestion(
-      {
-        documentTitle: 'Paper Map',
-        sourceSnippet: 'Evidence',
-        lessonMode: 'paper',
-        paperStage: 'orientation',
-        contextChunks: [],
-      },
-      { cancelled: false, onCancel: () => () => undefined },
-    )
+    const generator = new ProviderLessonTutorReplyGenerator(providers, vault, factory)
 
-    const followUp = await new ProviderLessonTutorReplyGenerator(
-      providers,
-      vault,
-      factory,
-    ).generateFollowUp(
-      {
-        documentTitle: 'Paper Map',
-        sourceSnippet: 'Evidence',
-        lessonMode: 'paper',
-        paperStage: 'problem_framing',
-        contextChunks: [],
-        learnerReply: 'The paper frames a gap between evidence and behavior.',
-      },
-      { cancelled: false, onCancel: () => () => undefined },
-    )
+    await expect(
+      generator.generateFirstQuestion(
+        {
+          documentTitle: 'Paper Map',
+          sourceSnippet: 'Evidence',
+          lessonMode: 'paper',
+          paperStage: 'orientation',
+          contextChunks: [],
+        },
+        { cancelled: false, onCancel: () => () => undefined },
+      ),
+    ).rejects.toMatchObject({ code: 'AI_PROVIDER_REQUIRED', retryable: false })
 
-    expect(firstQuestion).toMatchObject({
-      providerId: null,
-      modelName: 'mock-local',
-    })
-    expect(firstQuestion.content).toContain('我们先进入论文阅读模式')
-    expect(followUp).toMatchObject({
-      providerId: null,
-      modelName: 'mock-local',
-    })
-    expect(followUp.content).toContain('问题定义、关键假设或方法线索')
+    await expect(
+      generator.generateFollowUp(
+        {
+          documentTitle: 'Paper Map',
+          sourceSnippet: 'Evidence',
+          lessonMode: 'paper',
+          paperStage: 'problem_framing',
+          contextChunks: [],
+          learnerReply: 'The paper frames a gap between evidence and behavior.',
+        },
+        { cancelled: false, onCancel: () => () => undefined },
+      ),
+    ).rejects.toMatchObject({ code: 'AI_PROVIDER_REQUIRED', retryable: false })
     expect(factory.gateway.calls).toEqual([])
     expect(vault.refs).toEqual([])
   })
@@ -1675,6 +1682,7 @@ describe('lesson use cases', () => {
       { generate: () => startIds[startIndex++]! },
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -1686,6 +1694,7 @@ describe('lesson use cases', () => {
       clock,
       { generate: () => replyIds[replyIndex++]! },
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       lessonId: created.id,
       content: '它在说明证据如何支撑判断。',
@@ -1724,6 +1733,7 @@ describe('lesson use cases', () => {
       clock,
       { generate: () => retryIds[retryIndex++]! },
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({ lessonId, modelRunId: followUpRunId })
 
     expect(retried.messages.at(-1)).toEqual({
@@ -1731,8 +1741,7 @@ describe('lesson use cases', () => {
       lessonId,
       modelRunId: retryRunId,
       role: 'tutor',
-      content:
-        '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“无额外上下文”。下一步你会如何验证这个判断？',
+      content: 'Provider 追问：它在说明证据如何支撑判断。 / Evidence',
       sourceAnchorIds: [anchorId],
       promptVersion: 'mock-tutor-follow-up-v2',
       createdAt: now,
@@ -1790,6 +1799,7 @@ describe('lesson use cases', () => {
       { generate: () => startIds[startIndex++]! },
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -1801,6 +1811,7 @@ describe('lesson use cases', () => {
       clock,
       { generate: () => replyIds[replyIndex++]! },
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       lessonId: created.id,
       content: 'The paper frames a gap between evidence and behavior.',
@@ -1863,6 +1874,7 @@ describe('lesson use cases', () => {
       idGenerator,
       undefined,
       createContextAssembler(),
+      createTutorGenerator(),
     ).execute({
       documentId,
       documentTitle: 'Paper Map',
@@ -1891,6 +1903,7 @@ describe('lesson use cases', () => {
         idGenerator,
         undefined,
         createContextAssembler(),
+        createTutorGenerator(),
       ).execute({
         documentId,
         documentTitle: 'Paper Map',

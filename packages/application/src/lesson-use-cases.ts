@@ -52,6 +52,7 @@ export type LessonUseCaseErrorCode =
   | 'OPERATION_CANCELLED'
   | 'DATABASE_UNAVAILABLE'
   | 'INTERNAL_ERROR'
+  | 'AI_PROVIDER_REQUIRED'
 
 export class LessonUseCaseError extends Error {
   public constructor(
@@ -85,16 +86,12 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   updatedAt: session.updatedAt,
 })
 
-const MOCK_TUTOR_PROMPT_TEMPLATE =
-  '我们先从《{{documentTitle}}》的这段证据开始：{{snippet}}\n\n你觉得它想解决的核心问题是什么？'
 const MOCK_TUTOR_PROMPT_MANIFEST: LessonPromptManifest = {
   key: 'lesson.mockTutor.firstQuestion',
   version: 1,
   hash: 'sha256:035f771a5bb55108ad6e123a24d980c302bea46a6976322fefc7f5e81f6525ff',
 }
 const MOCK_TUTOR_PROMPT_VERSION = 'mock-tutor-v1'
-const MOCK_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE =
-  '你刚才提到：“{{learnerReply}}”。我们把它和证据“{{snippet}}”连起来，参考这些上下文：“{{context}}”。下一步你会如何验证这个判断？'
 const MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST: LessonPromptManifest = {
   key: 'lesson.mockTutor.followUp',
   version: 2,
@@ -103,16 +100,12 @@ const MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST: LessonPromptManifest = {
 const MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION = 'mock-tutor-follow-up-v2'
 const PAPER_FIRST_QUESTION_PROMPT_VERSION = 1
 const PAPER_FOLLOW_UP_PROMPT_VERSION = 1
-const PAPER_TUTOR_PROMPT_TEMPLATE =
-  '我们先进入论文阅读模式，聚焦《{{documentTitle}}》里的这段证据：{{snippet}}\n\n先用它判断一下，这篇论文最想解决的研究问题是什么？'
 const PAPER_TUTOR_PROMPT_MANIFEST: LessonPromptManifest = {
   key: 'lesson.paper.first_question',
   version: PAPER_FIRST_QUESTION_PROMPT_VERSION,
   hash: 'sha256:65259330d65215fd85dc5f48ab8a9abf413ec4d8bd72d2f6f8d4cb3dfdb4baa5',
 }
 const PAPER_TUTOR_PROMPT_VERSION = 'paper-tutor-v1'
-const PAPER_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE =
-  '你刚才的判断是：“{{learnerReply}}”。结合证据“{{snippet}}”和这些上下文：“{{context}}”，请再往前走一步：你会怎样概括论文的问题定义、关键假设或方法线索？'
 const PAPER_TUTOR_FOLLOW_UP_PROMPT_MANIFEST: LessonPromptManifest = {
   key: 'lesson.paper.follow_up',
   version: PAPER_FOLLOW_UP_PROMPT_VERSION,
@@ -139,70 +132,6 @@ const nextPaperStageForReply = (
   if (/局限|质疑|问题|假设/iu.test(reply)) return 'critical_review'
   return currentStage
 }
-
-const createMockTutorFirstQuestion = (documentTitle: string, snippet: string): string =>
-  MOCK_TUTOR_PROMPT_TEMPLATE.replace('{{documentTitle}}', documentTitle).replace(
-    '{{snippet}}',
-    snippet,
-  )
-
-const createPaperTutorFirstQuestion = (documentTitle: string, snippet: string): string =>
-  PAPER_TUTOR_PROMPT_TEMPLATE.replace('{{documentTitle}}', documentTitle).replace(
-    '{{snippet}}',
-    snippet,
-  )
-
-const createMockTutorFollowUp = (
-  learnerReply: string,
-  snippet: string,
-  contextChunks: LessonTutorReplyRequest['contextChunks'],
-): string =>
-  MOCK_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE.replace('{{learnerReply}}', learnerReply)
-    .replace('{{snippet}}', snippet)
-    .replace(
-      '{{context}}',
-      contextChunks.length === 0
-        ? '无额外上下文'
-        : contextChunks.map((chunk) => chunk.text).join('；'),
-    )
-
-const createPaperTutorFollowUp = (
-  learnerReply: string,
-  snippet: string,
-  contextChunks: LessonTutorReplyRequest['contextChunks'],
-): string =>
-  PAPER_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE.replace('{{learnerReply}}', learnerReply)
-    .replace('{{snippet}}', snippet)
-    .replace(
-      '{{context}}',
-      contextChunks.length === 0
-        ? '无额外上下文'
-        : contextChunks.map((chunk) => chunk.text).join('；'),
-    )
-
-const localTutorReply = (
-  input: LessonTutorReplyRequest,
-  lessonMode: LessonMode,
-): LessonTutorReplyResult => ({
-  content:
-    lessonMode === 'paper'
-      ? createPaperTutorFollowUp(input.learnerReply, input.sourceSnippet, input.contextChunks)
-      : createMockTutorFollowUp(input.learnerReply, input.sourceSnippet, input.contextChunks),
-  providerId: null,
-  modelName: 'mock-local',
-})
-
-const localTutorFirstQuestion = (
-  input: LessonTutorFirstQuestionRequest,
-  lessonMode: LessonMode,
-): LessonTutorReplyResult => ({
-  content:
-    lessonMode === 'paper'
-      ? createPaperTutorFirstQuestion(input.documentTitle, input.sourceSnippet)
-      : createMockTutorFirstQuestion(input.documentTitle, input.sourceSnippet),
-  providerId: null,
-  modelName: 'mock-local',
-})
 
 const liveToken = (): CancellationToken => ({
   cancelled: false,
@@ -321,6 +250,13 @@ const databaseError = (): LessonUseCaseError =>
 const internalError = (): LessonUseCaseError =>
   new LessonUseCaseError('INTERNAL_ERROR', 'The lesson operation could not be completed.', true)
 
+const providerRequiredError = (): LessonUseCaseError =>
+  new LessonUseCaseError(
+    'AI_PROVIDER_REQUIRED',
+    'Configure and activate an AI Provider before starting or continuing a lesson.',
+    false,
+  )
+
 const cancelledError = (operationId?: string): LessonUseCaseError =>
   new LessonUseCaseError(
     'OPERATION_CANCELLED',
@@ -366,11 +302,10 @@ const asLessonContextError = (error: unknown): LessonUseCaseError => {
 const generateTutorReply = async (
   generator: LessonTutorReplyGeneratorPort | undefined,
   input: LessonTutorReplyRequest,
-  lessonMode: LessonMode,
   token: CancellationToken,
 ): Promise<LessonTutorReplyResult> => {
   if (token.cancelled) throw cancelledError()
-  if (generator === undefined) return localTutorReply(input, lessonMode)
+  if (generator === undefined) throw providerRequiredError()
   try {
     return await generator.generateFollowUp(input, token)
   } catch (error) {
@@ -381,11 +316,10 @@ const generateTutorReply = async (
 const generateFirstTutorQuestion = async (
   generator: LessonTutorReplyGeneratorPort | undefined,
   input: LessonTutorFirstQuestionRequest,
-  lessonMode: LessonMode,
   token: CancellationToken,
 ): Promise<LessonTutorReplyResult> => {
   if (token.cancelled) throw cancelledError()
-  if (generator === undefined) return localTutorFirstQuestion(input, lessonMode)
+  if (generator === undefined) throw providerRequiredError()
   try {
     return await generator.generateFirstQuestion(input, token)
   } catch (error) {
@@ -495,7 +429,7 @@ const followUpModelRun = (
   id: input.id,
   lessonId: input.lessonId,
   providerId: null,
-  modelName: 'mock-local',
+  modelName: 'pending-ai',
   operation: 'lesson_tutor_follow_up',
   status: 'started',
   promptManifest:
@@ -959,7 +893,6 @@ export class StartLessonFromDocument {
         paperStage: draft.lessonMode === 'paper' ? 'orientation' : null,
         contextChunks: contextSummary.tutorContextChunks,
       },
-      draft.lessonMode,
       liveToken(),
     )
 
@@ -1171,7 +1104,6 @@ export class SubmitLessonReply {
           contextChunks: contextSummary.tutorContextChunks,
           learnerReply: draft.content,
         },
-        session.lessonMode,
         token,
       )
     } catch (error) {
@@ -1371,7 +1303,6 @@ export class RetryLessonRun {
           contextChunks: contextSummary.tutorContextChunks,
           learnerReply: learnerMessage.content,
         },
-        session.lessonMode,
         token,
       )
     } catch (error) {
@@ -1572,7 +1503,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       throw asDatabaseError(error)
     }
     if (activeProvider === undefined) {
-      return localTutorFirstQuestion(input, input.lessonMode)
+      throw providerRequiredError()
     }
 
     let apiKey: string | undefined
@@ -1625,7 +1556,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       throw asDatabaseError(error)
     }
     if (activeProvider === undefined) {
-      return localTutorReply(input, input.lessonMode)
+      throw providerRequiredError()
     }
 
     let apiKey: string | undefined

@@ -352,6 +352,7 @@ const lessonSharedErrorCodeSchema = appErrorCodeSchema.extract([
   'IPC_RESPONSE_INVALID',
   'DATABASE_UNAVAILABLE',
   'OPERATION_CANCELLED',
+  'AI_PROVIDER_REQUIRED',
 ])
 
 export const lessonErrorCodeSchema = z.union([
