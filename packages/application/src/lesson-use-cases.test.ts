@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { PaperReadingStage, ProviderProfile } from '@deepstorming/domain'
+import { createDefaultPaperReadingMap, type PaperReadingStage, type ProviderProfile } from '@deepstorming/domain'
 import type { DocumentRepositoryPort, StoredDocumentDetail } from './document-ports'
 import type {
   DocumentSourceLocatorPort,
@@ -568,6 +568,17 @@ describe('lesson use cases', () => {
 
     expect(created.lessonMode).toBe('paper')
     expect(created.paperProfile?.currentStage).toBe('orientation')
+    expect(created.paperProfile?.readingMap.slots).toHaveLength(6)
+    expect(created.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'why')).toMatchObject({
+      status: 'seeded',
+      citedAnchorIds: [created.sourceAnchors[0]?.id],
+    })
+    expect(
+      created.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'evidence'),
+    ).toMatchObject({
+      status: 'seeded',
+      citedAnchorIds: [created.sourceAnchors[0]?.id],
+    })
     expect(created.modelRuns[0]?.promptManifest.key).toBe('lesson.paper.first_question')
   })
 
@@ -617,6 +628,10 @@ describe('lesson use cases', () => {
     })
 
     expect(updated.paperProfile?.currentStage).toBe('problem_framing')
+    expect(updated.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what')).toMatchObject({
+      status: 'updated',
+      summary: expect.stringContaining('gap between observed evidence and model behavior'),
+    })
   })
 
   it('requires a PDF block to belong to the source document', async () => {
@@ -683,6 +698,7 @@ describe('lesson use cases', () => {
         stageSummary: null,
         termsIntroduced: [],
         citedAnchorIds: [],
+        readingMap: createDefaultPaperReadingMap(),
       },
       createdAt: now,
       updatedAt: now,
@@ -1446,6 +1462,7 @@ describe('lesson use cases', () => {
     ).rejects.toMatchObject({ code: 'INTERNAL_ERROR', retryable: true })
 
     const failed = lessons.records.get(lessonId)
+    expect(failed?.paperProfile?.readingMap).toEqual(created.paperProfile?.readingMap)
     expect(failed?.messages.at(-1)).toMatchObject({
       id: learnerMessageId,
       role: 'learner',
@@ -1527,6 +1544,7 @@ describe('lesson use cases', () => {
 
     expect(cancel.execute({ operationId })).toEqual({ cancelled: false })
     const cancelled = lessons.records.get(lessonId)
+    expect(cancelled?.paperProfile?.readingMap).toEqual(created.paperProfile?.readingMap)
     expect(cancelled?.messages.at(-1)).toMatchObject({
       id: learnerMessageId,
       role: 'learner',
@@ -1749,6 +1767,10 @@ describe('lesson use cases', () => {
       outputMessageId: null,
     })
     expect(retried.currentState).toBe('probing')
+    expect(retried.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what')).toMatchObject({
+      status: 'updated',
+      summary: expect.stringContaining('它在说明证据如何支撑判断'),
+    })
     expect(retried.steps.find((step) => step.modelRunId === followUpRunId)).toMatchObject({
       status: 'failed',
       messageId: null,

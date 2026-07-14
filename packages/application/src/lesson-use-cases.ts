@@ -1,4 +1,5 @@
 import {
+  createDefaultPaperReadingMap,
   normalizeMasteryEvidence,
   normalizeMisconceptionSignal,
   normalizeReviewEvent,
@@ -11,6 +12,8 @@ import {
   type LessonReplyDraft,
   type DocumentType,
   type LessonMode,
+  type PaperReadingMap,
+  type PaperReadingMapSlotKind,
   type LessonRunRetryDraft,
   type LessonModelRun,
   type LessonModelRunErrorSummary,
@@ -138,6 +141,104 @@ const nextPaperStageForReply = (
   if (/公式|推导|loss|objective/iu.test(reply)) return 'method_mechanics'
   if (/局限|质疑|问题|假设/iu.test(reply)) return 'critical_review'
   return currentStage
+}
+
+const updateReadingMapSlot = (
+  map: PaperReadingMap,
+  kind: PaperReadingMapSlotKind,
+  summary: string,
+  citedAnchorIds: readonly string[],
+  updatedAt: string,
+): PaperReadingMap => ({
+  slots: map.slots.map((slot) =>
+    slot.kind === kind
+      ? {
+          kind,
+          summary: summary.trim().slice(0, 500),
+          status: slot.status === 'empty' ? 'seeded' : 'updated',
+          citedAnchorIds,
+          updatedAt,
+        }
+      : slot,
+  ),
+})
+
+const createInitialPaperReadingMap = (
+  documentTitle: string,
+  sourceSnippet: string,
+  anchorId: string,
+  createdAt: string,
+): PaperReadingMap => {
+  const withWhy = updateReadingMapSlot(
+    createDefaultPaperReadingMap(),
+    'why',
+    `《${documentTitle}》先从这段证据切入，帮助澄清论文试图解决的核心问题。`,
+    [anchorId],
+    createdAt,
+  )
+  return updateReadingMapSlot(
+    withWhy,
+    'evidence',
+    `当前入口证据是：${sourceSnippet.trim().slice(0, 120)}`,
+    [anchorId],
+    createdAt,
+  )
+}
+
+const updatePaperReadingMapAfterReply = (
+  map: PaperReadingMap,
+  reply: string,
+  citedAnchorIds: readonly string[],
+  updatedAt: string,
+): PaperReadingMap => {
+  const normalized = reply.trim()
+  const lower = normalized.toLowerCase()
+  let next = updateReadingMapSlot(
+    map,
+    'what',
+    `学习者当前理解：${normalized.slice(0, 180)}`,
+    citedAnchorIds,
+    updatedAt,
+  )
+
+  if (/method|algorithm|model|mechanism|方法|算法|模型|机制/iu.test(lower)) {
+    next = updateReadingMapSlot(
+      next,
+      'how',
+      `方法线索：${normalized.slice(0, 180)}`,
+      citedAnchorIds,
+      updatedAt,
+    )
+  }
+  if (/evidence|experiment|result|figure|supports|实验|结果|图表|支撑/iu.test(lower)) {
+    next = updateReadingMapSlot(
+      next,
+      'evidence',
+      `证据线索：${normalized.slice(0, 180)}`,
+      citedAnchorIds,
+      updatedAt,
+    )
+  }
+  if (/limit|limitation|assumption|counterexample|局限|假设|反例|不能|失败/iu.test(lower)) {
+    next = updateReadingMapSlot(
+      next,
+      'limits',
+      `局限线索：${normalized.slice(0, 180)}`,
+      citedAnchorIds,
+      updatedAt,
+    )
+  }
+  if (/future|next|transfer|application|improve|未来|启发|迁移|应用|改进/iu.test(lower)) {
+    next = updateReadingMapSlot(
+      next,
+      'next',
+      `延展线索：${normalized.slice(0, 180)}`,
+      citedAnchorIds,
+      updatedAt,
+    )
+  }
+
+  return next
 }
 
 const createMockTutorFirstQuestion = (documentTitle: string, snippet: string): string =>
@@ -831,6 +932,7 @@ const findLearnerMessageBeforeRun = (
 const updatePaperProfileAfterReply = (
   session: StoredLessonSession,
   reply: string,
+  updatedAt: string,
 ): StoredLessonSession['paperProfile'] => {
   if (session.lessonMode !== 'paper' || session.paperProfile === null) {
     return session.paperProfile
@@ -839,6 +941,12 @@ const updatePaperProfileAfterReply = (
     ...session.paperProfile,
     currentStage: nextPaperStageForReply(session.paperProfile.currentStage, reply),
     stageSummary: reply.trim(),
+    readingMap: updatePaperReadingMapAfterReply(
+      session.paperProfile.readingMap,
+      reply,
+      session.sourceAnchors.map((anchor) => anchor.id),
+      updatedAt,
+    ),
   }
 }
 
@@ -1051,6 +1159,12 @@ export class StartLessonFromDocument {
               stageSummary: null,
               termsIntroduced: [],
               citedAnchorIds: [anchorId],
+              readingMap: createInitialPaperReadingMap(
+                draft.documentTitle,
+                draft.source.snippet,
+                anchorId,
+                createdAt,
+              ),
             }
           : null,
       createdAt,
@@ -1255,7 +1369,7 @@ export class SubmitLessonReply {
       reviewItems:
         reviewItem === undefined ? pending.reviewItems : [...pending.reviewItems, reviewItem],
       reviewEvents: pending.reviewEvents,
-      paperProfile: updatePaperProfileAfterReply(session, draft.content),
+      paperProfile: updatePaperProfileAfterReply(session, draft.content, createdAt),
       updatedAt: createdAt,
     }
 
@@ -1461,7 +1575,7 @@ export class RetryLessonRun {
       reviewItems:
         reviewItem === undefined ? pending.reviewItems : [...pending.reviewItems, reviewItem],
       reviewEvents: pending.reviewEvents,
-      paperProfile: updatePaperProfileAfterReply(session, learnerMessage.content),
+      paperProfile: updatePaperProfileAfterReply(session, learnerMessage.content, createdAt),
       updatedAt: createdAt,
     }
 
