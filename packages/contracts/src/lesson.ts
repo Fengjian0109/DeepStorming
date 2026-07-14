@@ -95,6 +95,25 @@ export const paperReadingMapSchema = z
       ),
     { message: 'reading map must contain exactly one slot for each kind' },
   )
+export const paperInsightCardKindSchema = z.enum([
+  'section',
+  'claim',
+  'evidence',
+  'limitation',
+])
+export const paperInsightCardConfidenceSchema = z.enum(['fallback', 'model'])
+export const paperInsightCardSchema = z
+  .object({
+    id: z.string().uuid(),
+    kind: paperInsightCardKindSchema,
+    title: requiredTextSchema.max(120),
+    summary: requiredTextSchema.max(500),
+    sourceAnchorIds: z.array(z.string().uuid()).max(24),
+    stage: paperReadingStageSchema,
+    confidence: paperInsightCardConfidenceSchema,
+    updatedAt: timestampSchema,
+  })
+  .strict()
 export const paperLessonProfileSchema = z
   .object({
     currentStage: paperReadingStageSchema,
@@ -102,6 +121,7 @@ export const paperLessonProfileSchema = z
     termsIntroduced: z.array(z.string().trim().min(1).max(120)).max(24),
     citedAnchorIds: z.array(z.string().uuid()).max(24),
     readingMap: paperReadingMapSchema,
+    insightCards: z.array(paperInsightCardSchema).max(12).default([]),
   })
   .strict()
 export const lessonSourceTargetSchema = z.discriminatedUnion('kind', [
@@ -484,6 +504,9 @@ export type PaperReadingMapSlotKindDto = z.infer<typeof paperReadingMapSlotKindS
 export type PaperReadingMapSlotStatusDto = z.infer<typeof paperReadingMapSlotStatusSchema>
 export type PaperReadingMapSlotDto = z.infer<typeof paperReadingMapSlotSchema>
 export type PaperReadingMapDto = z.infer<typeof paperReadingMapSchema>
+export type PaperInsightCardKindDto = z.infer<typeof paperInsightCardKindSchema>
+export type PaperInsightCardConfidenceDto = z.infer<typeof paperInsightCardConfidenceSchema>
+export type PaperInsightCardDto = z.infer<typeof paperInsightCardSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
 export type LessonReplyDraftDto = z.infer<typeof lessonReplyDraftSchema>

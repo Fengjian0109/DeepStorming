@@ -5,6 +5,7 @@ import {
   LESSON_SESSION_STATUSES,
   PAPER_READING_MAP_SLOT_KINDS,
   createDefaultPaperReadingMap,
+  normalizePaperInsightCards,
   normalizeLessonSession,
   normalizeMasteryEvidence,
   normalizeMisconceptionSignal,
@@ -219,6 +220,89 @@ describe('lesson domain', () => {
     })
 
     expect(session.paperProfile?.readingMap).toEqual(createDefaultPaperReadingMap())
+    expect(session.paperProfile?.insightCards).toEqual([])
+  })
+
+  it('creates an empty paper insight card collection by default', () => {
+    const session = normalizeLessonSession({
+      id: '00000000-0000-4000-8000-000000000101',
+      title: 'Paper Session',
+      status: 'active',
+      documentId: '00000000-0000-4000-8000-000000000102',
+      documentTitle: 'Paper',
+      sourceAnchors: [],
+      messages: [],
+      modelRuns: [],
+      currentState: 'opening',
+      steps: [],
+      masteryEvidence: [],
+      misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+        stageSummary: null,
+        termsIntroduced: [],
+        citedAnchorIds: [],
+        readingMap: createDefaultPaperReadingMap(),
+      },
+      createdAt: '2026-07-11T00:00:00.000Z',
+      updatedAt: '2026-07-11T00:00:00.000Z',
+    })
+
+    expect(session.paperProfile?.insightCards).toEqual([])
+  })
+
+  it('caps paper insight cards to the latest three cards per kind', () => {
+    const cards = normalizePaperInsightCards([
+      {
+        id: '00000000-0000-4000-8000-000000000111',
+        kind: 'section',
+        title: 'A',
+        summary: 'One',
+        sourceAnchorIds: [],
+        stage: 'orientation',
+        confidence: 'fallback',
+        updatedAt: '2026-07-11T00:00:00.000Z',
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000112',
+        kind: 'section',
+        title: 'B',
+        summary: 'Two',
+        sourceAnchorIds: [],
+        stage: 'orientation',
+        confidence: 'fallback',
+        updatedAt: '2026-07-11T00:01:00.000Z',
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000113',
+        kind: 'section',
+        title: 'C',
+        summary: 'Three',
+        sourceAnchorIds: [],
+        stage: 'orientation',
+        confidence: 'fallback',
+        updatedAt: '2026-07-11T00:02:00.000Z',
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000114',
+        kind: 'section',
+        title: 'D',
+        summary: 'Four',
+        sourceAnchorIds: [],
+        stage: 'orientation',
+        confidence: 'fallback',
+        updatedAt: '2026-07-11T00:03:00.000Z',
+      },
+    ])
+
+    expect(cards.filter((card) => card.kind === 'section').map((card) => card.title)).toEqual([
+      'B',
+      'C',
+      'D',
+    ])
   })
 
   it('rejects mismatched lessonMode and paperProfile', () => {
@@ -245,11 +329,12 @@ describe('lesson domain', () => {
           termsIntroduced: [],
           citedAnchorIds: [],
           readingMap: createDefaultPaperReadingMap(),
+          insightCards: [],
         },
         createdAt: '2026-07-13T00:00:00.000Z',
         updatedAt: '2026-07-13T00:00:00.000Z',
       }),
-    ).toThrow('Paper lesson profile is invalid')
+    ).toThrow('Standard lessons must not include paper profile data')
   })
 
   it('rejects invalid paper reading maps', () => {

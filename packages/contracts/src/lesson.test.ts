@@ -50,6 +50,19 @@ const readingMap = {
   ],
 } as const
 
+const insightCards = [
+  {
+    id: '00000000-0000-4000-8000-000000000103',
+    kind: 'claim',
+    title: 'Core claim',
+    summary: 'The paper argues evidence supports behavior-level evaluation.',
+    sourceAnchorIds: [],
+    stage: 'problem_framing',
+    confidence: 'model',
+    updatedAt: '2026-07-11T00:00:00.000Z',
+  },
+] as const
+
 const session = {
   id: lessonId,
   title: 'Paper Map 课堂',
@@ -371,10 +384,28 @@ describe('lesson contracts', () => {
         termsIntroduced: [],
         citedAnchorIds: [anchorId],
         readingMap,
+        insightCards,
       },
     })
 
     expect(result.paperProfile?.readingMap.slots).toHaveLength(6)
+  })
+
+  it('parses paper lesson profiles with structured insight cards', () => {
+    const result = lessonSessionSchema.parse({
+      ...session,
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'problem_framing',
+        stageSummary: null,
+        termsIntroduced: [],
+        citedAnchorIds: [],
+        readingMap,
+        insightCards,
+      },
+    })
+
+    expect(result.paperProfile?.insightCards[0]?.kind).toBe('claim')
   })
 
   it('rejects invalid paper reading map slots', () => {
@@ -401,6 +432,34 @@ describe('lesson contracts', () => {
         },
       }),
     ).toThrow()
+  })
+
+  it('rejects invalid paper insight cards', () => {
+    expect(
+      lessonSessionSchema.safeParse({
+        ...session,
+        lessonMode: 'paper',
+        paperProfile: {
+          currentStage: 'problem_framing',
+          stageSummary: null,
+          termsIntroduced: [],
+          citedAnchorIds: [],
+          readingMap,
+          insightCards: [
+            {
+              id: '00000000-0000-4000-8000-000000000103',
+              kind: 'note',
+              title: '',
+              summary: 'x',
+              sourceAnchorIds: [],
+              stage: 'problem_framing',
+              confidence: 'fallback',
+              updatedAt: '2026-07-11T00:00:00.000Z',
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false)
   })
 
   it('validates review item and review event dto payloads', () => {

@@ -39,6 +39,13 @@ export const PAPER_READING_MAP_SLOT_KINDS = [
   'next',
 ] as const
 export const PAPER_READING_MAP_SLOT_STATUSES = ['empty', 'seeded', 'updated'] as const
+export const PAPER_INSIGHT_CARD_KINDS = [
+  'section',
+  'claim',
+  'evidence',
+  'limitation',
+] as const
+export const PAPER_INSIGHT_CARD_CONFIDENCE = ['fallback', 'model'] as const
 
 export type LessonSessionStatus = (typeof LESSON_SESSION_STATUSES)[number]
 export type LessonMessageRole = (typeof LESSON_MESSAGE_ROLES)[number]
@@ -55,6 +62,8 @@ export type LessonMode = (typeof LESSON_MODES)[number]
 export type PaperReadingStage = (typeof PAPER_READING_STAGES)[number]
 export type PaperReadingMapSlotKind = (typeof PAPER_READING_MAP_SLOT_KINDS)[number]
 export type PaperReadingMapSlotStatus = (typeof PAPER_READING_MAP_SLOT_STATUSES)[number]
+export type PaperInsightCardKind = (typeof PAPER_INSIGHT_CARD_KINDS)[number]
+export type PaperInsightCardConfidence = (typeof PAPER_INSIGHT_CARD_CONFIDENCE)[number]
 
 export type PaperReadingMapSlot = Readonly<{
   kind: PaperReadingMapSlotKind
@@ -68,12 +77,24 @@ export type PaperReadingMap = Readonly<{
   slots: readonly PaperReadingMapSlot[]
 }>
 
+export type PaperInsightCard = Readonly<{
+  id: string
+  kind: PaperInsightCardKind
+  title: string
+  summary: string
+  sourceAnchorIds: readonly string[]
+  stage: PaperReadingStage
+  confidence: PaperInsightCardConfidence
+  updatedAt: string
+}>
+
 export type PaperLessonProfile = Readonly<{
   currentStage: PaperReadingStage
   stageSummary: string | null
   termsIntroduced: readonly string[]
   citedAnchorIds: readonly string[]
   readingMap: PaperReadingMap
+  insightCards: readonly PaperInsightCard[]
 }>
 
 export type LessonSourceTarget =
@@ -274,8 +295,8 @@ export type LessonStartDraft = Readonly<{
   }>
 }>
 
-type LegacyPaperLessonProfile = Omit<PaperLessonProfile, 'readingMap'> &
-  Partial<Pick<PaperLessonProfile, 'readingMap'>>
+type LegacyPaperLessonProfile = Omit<PaperLessonProfile, 'readingMap' | 'insightCards'> &
+  Partial<Pick<PaperLessonProfile, 'readingMap' | 'insightCards'>>
 
 export type LegacyLessonSession = Omit<LessonSession, 'lessonMode' | 'paperProfile'> &
   Partial<Pick<LessonSession, 'lessonMode'>> & {
@@ -425,12 +446,49 @@ const normalizePaperReadingMap = (map: PaperReadingMap | undefined): PaperReadin
   }
 }
 
+export const normalizePaperInsightCards = (
+  cards: readonly PaperInsightCard[] | undefined,
+): readonly PaperInsightCard[] => {
+  const normalized = (cards ?? []).map((card) => {
+    if (!includes(PAPER_INSIGHT_CARD_KINDS, card.kind)) {
+      throw new Error('Paper insight card kind is invalid')
+    }
+    if (!includes(PAPER_INSIGHT_CARD_CONFIDENCE, card.confidence)) {
+      throw new Error('Paper insight card confidence is invalid')
+    }
+
+    return {
+      id: assertUuid(card.id, 'Paper insight card id is invalid'),
+      kind: card.kind,
+      title: normalizeNonBlank(card.title, 'Paper insight card title is invalid').slice(0, 120),
+      summary: normalizeNonBlank(card.summary, 'Paper insight card summary is invalid').slice(
+        0,
+        500,
+      ),
+      sourceAnchorIds: [...new Set(card.sourceAnchorIds)].map((id) =>
+        assertUuid(id, 'Paper insight card source anchor id is invalid'),
+      ),
+      stage: includes(PAPER_READING_STAGES, card.stage)
+        ? card.stage
+        : (() => {
+            throw new Error('Paper insight card stage is invalid')
+          })(),
+      confidence: card.confidence,
+      updatedAt: assertIsoTimestamp(card.updatedAt, 'Paper insight card updatedAt is invalid'),
+    }
+  })
+
+  return PAPER_INSIGHT_CARD_KINDS.flatMap((kind) =>
+    normalized.filter((card) => card.kind === kind).slice(-3),
+  )
+}
+
 const normalizePaperLessonProfile = (
   profile: LegacyPaperLessonProfile | null,
   lessonMode: LessonMode,
 ): PaperLessonProfile | null => {
   if (lessonMode === 'standard') {
-    if (profile !== null) throw new Error('Paper lesson profile is invalid')
+    if (profile !== null) throw new Error('Standard lessons must not include paper profile data')
     return null
   }
   if (profile === null) throw new Error('Paper lesson profile is invalid')
@@ -450,6 +508,7 @@ const normalizePaperLessonProfile = (
       assertUuid(id, 'Paper cited anchor id is invalid'),
     ),
     readingMap: normalizePaperReadingMap(profile.readingMap),
+    insightCards: normalizePaperInsightCards(profile.insightCards),
   }
 }
 
