@@ -307,6 +307,52 @@ ALTER TABLE lesson_sessions ADD COLUMN lesson_mode TEXT NOT NULL DEFAULT 'standa
  CHECK (lesson_mode IN ('standard','paper'));
 ALTER TABLE lesson_sessions ADD COLUMN paper_profile_json TEXT;`
 
+const LEARNING_SETTINGS_SQL = `
+CREATE TABLE user_profile (
+ singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
+ display_name TEXT NOT NULL,
+ avatar_asset_id TEXT,
+ revision INTEGER NOT NULL CHECK (revision > 0),
+ updated_at TEXT NOT NULL
+);
+CREATE TABLE tutor_profiles (
+ id TEXT PRIMARY KEY,
+ revision INTEGER NOT NULL CHECK (revision > 0),
+ status TEXT NOT NULL CHECK (status IN ('active','archived')),
+ name TEXT NOT NULL,
+ avatar_asset_id TEXT,
+ personality TEXT NOT NULL,
+ tone TEXT NOT NULL,
+ expertise_tags_json TEXT NOT NULL,
+ strictness INTEGER NOT NULL CHECK (strictness BETWEEN 1 AND 5),
+ socratic_intensity INTEGER NOT NULL CHECK (socratic_intensity BETWEEN 1 AND 5),
+ guidance_style TEXT NOT NULL CHECK (guidance_style IN ('question_first','balanced','explain_first')),
+ book_strategy TEXT NOT NULL,
+ paper_strategy TEXT NOT NULL,
+ custom_instructions TEXT NOT NULL,
+ prompt_version TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX tutor_profiles_status_name ON tutor_profiles(status, name);
+CREATE TABLE tutor_profile_revisions (
+ tutor_id TEXT NOT NULL REFERENCES tutor_profiles(id) ON DELETE CASCADE,
+ revision INTEGER NOT NULL CHECK (revision > 0),
+ snapshot_json TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ PRIMARY KEY(tutor_id, revision)
+);
+CREATE TABLE classroom_preferences (
+ singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
+ default_book_tutor_id TEXT REFERENCES tutor_profiles(id) ON DELETE SET NULL,
+ default_paper_tutor_id TEXT REFERENCES tutor_profiles(id) ON DELETE SET NULL,
+ default_pace TEXT NOT NULL CHECK (default_pace IN ('slow','standard','fast')),
+ send_shortcut TEXT NOT NULL CHECK (send_shortcut IN ('enter','mod_enter')),
+ auto_scroll INTEGER NOT NULL CHECK (auto_scroll IN (0,1)),
+ context_compression_remaining_percent INTEGER NOT NULL CHECK (context_compression_remaining_percent BETWEEN 10 AND 50),
+ recent_turn_count INTEGER NOT NULL CHECK (recent_turn_count BETWEEN 1 AND 50)
+);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -323,6 +369,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 13, name: 'lesson_mastery_evidence', sql: LESSON_MASTERY_EVIDENCE_SQL },
   { version: 14, name: 'lesson_review_scheduler', sql: LESSON_REVIEW_SCHEDULER_SQL },
   { version: 15, name: 'paper_lesson_metadata', sql: PAPER_LESSON_METADATA_SQL },
+  { version: 16, name: 'learning_settings', sql: LEARNING_SETTINGS_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')
