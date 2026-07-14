@@ -1,5 +1,6 @@
 export const WORKSPACE_LAYOUT_STORAGE_KEY = 'deepstorming.workspace-layout.v1'
 export const MAX_COMBINED_SIDEBAR_RATIO = 0.5
+export const WORKSPACE_SEPARATOR_TOTAL_WIDTH = 12
 export const MIN_PRIMARY_WIDTH = 176
 export const MIN_CONTEXTUAL_WIDTH = 220
 export const COLLAPSED_RAIL_WIDTH = 56
@@ -24,6 +25,9 @@ export const DEFAULT_WORKSPACE_LAYOUT: WorkspaceLayout = {
 
 const clamp = (value: number, minimum: number, maximum: number): number =>
   Math.min(Math.max(value, minimum), maximum)
+
+export const maximumCombinedSidebarWidth = (viewportWidth: number): number =>
+  Math.max(0, viewportWidth * MAX_COMBINED_SIDEBAR_RATIO - WORKSPACE_SEPARATOR_TOTAL_WIDTH)
 
 export const normalizeWorkspaceLayout = (value: unknown): WorkspaceLayout => {
   if (typeof value !== 'object' || value === null) return DEFAULT_WORKSPACE_LAYOUT
@@ -63,7 +67,7 @@ export const resizeWorkspaceLayout = (
     viewportWidth: number
   }>,
 ): WorkspaceLayout => {
-  const maxCombined = input.viewportWidth * MAX_COMBINED_SIDEBAR_RATIO
+  const maxCombined = maximumCombinedSidebarWidth(input.viewportWidth)
 
   if (current.primaryCollapsed && current.contextualCollapsed) return current
 
@@ -124,7 +128,7 @@ export const fitWorkspaceLayoutToViewport = (
   preferred: WorkspaceLayout,
   viewportWidth: number,
 ): WorkspaceLayout => {
-  const maxCombined = viewportWidth * MAX_COMBINED_SIDEBAR_RATIO
+  const maxCombined = maximumCombinedSidebarWidth(viewportWidth)
 
   if (preferred.primaryCollapsed && preferred.contextualCollapsed) return preferred
   if (preferred.primaryCollapsed) {

@@ -80,7 +80,7 @@ describe('WorkspaceShell', () => {
       ) as { primaryWidth: number; contextualWidth: number }
       expect(saved.primaryWidth + saved.contextualWidth).toBeLessThanOrEqual(600)
     })
-    expect(separator.getAttribute('aria-valuemax')).toBe('424')
+    expect(separator.getAttribute('aria-valuemax')).toBe('412')
   })
 
   it('supports keyboard resizing in sixteen pixel steps', async () => {

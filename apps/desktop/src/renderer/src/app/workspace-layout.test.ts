@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   DEFAULT_WORKSPACE_LAYOUT,
-  MAX_COMBINED_SIDEBAR_RATIO,
   fitWorkspaceLayoutToViewport,
+  maximumCombinedSidebarWidth,
   normalizeWorkspaceLayout,
   readWorkspaceLayout,
   resizeWorkspaceLayout,
@@ -33,7 +33,7 @@ describe('workspace layout policy', () => {
     })
 
     expect(resized.primaryWidth + resized.contextualWidth).toBeLessThanOrEqual(
-      1200 * MAX_COMBINED_SIDEBAR_RATIO,
+      maximumCombinedSidebarWidth(1200),
     )
   })
 
@@ -44,7 +44,7 @@ describe('workspace layout policy', () => {
       viewportWidth: 880,
     })
 
-    expect(resized.primaryWidth + resized.contextualWidth).toBeLessThanOrEqual(440)
+    expect(resized.primaryWidth + resized.contextualWidth).toBeLessThanOrEqual(428)
     expect(resized.primaryWidth).toBeGreaterThanOrEqual(176)
     expect(resized.contextualWidth).toBeGreaterThanOrEqual(220)
   })
@@ -53,7 +53,7 @@ describe('workspace layout policy', () => {
     const preferred = { ...DEFAULT_WORKSPACE_LAYOUT, primaryWidth: 300, contextualWidth: 360 }
     const displayed = fitWorkspaceLayoutToViewport(preferred, 880)
 
-    expect(displayed.primaryWidth + displayed.contextualWidth).toBeLessThanOrEqual(440)
+    expect(displayed.primaryWidth + displayed.contextualWidth).toBeLessThanOrEqual(428)
     expect(preferred).toMatchObject({ primaryWidth: 300, contextualWidth: 360 })
   })
 
@@ -65,7 +65,7 @@ describe('workspace layout policy', () => {
     }
     const displayed = fitWorkspaceLayoutToViewport(preferred, 880)
 
-    expect(displayed.primaryWidth).toBe(440)
+    expect(displayed.primaryWidth).toBe(428)
     expect(displayed.contextualWidth).toBe(preferred.contextualWidth)
   })
 

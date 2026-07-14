@@ -3,11 +3,11 @@ import { createPortal } from 'react-dom'
 
 import {
   COLLAPSED_RAIL_WIDTH,
-  MAX_COMBINED_SIDEBAR_RATIO,
   MIN_CONTEXTUAL_WIDTH,
   MIN_PRIMARY_WIDTH,
   WORKSPACE_LAYOUT_STORAGE_KEY,
   fitWorkspaceLayoutToViewport,
+  maximumCombinedSidebarWidth,
   readWorkspaceLayout,
   resizeWorkspaceLayout,
   toggleAllSidebars,
@@ -103,7 +103,7 @@ export const WorkspaceShell = ({
     ? 0
     : displayedLayout.contextualWidth
   const bothCollapsed = layout.primaryCollapsed && layout.contextualCollapsed
-  const maximumCombinedWidth = viewportWidth * MAX_COMBINED_SIDEBAR_RATIO
+  const maximumCombinedWidth = maximumCombinedSidebarWidth(viewportWidth)
 
   const resizeBy = (boundary: 'primary' | 'contextual', deltaX: number) => {
     setLayout((current) =>
