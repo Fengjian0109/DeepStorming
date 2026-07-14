@@ -94,6 +94,10 @@ const session = (overrides: Partial<StoredLessonSession> = {}): StoredLessonSess
   ],
   masteryEvidence: [],
   misconceptionSignals: [],
+  reviewItems: [],
+  reviewEvents: [],
+  lessonMode: 'standard',
+  paperProfile: null,
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
   ...overrides,
@@ -173,6 +177,37 @@ describe('SqliteLessonRepository', () => {
     await expect(repo.findById(session().id)).resolves.toEqual(session())
   })
 
+  it('round-trips paper lesson metadata', async () => {
+    const paperSession = session({
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+        stageSummary: 'We established the paper problem and learner context.',
+        termsIntroduced: ['Transformer'],
+        citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      },
+    })
+
+    await repo.create(paperSession)
+
+    await expect(repo.findById(paperSession.id)).resolves.toEqual(paperSession)
+
+    const updatedPaperSession = {
+      ...paperSession,
+      paperProfile: {
+        currentStage: 'problem_framing' as const,
+        stageSummary: 'The learner can now state the paper problem clearly.',
+        termsIntroduced: ['Transformer', 'Attention'],
+        citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      },
+      updatedAt: '2026-07-11T00:02:00.000Z',
+    }
+
+    await repo.save(updatedPaperSession)
+
+    await expect(repo.findById(paperSession.id)).resolves.toEqual(updatedPaperSession)
+  })
+
   it('persists mastery evidence and misconception signals', async () => {
     const created = await repo.create(sessionWithMasteryEvidence())
 
@@ -196,6 +231,62 @@ describe('SqliteLessonRepository', () => {
     const reloaded = await repo.findById(session().id)
     expect(reloaded?.masteryEvidence).toEqual([])
     expect(reloaded?.misconceptionSignals).toEqual([])
+  })
+
+  it('persists review items and review events with lesson sessions', async () => {
+    const created = await repo.create(
+      session({
+        masteryEvidence: [
+          {
+            id: '00000000-0000-4000-8000-000000000801',
+            lessonId: '00000000-0000-4000-8000-000000000101',
+            stepId: '00000000-0000-4000-8000-000000000701',
+            learnerMessageId: '00000000-0000-4000-8000-000000000401',
+            tutorMessageId: '00000000-0000-4000-8000-000000000401',
+            kind: 'teach_back',
+            judgement: 'needs_review',
+            confidence: 0.72,
+            rationale: 'Learner still needs another review pass.',
+            suggestedReview: true,
+            createdAt: '2026-07-13T00:00:00.000Z',
+          },
+        ],
+        reviewItems: [
+          {
+            id: '00000000-0000-4000-8000-000000000951',
+            lessonId: '00000000-0000-4000-8000-000000000101',
+            masteryEvidenceId: '00000000-0000-4000-8000-000000000801',
+            misconceptionSignalId: null,
+            prompt: '复习：请重新解释这段课堂证据，并说明你的判断依据。',
+            answerOutline: ['先说明证据', '再说明判断依据'],
+            status: 'active',
+            dueAt: '2026-07-14T00:00:00.000Z',
+            createdAt: '2026-07-13T00:00:00.000Z',
+            updatedAt: '2026-07-13T00:00:00.000Z',
+          },
+        ],
+        reviewEvents: [
+          {
+            id: '00000000-0000-4000-8000-000000000961',
+            reviewItemId: '00000000-0000-4000-8000-000000000951',
+            lessonId: '00000000-0000-4000-8000-000000000101',
+            rating: 'forgot',
+            response: 'I still mix up the rationale.',
+            previousDueAt: '2026-07-14T00:00:00.000Z',
+            nextDueAt: '2026-07-15T09:00:00.000Z',
+            reviewedAt: '2026-07-14T09:00:00.000Z',
+            createdAt: '2026-07-14T09:00:00.000Z',
+          },
+        ],
+      }),
+    )
+
+    const reloaded = await repo.findById(created.id)
+    expect(reloaded?.reviewItems).toHaveLength(1)
+    expect(reloaded?.reviewItems[0]?.prompt).toBe(
+      '复习：请重新解释这段课堂证据，并说明你的判断依据。',
+    )
+    expect(reloaded?.reviewEvents[0]?.rating).toBe('forgot')
   })
 
   it('round-trips a pdf block target while keeping legacy anchors readable', async () => {

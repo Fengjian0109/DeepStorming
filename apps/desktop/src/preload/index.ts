@@ -29,6 +29,7 @@ import {
   type DocumentTextBlocksResult,
   type ListDocumentsResult,
   type LessonReplyDraftDto,
+  type LessonRecordReviewDraftDto,
   type LessonRunRetryDraftDto,
   type LessonSessionResult,
   type LessonSessionsResult,
@@ -168,7 +169,16 @@ const api: DeepStormingBootstrapApi = {
       const requestId = globalThis.crypto.randomUUID()
       return invokeValidated(
         LESSON_CHANNELS.startFromDocument,
-        { requestId, lesson },
+        {
+          requestId,
+          lesson: {
+            documentId: lesson.documentId,
+            documentTitle: lesson.documentTitle,
+            ...(lesson.title === undefined ? {} : { title: lesson.title }),
+            ...(lesson.lessonMode === undefined ? {} : { lessonMode: lesson.lessonMode }),
+            source: lesson.source,
+          },
+        },
         lessonSessionResultSchema,
       )
     },
@@ -200,6 +210,14 @@ const api: DeepStormingBootstrapApi = {
         LESSON_CHANNELS.cancelRun,
         { requestId, operationId },
         cancelLessonRunResultSchema,
+      )
+    },
+    recordReview: async (review: LessonRecordReviewDraftDto): Promise<LessonSessionResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LESSON_CHANNELS.recordReview,
+        { requestId, ...review },
+        lessonSessionResultSchema,
       )
     },
   },

@@ -35,6 +35,7 @@
 ## Task 1: Domain and Contracts review models
 
 **Files:**
+
 - Modify: `packages/domain/src/lesson.ts`
 - Modify: `packages/domain/src/lesson.test.ts`
 - Modify: `packages/contracts/src/lesson.ts`
@@ -289,37 +290,43 @@ Add:
 export const reviewItemStatusSchema = z.enum(['active', 'completed', 'suspended'])
 export const reviewRatingSchema = z.enum(['remembered', 'forgot'])
 
-export const lessonReviewItemSchema = z.object({
-  id: z.string().uuid(),
-  lessonId: lessonIdSchema,
-  masteryEvidenceId: z.string().uuid(),
-  misconceptionSignalId: z.string().uuid().nullable(),
-  prompt: requiredTextSchema.max(280),
-  answerOutline: z.array(requiredTextSchema.max(280)).min(1).max(5),
-  status: reviewItemStatusSchema,
-  dueAt: timestampSchema,
-  createdAt: timestampSchema,
-  updatedAt: timestampSchema,
-}).strict()
+export const lessonReviewItemSchema = z
+  .object({
+    id: z.string().uuid(),
+    lessonId: lessonIdSchema,
+    masteryEvidenceId: z.string().uuid(),
+    misconceptionSignalId: z.string().uuid().nullable(),
+    prompt: requiredTextSchema.max(280),
+    answerOutline: z.array(requiredTextSchema.max(280)).min(1).max(5),
+    status: reviewItemStatusSchema,
+    dueAt: timestampSchema,
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
+  })
+  .strict()
 
-export const lessonReviewEventSchema = z.object({
-  id: z.string().uuid(),
-  reviewItemId: z.string().uuid(),
-  lessonId: lessonIdSchema,
-  rating: reviewRatingSchema,
-  response: requiredTextSchema.max(1_000),
-  previousDueAt: timestampSchema,
-  nextDueAt: timestampSchema.nullable(),
-  reviewedAt: timestampSchema,
-  createdAt: timestampSchema,
-}).strict()
+export const lessonReviewEventSchema = z
+  .object({
+    id: z.string().uuid(),
+    reviewItemId: z.string().uuid(),
+    lessonId: lessonIdSchema,
+    rating: reviewRatingSchema,
+    response: requiredTextSchema.max(1_000),
+    previousDueAt: timestampSchema,
+    nextDueAt: timestampSchema.nullable(),
+    reviewedAt: timestampSchema,
+    createdAt: timestampSchema,
+  })
+  .strict()
 
-export const lessonRecordReviewDraftSchema = z.object({
-  lessonId: lessonIdSchema,
-  reviewItemId: z.string().uuid(),
-  rating: reviewRatingSchema,
-  response: requiredTextSchema.max(1_000),
-}).strict()
+export const lessonRecordReviewDraftSchema = z
+  .object({
+    lessonId: lessonIdSchema,
+    reviewItemId: z.string().uuid(),
+    rating: reviewRatingSchema,
+    response: requiredTextSchema.max(1_000),
+  })
+  .strict()
 ```
 
 Extend `lessonSessionSchema` with:
@@ -357,6 +364,7 @@ Expected: commit succeeds with the new domain/contracts review model changes.
 ## Task 2: Application scheduling and use case flow
 
 **Files:**
+
 - Modify: `packages/application/src/lesson-ports.ts`
 - Modify: `packages/application/src/lesson-use-cases.ts`
 - Modify: `packages/application/src/lesson-use-cases.test.ts`
@@ -433,10 +441,7 @@ Expected: FAIL because review arrays, scheduler helpers, and `RecordReviewEvent`
 In `packages/application/src/lesson-ports.ts`, add:
 
 ```ts
-import type {
-  ReviewEvent,
-  ReviewItem,
-} from '@deepstorming/domain'
+import type { ReviewEvent, ReviewItem } from '@deepstorming/domain'
 
 export type StoredReviewItem = ReviewItem
 export type StoredReviewEvent = ReviewEvent
@@ -460,9 +465,7 @@ const plusDaysIso = (iso: string, days: number): string => {
   return next.toISOString()
 }
 
-const createReviewPrompt = (
-  signal: StoredMisconceptionSignal | undefined,
-): string =>
+const createReviewPrompt = (signal: StoredMisconceptionSignal | undefined): string =>
   signal === undefined
     ? '复习：请重新解释这段课堂证据，并说明你的判断依据。'
     : `复习：${signal.label}。请重新解释这段证据想说明什么。`
@@ -563,7 +566,8 @@ export class RecordReviewEvent {
   public async execute(input: RecordReviewEventInput): Promise<LessonSessionView> {
     const normalized = normalizeRecordReviewEventInput(input)
     const session = await this.repository.findById(normalized.lessonId)
-    if (session === undefined) throw new LessonUseCaseError('LESSON_NOT_FOUND', 'Lesson not found.', false)
+    if (session === undefined)
+      throw new LessonUseCaseError('LESSON_NOT_FOUND', 'Lesson not found.', false)
 
     const reviewItem = session.reviewItems.find((item) => item.id === normalized.reviewItemId)
     if (reviewItem === undefined) {
@@ -626,6 +630,7 @@ Expected: commit succeeds with deterministic scheduler and record-review applica
 ## Task 3: SQLite migration and repository persistence
 
 **Files:**
+
 - Modify: `packages/infrastructure/src/database/migrations.ts`
 - Modify: `packages/infrastructure/src/database/migrations.test.ts`
 - Modify: `packages/infrastructure/src/database/sqlite-lesson-repository.ts`
@@ -805,6 +810,7 @@ Expected: commit succeeds with migration/repository support.
 ## Task 4: IPC, preload, and renderer review workflow
 
 **Files:**
+
 - Modify: `apps/desktop/src/main/ipc/lesson-handlers.ts`
 - Modify: `apps/desktop/src/main/ipc/lesson-handlers.test.ts`
 - Modify: `apps/desktop/src/main/ipc/register-ipc.ts`
@@ -898,10 +904,7 @@ In `apps/desktop/src/main/ipc/lesson-handlers.ts`, add a handler parallel to `re
 recordReview: async (input) => {
   const parsed = lessonRecordReviewDraftSchema.safeParse(input)
   if (!parsed.success) return invalidLessonResult(input.requestId, 'LESSON_VALIDATION_FAILED')
-  return toLessonSessionResult(
-    input.requestId,
-    await recordReviewEvent.execute(parsed.data),
-  )
+  return toLessonSessionResult(input.requestId, await recordReviewEvent.execute(parsed.data))
 }
 ```
 
@@ -1001,6 +1004,7 @@ Expected: commit succeeds with desktop review flow wired end to end.
 ## Task 5: End-to-end verification and docs
 
 **Files:**
+
 - Modify: `tests/e2e/app.spec.ts`
 - Modify: `docs/planning/current-status.md`
 - Modify: `docs/planning/software-design-completion-roadmap.md`
@@ -1013,7 +1017,9 @@ Add to `tests/e2e/app.spec.ts`:
 ```ts
 test('lesson review tasks are created, updated, and survive restart', async ({ app }) => {
   await startLessonFromFixture(app)
-  await app.getByRole('textbox', { name: '输入你的回答' }).fill('我还是卡住了，不知道证据如何支持结论。')
+  await app
+    .getByRole('textbox', { name: '输入你的回答' })
+    .fill('我还是卡住了，不知道证据如何支持结论。')
   await app.getByRole('button', { name: '发送' }).click()
 
   await expect(app.getByText('复习任务')).toBeVisible()

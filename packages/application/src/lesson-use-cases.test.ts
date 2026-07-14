@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { ProviderProfile } from '@deepstorming/domain'
+import type { PaperReadingStage, ProviderProfile } from '@deepstorming/domain'
 import type { DocumentRepositoryPort, StoredDocumentDetail } from './document-ports'
 import type {
   DocumentSourceLocatorPort,
@@ -15,6 +15,7 @@ import {
   LessonRunOperations,
   ListLessonSessions,
   ProviderLessonTutorReplyGenerator,
+  RecordReviewEvent,
   RetryLessonRun,
   StartLessonFromDocument,
   SubmitLessonReply,
@@ -42,6 +43,8 @@ const retryMessageId = '00000000-0000-4000-8000-000000000109'
 const evidenceId = '00000000-0000-4000-8000-000000000110'
 const signalId = '00000000-0000-4000-8000-000000000111'
 const retryEvidenceId = '00000000-0000-4000-8000-000000000112'
+const reviewItemId = '00000000-0000-4000-8000-000000000113'
+const reviewEventId = '00000000-0000-4000-8000-000000000114'
 const documentId = '00000000-0000-4000-8000-000000000001'
 const operationId = '00000000-0000-4000-8000-000000000701'
 
@@ -322,6 +325,8 @@ class FakeGateway implements ProviderGatewayPort {
       readonly apiKey?: string
       readonly documentTitle: string
       readonly sourceSnippet: string
+      readonly lessonMode: 'standard' | 'paper'
+      readonly paperStage?: PaperReadingStage | null
       readonly contextChunks: readonly {
         readonly chunkId: string
         readonly text: string
@@ -342,6 +347,8 @@ class FakeGateway implements ProviderGatewayPort {
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      lessonMode: 'standard' | 'paper'
+      paperStage: PaperReadingStage | null
       contextChunks: readonly {
         readonly chunkId: string
         readonly text: string
@@ -362,6 +369,8 @@ class FakeGateway implements ProviderGatewayPort {
       apiKey?: string
       documentTitle: string
       sourceSnippet: string
+      lessonMode: 'standard' | 'paper'
+      paperStage: PaperReadingStage | null
       contextChunks: readonly {
         readonly chunkId: string
         readonly text: string
@@ -524,6 +533,10 @@ describe('lesson use cases', () => {
       ],
       masteryEvidence: [],
       misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
+      lessonMode: 'standard',
+      paperProfile: null,
       createdAt: now,
       updatedAt: now,
     })
@@ -535,6 +548,75 @@ describe('lesson use cases', () => {
       },
     ])
     expect(JSON.stringify(created)).not.toContain('plainText')
+  })
+
+  it('starts paper documents in paper mode with orientation stage', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    expect(created.lessonMode).toBe('paper')
+    expect(created.paperProfile?.currentStage).toBe('orientation')
+    expect(created.modelRuns[0]?.promptManifest.key).toBe('lesson.paper.first_question')
+  })
+
+  it('rejects explicit paper mode for non-paper documents', async () => {
+    await expect(
+      new StartLessonFromDocument(
+        documents,
+        lessons,
+        clock,
+        idGenerator,
+        undefined,
+        createContextAssembler(),
+      ).execute({
+        documentId,
+        documentTitle: 'Paper Map',
+        lessonMode: 'paper',
+        source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+      }),
+    ).rejects.toMatchObject({ code: 'LESSON_VALIDATION_FAILED' })
+  })
+
+  it('advances paper stage after a successful follow-up', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    let replyIndex = 0
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
+    ).execute({
+      lessonId: created.id,
+      content: 'I think the paper is solving the gap between observed evidence and model behavior.',
+    })
+
+    expect(updated.paperProfile?.currentStage).toBe('problem_framing')
   })
 
   it('requires a PDF block to belong to the source document', async () => {
@@ -577,6 +659,41 @@ describe('lesson use cases', () => {
 
     await expect(new ListLessonSessions(lessons).execute()).resolves.toEqual([created])
     await expect(new GetLessonSession(lessons).execute(created.id)).resolves.toEqual(created)
+  })
+
+  it('preserves paper lesson metadata in lesson views', async () => {
+    lessons.records.set(lessonId, {
+      id: lessonId,
+      title: 'Paper Map 课堂',
+      status: 'active',
+      documentId,
+      documentTitle: 'Paper Map',
+      sourceAnchors: [],
+      messages: [],
+      modelRuns: [],
+      currentState: 'opening',
+      steps: [],
+      masteryEvidence: [],
+      misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+        stageSummary: null,
+        termsIntroduced: [],
+        citedAnchorIds: [],
+      },
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await expect(new GetLessonSession(lessons).execute(lessonId)).resolves.toMatchObject({
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+      },
+    })
   })
 
   it('appends a learner reply and deterministic tutor follow-up', async () => {
@@ -738,12 +855,14 @@ describe('lesson use cases', () => {
       },
     ])
     expect(updated.misconceptionSignals).toEqual([])
+    expect(updated.reviewItems).toEqual([])
+    expect(updated.reviewEvents).toEqual([])
     expect(JSON.stringify(updated)).not.toContain('plainText')
   })
 
   it('records insufficient evidence for a short non-stuck reply without misconception signals', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
-    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId, reviewItemId]
     let startIndex = 0
     const created = await new StartLessonFromDocument(
       documents,
@@ -785,11 +904,33 @@ describe('lesson use cases', () => {
       },
     ])
     expect(updated.misconceptionSignals).toEqual([])
+    expect(updated.reviewItems).toEqual([
+      {
+        id: reviewItemId,
+        lessonId,
+        masteryEvidenceId: evidenceId,
+        misconceptionSignalId: null,
+        prompt: '复习：请重新解释这段课堂证据，并说明你的判断依据。',
+        answerOutline: ['Learner reply was too short to show stable understanding.'],
+        status: 'active',
+        dueAt: '2026-07-12T00:00:00.000Z',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ])
+    expect(updated.reviewEvents).toEqual([])
   })
 
   it('routes stuck learner replies into the hinting state', async () => {
     const startIds = [lessonId, anchorId, modelRunId, messageId]
-    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId, signalId]
+    const replyIds = [
+      learnerMessageId,
+      followUpRunId,
+      followUpMessageId,
+      evidenceId,
+      signalId,
+      reviewItemId,
+    ]
     let startIndex = 0
     const created = await new StartLessonFromDocument(
       documents,
@@ -847,6 +988,109 @@ describe('lesson use cases', () => {
         severity: 'medium',
         rationale: 'Learner used language that indicates confusion or being stuck.',
         createdAt: now,
+      },
+    ])
+    expect(hinting.reviewItems).toEqual([
+      {
+        id: reviewItemId,
+        lessonId,
+        masteryEvidenceId: evidenceId,
+        misconceptionSignalId: signalId,
+        prompt: '复习：学习者表达卡住。请重新解释这段证据想说明什么。',
+        answerOutline: [
+          'Learner explicitly signaled they are stuck or unsure.',
+          'Learner used language that indicates confusion or being stuck.',
+        ],
+        status: 'active',
+        dueAt: '2026-07-12T00:00:00.000Z',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ])
+    expect(hinting.reviewEvents).toEqual([])
+  })
+
+  it('records remembered reviews with a three-day next due date', async () => {
+    lessons.records.set(lessonId, {
+      id: lessonId,
+      title: 'Paper Map 课堂',
+      status: 'active',
+      documentId,
+      documentTitle: 'Paper Map',
+      sourceAnchors: [],
+      messages: [],
+      modelRuns: [],
+      currentState: 'probing',
+      steps: [],
+      masteryEvidence: [
+        {
+          id: evidenceId,
+          lessonId,
+          stepId: followUpRunId,
+          learnerMessageId,
+          tutorMessageId: followUpMessageId,
+          kind: 'teach_back',
+          judgement: 'insufficient',
+          confidence: 0.65,
+          rationale: 'Learner reply was too short to show stable understanding.',
+          suggestedReview: true,
+          createdAt: now,
+        },
+      ],
+      misconceptionSignals: [],
+      reviewItems: [
+        {
+          id: reviewItemId,
+          lessonId,
+          masteryEvidenceId: evidenceId,
+          misconceptionSignalId: null,
+          prompt: '复习：请重新解释这段课堂证据，并说明你的判断依据。',
+          answerOutline: ['Learner reply was too short to show stable understanding.'],
+          status: 'active',
+          dueAt: '2026-07-12T00:00:00.000Z',
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+      reviewEvents: [],
+      lessonMode: 'standard',
+      paperProfile: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    const result = await new RecordReviewEvent(lessons, clock, {
+      generate: () => reviewEventId,
+    }).execute({
+      lessonId,
+      reviewItemId,
+      rating: 'remembered',
+      response: 'I can explain the evidence and the rationale clearly now.',
+    })
+
+    expect(result.reviewEvents.at(-1)).toEqual({
+      id: reviewEventId,
+      reviewItemId,
+      lessonId,
+      rating: 'remembered',
+      response: 'I can explain the evidence and the rationale clearly now.',
+      previousDueAt: '2026-07-12T00:00:00.000Z',
+      nextDueAt: '2026-07-14T00:00:00.000Z',
+      reviewedAt: now,
+      createdAt: now,
+    })
+    expect(result.reviewItems).toEqual([
+      {
+        id: reviewItemId,
+        lessonId,
+        masteryEvidenceId: evidenceId,
+        misconceptionSignalId: null,
+        prompt: '复习：请重新解释这段课堂证据，并说明你的判断依据。',
+        answerOutline: ['Learner reply was too short to show stable understanding.'],
+        status: 'active',
+        dueAt: '2026-07-14T00:00:00.000Z',
+        createdAt: now,
+        updatedAt: now,
       },
     ])
   })
@@ -978,6 +1222,8 @@ describe('lesson use cases', () => {
       {
         documentTitle: 'Paper Map',
         sourceSnippet: 'Evidence',
+        lessonMode: 'standard',
+        paperStage: null,
         contextChunks: [],
         learnerReply: '它在说明证据如何支撑判断。',
       },
@@ -1060,6 +1306,8 @@ describe('lesson use cases', () => {
         apiKey: 'api-key',
         documentTitle: 'Paper Map',
         sourceSnippet: 'Evidence',
+        lessonMode: 'standard',
+        paperStage: null,
         contextChunks: [
           {
             chunkId: '00000000-0000-4000-8000-000000000901',
@@ -1071,6 +1319,34 @@ describe('lesson use cases', () => {
         ],
       },
       token: expect.objectContaining({ cancelled: false }),
+    })
+  })
+
+  it('passes paper lesson context into provider-backed first questions', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const providers = new FakeProviderRepository()
+    const vault = new FakeVault()
+    const factory = new FakeGatewayFactory()
+
+    await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+      new ProviderLessonTutorReplyGenerator(providers, vault, factory),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    expect(factory.gateway.calls[0]?.input).toMatchObject({
+      documentTitle: 'Paper Map',
+      sourceSnippet: 'Evidence',
+      lessonMode: 'paper',
+      paperStage: 'orientation',
     })
   })
 
@@ -1300,6 +1576,8 @@ describe('lesson use cases', () => {
       {
         documentTitle: 'Paper Map',
         sourceSnippet: 'Evidence',
+        lessonMode: 'standard',
+        paperStage: null,
         contextChunks: [],
         learnerReply: '它在说明证据如何支撑判断。',
       },
@@ -1326,12 +1604,64 @@ describe('lesson use cases', () => {
           apiKey: 'api-key',
           documentTitle: 'Paper Map',
           sourceSnippet: 'Evidence',
+          lessonMode: 'standard',
+          paperStage: null,
           contextChunks: [],
           learnerReply: '它在说明证据如何支撑判断。',
         },
         token: expect.objectContaining({ cancelled: false }),
       },
     ])
+  })
+
+  it('preserves paper-mode fallback when no active provider is configured', async () => {
+    const providers = new FakeProviderRepository([])
+    const vault = new FakeVault()
+    const factory = new FakeGatewayFactory()
+
+    const firstQuestion = await new ProviderLessonTutorReplyGenerator(
+      providers,
+      vault,
+      factory,
+    ).generateFirstQuestion(
+      {
+        documentTitle: 'Paper Map',
+        sourceSnippet: 'Evidence',
+        lessonMode: 'paper',
+        paperStage: 'orientation',
+        contextChunks: [],
+      },
+      { cancelled: false, onCancel: () => () => undefined },
+    )
+
+    const followUp = await new ProviderLessonTutorReplyGenerator(
+      providers,
+      vault,
+      factory,
+    ).generateFollowUp(
+      {
+        documentTitle: 'Paper Map',
+        sourceSnippet: 'Evidence',
+        lessonMode: 'paper',
+        paperStage: 'problem_framing',
+        contextChunks: [],
+        learnerReply: 'The paper frames a gap between evidence and behavior.',
+      },
+      { cancelled: false, onCancel: () => () => undefined },
+    )
+
+    expect(firstQuestion).toMatchObject({
+      providerId: null,
+      modelName: 'mock-local',
+    })
+    expect(firstQuestion.content).toContain('我们先进入论文阅读模式')
+    expect(followUp).toMatchObject({
+      providerId: null,
+      modelName: 'mock-local',
+    })
+    expect(followUp.content).toContain('问题定义、关键假设或方法线索')
+    expect(factory.gateway.calls).toEqual([])
+    expect(vault.refs).toEqual([])
   })
 
   it('retries a failed tutor run with a deterministic follow-up', async () => {
@@ -1445,6 +1775,83 @@ describe('lesson use cases', () => {
       rationale: 'Learner gave a source-grounded answer that can support follow-up.',
       suggestedReview: false,
       createdAt: now,
+    })
+  })
+
+  it('passes paper lesson context into provider-backed retry follow-ups', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const startIds = [lessonId, anchorId, modelRunId, messageId]
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
+    let startIndex = 0
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      { generate: () => startIds[startIndex++]! },
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+    let replyIndex = 0
+    const replied = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
+    ).execute({
+      lessonId: created.id,
+      content: 'The paper frames a gap between evidence and behavior.',
+    })
+    lessons.records.set(lessonId, {
+      ...replied,
+      currentState: 'probing',
+      steps: replied.steps.map((step) =>
+        step.modelRunId === followUpRunId
+          ? {
+              ...step,
+              status: 'failed' as const,
+              messageId: null,
+              rationale: null,
+              errorSummary: {
+                code: 'INTERNAL_ERROR',
+                message: 'The lesson operation could not be completed.',
+                retryable: true,
+              },
+              finishedAt: now,
+            }
+          : step,
+      ),
+      modelRuns: replied.modelRuns.map((run) =>
+        run.id === followUpRunId
+          ? { ...run, status: 'failed' as const, outputMessageId: null, finishedAt: now }
+          : run,
+      ),
+      messages: replied.messages.filter((message) => message.id !== followUpMessageId),
+    })
+
+    const providers = new FakeProviderRepository()
+    const vault = new FakeVault()
+    const factory = new FakeGatewayFactory()
+    const retryIds = [retryRunId, retryMessageId, retryEvidenceId]
+    let retryIndex = 0
+
+    await new RetryLessonRun(
+      lessons,
+      clock,
+      { generate: () => retryIds[retryIndex++]! },
+      createContextAssembler(),
+      new ProviderLessonTutorReplyGenerator(providers, vault, factory),
+    ).execute({ lessonId, modelRunId: followUpRunId })
+
+    expect(factory.gateway.calls.at(-1)?.input).toMatchObject({
+      documentTitle: 'Paper Map',
+      sourceSnippet: 'Evidence',
+      learnerReply: 'The paper frames a gap between evidence and behavior.',
+      lessonMode: 'paper',
+      paperStage: 'problem_framing',
     })
   })
 

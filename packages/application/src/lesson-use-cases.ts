@@ -1,15 +1,21 @@
 import {
   normalizeMasteryEvidence,
   normalizeMisconceptionSignal,
+  normalizeReviewEvent,
+  normalizeReviewItem,
   normalizeLessonStep,
   normalizeLessonStartDraft,
   normalizeTutorAction,
   type LessonPromptManifest,
   type LessonContextChunkSummary,
   type LessonReplyDraft,
+  type DocumentType,
+  type LessonMode,
   type LessonRunRetryDraft,
   type LessonModelRun,
   type LessonModelRunErrorSummary,
+  type PaperReadingStage,
+  type ReviewRating,
   type LessonState,
   type LessonSession,
   type LessonStartDraft,
@@ -19,12 +25,14 @@ import type { ClockPort, DocumentRepositoryPort, IdGeneratorPort } from './docum
 import { DocumentUseCaseError, type AssembleLessonContext } from './document-use-cases'
 import type {
   LessonRepositoryPort,
+  LessonSessionView,
   LessonTutorFirstQuestionRequest,
   LessonTutorReplyRequest,
   LessonTutorReplyGeneratorPort,
   LessonTutorReplyResult,
   StoredMasteryEvidence,
   StoredMisconceptionSignal,
+  StoredReviewItem,
   StoredLessonSession,
   DocumentSourceLocatorPort,
 } from './lesson-ports'
@@ -69,6 +77,10 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   steps: session.steps,
   masteryEvidence: session.masteryEvidence,
   misconceptionSignals: session.misconceptionSignals,
+  reviewItems: session.reviewItems,
+  reviewEvents: session.reviewEvents,
+  lessonMode: session.lessonMode,
+  paperProfile: session.paperProfile,
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })
@@ -89,10 +101,53 @@ const MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST: LessonPromptManifest = {
   hash: 'sha256:ad9d6476b98dc6a93a16144bb3ba2a79f7be4e9741176c1e564e0b02ab49265b',
 }
 const MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION = 'mock-tutor-follow-up-v2'
+const PAPER_FIRST_QUESTION_PROMPT_VERSION = 1
+const PAPER_FOLLOW_UP_PROMPT_VERSION = 1
+const PAPER_TUTOR_PROMPT_TEMPLATE =
+  '我们先进入论文阅读模式，聚焦《{{documentTitle}}》里的这段证据：{{snippet}}\n\n先用它判断一下，这篇论文最想解决的研究问题是什么？'
+const PAPER_TUTOR_PROMPT_MANIFEST: LessonPromptManifest = {
+  key: 'lesson.paper.first_question',
+  version: PAPER_FIRST_QUESTION_PROMPT_VERSION,
+  hash: 'sha256:65259330d65215fd85dc5f48ab8a9abf413ec4d8bd72d2f6f8d4cb3dfdb4baa5',
+}
+const PAPER_TUTOR_PROMPT_VERSION = 'paper-tutor-v1'
+const PAPER_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE =
+  '你刚才的判断是：“{{learnerReply}}”。结合证据“{{snippet}}”和这些上下文：“{{context}}”，请再往前走一步：你会怎样概括论文的问题定义、关键假设或方法线索？'
+const PAPER_TUTOR_FOLLOW_UP_PROMPT_MANIFEST: LessonPromptManifest = {
+  key: 'lesson.paper.follow_up',
+  version: PAPER_FOLLOW_UP_PROMPT_VERSION,
+  hash: 'sha256:fc4c47be4bf0a49d8d211855a145cfe41ef1771ca7b02cc64f8048bcaa55c4ec',
+}
+const PAPER_TUTOR_FOLLOW_UP_PROMPT_VERSION = 'paper-tutor-follow-up-v1'
 const LEARNER_INPUT_PROMPT_VERSION = 'learner-input-v1'
+
+const inferLessonMode = (documentType: DocumentType, requested?: LessonMode): LessonMode => {
+  const inferred = documentType === 'paper' ? 'paper' : 'standard'
+  if (requested === undefined) return inferred
+  if (requested === 'paper' && documentType !== 'paper') {
+    throw new Error('Paper lesson mode requires a paper document')
+  }
+  return requested
+}
+
+const nextPaperStageForReply = (
+  currentStage: PaperReadingStage,
+  reply: string,
+): PaperReadingStage => {
+  if (currentStage === 'orientation') return 'problem_framing'
+  if (/公式|推导|loss|objective/iu.test(reply)) return 'method_mechanics'
+  if (/局限|质疑|问题|假设/iu.test(reply)) return 'critical_review'
+  return currentStage
+}
 
 const createMockTutorFirstQuestion = (documentTitle: string, snippet: string): string =>
   MOCK_TUTOR_PROMPT_TEMPLATE.replace('{{documentTitle}}', documentTitle).replace(
+    '{{snippet}}',
+    snippet,
+  )
+
+const createPaperTutorFirstQuestion = (documentTitle: string, snippet: string): string =>
+  PAPER_TUTOR_PROMPT_TEMPLATE.replace('{{documentTitle}}', documentTitle).replace(
     '{{snippet}}',
     snippet,
   )
@@ -111,16 +166,40 @@ const createMockTutorFollowUp = (
         : contextChunks.map((chunk) => chunk.text).join('；'),
     )
 
-const localTutorReply = (input: LessonTutorReplyRequest): LessonTutorReplyResult => ({
-  content: createMockTutorFollowUp(input.learnerReply, input.sourceSnippet, input.contextChunks),
+const createPaperTutorFollowUp = (
+  learnerReply: string,
+  snippet: string,
+  contextChunks: LessonTutorReplyRequest['contextChunks'],
+): string =>
+  PAPER_TUTOR_FOLLOW_UP_PROMPT_TEMPLATE.replace('{{learnerReply}}', learnerReply)
+    .replace('{{snippet}}', snippet)
+    .replace(
+      '{{context}}',
+      contextChunks.length === 0
+        ? '无额外上下文'
+        : contextChunks.map((chunk) => chunk.text).join('；'),
+    )
+
+const localTutorReply = (
+  input: LessonTutorReplyRequest,
+  lessonMode: LessonMode,
+): LessonTutorReplyResult => ({
+  content:
+    lessonMode === 'paper'
+      ? createPaperTutorFollowUp(input.learnerReply, input.sourceSnippet, input.contextChunks)
+      : createMockTutorFollowUp(input.learnerReply, input.sourceSnippet, input.contextChunks),
   providerId: null,
   modelName: 'mock-local',
 })
 
 const localTutorFirstQuestion = (
   input: LessonTutorFirstQuestionRequest,
+  lessonMode: LessonMode,
 ): LessonTutorReplyResult => ({
-  content: createMockTutorFirstQuestion(input.documentTitle, input.sourceSnippet),
+  content:
+    lessonMode === 'paper'
+      ? createPaperTutorFirstQuestion(input.documentTitle, input.sourceSnippet)
+      : createMockTutorFirstQuestion(input.documentTitle, input.sourceSnippet),
   providerId: null,
   modelName: 'mock-local',
 })
@@ -287,10 +366,11 @@ const asLessonContextError = (error: unknown): LessonUseCaseError => {
 const generateTutorReply = async (
   generator: LessonTutorReplyGeneratorPort | undefined,
   input: LessonTutorReplyRequest,
+  lessonMode: LessonMode,
   token: CancellationToken,
 ): Promise<LessonTutorReplyResult> => {
   if (token.cancelled) throw cancelledError()
-  if (generator === undefined) return localTutorReply(input)
+  if (generator === undefined) return localTutorReply(input, lessonMode)
   try {
     return await generator.generateFollowUp(input, token)
   } catch (error) {
@@ -301,10 +381,11 @@ const generateTutorReply = async (
 const generateFirstTutorQuestion = async (
   generator: LessonTutorReplyGeneratorPort | undefined,
   input: LessonTutorFirstQuestionRequest,
+  lessonMode: LessonMode,
   token: CancellationToken,
 ): Promise<LessonTutorReplyResult> => {
   if (token.cancelled) throw cancelledError()
-  if (generator === undefined) return localTutorFirstQuestion(input)
+  if (generator === undefined) return localTutorFirstQuestion(input, lessonMode)
   try {
     return await generator.generateFirstQuestion(input, token)
   } catch (error) {
@@ -401,6 +482,7 @@ const followUpModelRun = (
   input: Readonly<{
     id: string
     lessonId: string
+    lessonMode: LessonMode
     documentId: string
     documentTitle: string
     anchor: StoredLessonSession['sourceAnchors'][number]
@@ -416,7 +498,10 @@ const followUpModelRun = (
   modelName: 'mock-local',
   operation: 'lesson_tutor_follow_up',
   status: 'started',
-  promptManifest: MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST,
+  promptManifest:
+    input.lessonMode === 'paper'
+      ? PAPER_TUTOR_FOLLOW_UP_PROMPT_MANIFEST
+      : MOCK_TUTOR_FOLLOW_UP_PROMPT_MANIFEST,
   inputSummary: {
     documentId: input.documentId,
     documentTitle: input.documentTitle,
@@ -566,6 +651,50 @@ const createMasteryDiagnosis = (
   return classifyMasteryEvidence({ ...input, evidenceId, signalId })
 }
 
+const plusDaysIso = (iso: string, days: number): string => {
+  const next = new Date(iso)
+  next.setUTCDate(next.getUTCDate() + days)
+  return next.toISOString()
+}
+
+const createReviewPrompt = (signal: StoredMisconceptionSignal | undefined): string =>
+  signal === undefined
+    ? '复习：请重新解释这段课堂证据，并说明你的判断依据。'
+    : `复习：${signal.label}。请重新解释这段证据想说明什么。`
+
+const createReviewAnswerOutline = (
+  evidence: StoredMasteryEvidence,
+  signal: StoredMisconceptionSignal | undefined,
+): readonly string[] =>
+  signal === undefined ? [evidence.rationale] : [evidence.rationale, signal.rationale]
+
+const createReviewItemForDiagnosis = (
+  ids: IdGeneratorPort,
+  session: StoredLessonSession,
+  evidence: StoredMasteryEvidence,
+  signal: StoredMisconceptionSignal | undefined,
+): StoredReviewItem | undefined => {
+  if (!evidence.suggestedReview) return undefined
+  if (evidence.judgement === 'partial_understanding') return undefined
+  if (session.reviewItems.some((item) => item.masteryEvidenceId === evidence.id)) return undefined
+
+  return normalizeReviewItem({
+    id: ids.generate(),
+    lessonId: session.id,
+    masteryEvidenceId: evidence.id,
+    misconceptionSignalId: signal?.id ?? null,
+    prompt: createReviewPrompt(signal),
+    answerOutline: createReviewAnswerOutline(evidence, signal),
+    status: 'active',
+    dueAt: plusDaysIso(evidence.createdAt, 1),
+    createdAt: evidence.createdAt,
+    updatedAt: evidence.createdAt,
+  })
+}
+
+const nextDueAtForRating = (reviewedAt: string, rating: ReviewRating): string =>
+  plusDaysIso(reviewedAt, rating === 'remembered' ? 3 : 1)
+
 const classifyTutorAction = (
   currentState: LessonState,
   learnerReply: string,
@@ -699,6 +828,23 @@ const findLearnerMessageBeforeRun = (
   return [...searchSpace].reverse().find((message) => message.role === 'learner')
 }
 
+const updatePaperProfileAfterReply = (
+  session: StoredLessonSession,
+  reply: string,
+): StoredLessonSession['paperProfile'] => {
+  if (session.lessonMode !== 'paper' || session.paperProfile === null) {
+    return session.paperProfile
+  }
+  return {
+    ...session.paperProfile,
+    currentStage: nextPaperStageForReply(session.paperProfile.currentStage, reply),
+    stageSummary: reply.trim(),
+  }
+}
+
+const currentPaperStage = (session: Pick<StoredLessonSession, 'lessonMode' | 'paperProfile'>) =>
+  session.lessonMode === 'paper' ? (session.paperProfile?.currentStage ?? 'orientation') : null
+
 export class ListLessonSessions {
   public constructor(private readonly repository: LessonRepositoryPort) {}
 
@@ -755,6 +901,7 @@ export class StartLessonFromDocument {
           false,
         )
       }
+      const lessonMode = inferLessonMode(document.documentType, input.lessonMode)
       if (draft.source.target.kind === 'pdf_block') {
         const block = await this.sourceLocator?.findTextBlock(
           draft.documentId,
@@ -769,7 +916,14 @@ export class StartLessonFromDocument {
           )
         }
       }
+      draft = { ...draft, lessonMode }
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'Paper lesson mode requires a paper document'
+      ) {
+        throw validationError(error)
+      }
       if (isLessonError(error)) throw error
       throw databaseError()
     }
@@ -801,8 +955,11 @@ export class StartLessonFromDocument {
       {
         documentTitle: draft.documentTitle,
         sourceSnippet: draft.source.snippet,
+        lessonMode: draft.lessonMode,
+        paperStage: draft.lessonMode === 'paper' ? 'orientation' : null,
         contextChunks: contextSummary.tutorContextChunks,
       },
+      draft.lessonMode,
       liveToken(),
     )
 
@@ -830,7 +987,8 @@ export class StartLessonFromDocument {
           role: 'tutor',
           content: firstQuestion.content,
           sourceAnchorIds: [anchorId],
-          promptVersion: MOCK_TUTOR_PROMPT_VERSION,
+          promptVersion:
+            draft.lessonMode === 'paper' ? PAPER_TUTOR_PROMPT_VERSION : MOCK_TUTOR_PROMPT_VERSION,
           createdAt,
         },
       ],
@@ -842,7 +1000,8 @@ export class StartLessonFromDocument {
           modelName: firstQuestion.modelName,
           operation: 'lesson_tutor_first_question',
           status: 'succeeded',
-          promptManifest: MOCK_TUTOR_PROMPT_MANIFEST,
+          promptManifest:
+            draft.lessonMode === 'paper' ? PAPER_TUTOR_PROMPT_MANIFEST : MOCK_TUTOR_PROMPT_MANIFEST,
           inputSummary: {
             documentId: draft.documentId,
             documentTitle: draft.documentTitle,
@@ -882,6 +1041,18 @@ export class StartLessonFromDocument {
       ],
       masteryEvidence: [],
       misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
+      lessonMode: draft.lessonMode,
+      paperProfile:
+        draft.lessonMode === 'paper'
+          ? {
+              currentStage: 'orientation',
+              stageSummary: null,
+              termsIntroduced: [],
+              citedAnchorIds: [anchorId],
+            }
+          : null,
       createdAt,
       updatedAt: createdAt,
     }
@@ -947,6 +1118,7 @@ export class SubmitLessonReply {
     const startedRun = followUpModelRun({
       id: modelRunId,
       lessonId: session.id,
+      lessonMode: session.lessonMode,
       documentId: session.documentId,
       documentTitle: session.documentTitle,
       anchor,
@@ -994,9 +1166,12 @@ export class SubmitLessonReply {
         {
           documentTitle: session.documentTitle,
           sourceSnippet: anchor.snippet,
+          lessonMode: session.lessonMode,
+          paperStage: currentPaperStage(session),
           contextChunks: contextSummary.tutorContextChunks,
           learnerReply: draft.content,
         },
+        session.lessonMode,
         token,
       )
     } catch (error) {
@@ -1036,6 +1211,12 @@ export class SubmitLessonReply {
     } catch (error) {
       throw asInternalError(error)
     }
+    const reviewItem = createReviewItemForDiagnosis(
+      this.ids,
+      pending,
+      diagnosis.evidence,
+      diagnosis.signals[0],
+    )
     const updated: StoredLessonSession = {
       ...pending,
       messages: [
@@ -1047,7 +1228,10 @@ export class SubmitLessonReply {
           role: 'tutor',
           content: tutorReply.content,
           sourceAnchorIds: [anchor.id],
-          promptVersion: MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION,
+          promptVersion:
+            session.lessonMode === 'paper'
+              ? PAPER_TUTOR_FOLLOW_UP_PROMPT_VERSION
+              : MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION,
           createdAt,
         },
       ],
@@ -1068,6 +1252,10 @@ export class SubmitLessonReply {
       ),
       masteryEvidence: [...pending.masteryEvidence, diagnosis.evidence],
       misconceptionSignals: [...pending.misconceptionSignals, ...diagnosis.signals],
+      reviewItems:
+        reviewItem === undefined ? pending.reviewItems : [...pending.reviewItems, reviewItem],
+      reviewEvents: pending.reviewEvents,
+      paperProfile: updatePaperProfileAfterReply(session, draft.content),
       updatedAt: createdAt,
     }
 
@@ -1143,6 +1331,7 @@ export class RetryLessonRun {
     const startedRun = followUpModelRun({
       id: modelRunId,
       lessonId: session.id,
+      lessonMode: session.lessonMode,
       documentId: session.documentId,
       documentTitle: session.documentTitle,
       anchor,
@@ -1177,9 +1366,12 @@ export class RetryLessonRun {
         {
           documentTitle: session.documentTitle,
           sourceSnippet: anchor.snippet,
+          lessonMode: session.lessonMode,
+          paperStage: currentPaperStage(session),
           contextChunks: contextSummary.tutorContextChunks,
           learnerReply: learnerMessage.content,
         },
+        session.lessonMode,
         token,
       )
     } catch (error) {
@@ -1221,6 +1413,10 @@ export class RetryLessonRun {
         throw asInternalError(error)
       }
     }
+    const reviewItem =
+      diagnosis === undefined
+        ? undefined
+        : createReviewItemForDiagnosis(this.ids, pending, diagnosis.evidence, diagnosis.signals[0])
     const updated: StoredLessonSession = {
       ...pending,
       messages: [
@@ -1232,7 +1428,10 @@ export class RetryLessonRun {
           role: 'tutor',
           content: tutorReply.content,
           sourceAnchorIds: [anchor.id],
-          promptVersion: MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION,
+          promptVersion:
+            session.lessonMode === 'paper'
+              ? PAPER_TUTOR_FOLLOW_UP_PROMPT_VERSION
+              : MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION,
           createdAt,
         },
       ],
@@ -1259,10 +1458,99 @@ export class RetryLessonRun {
         diagnosis === undefined
           ? pending.misconceptionSignals
           : [...pending.misconceptionSignals, ...diagnosis.signals],
+      reviewItems:
+        reviewItem === undefined ? pending.reviewItems : [...pending.reviewItems, reviewItem],
+      reviewEvents: pending.reviewEvents,
+      paperProfile: updatePaperProfileAfterReply(session, learnerMessage.content),
       updatedAt: createdAt,
     }
 
     return toView(await saveLesson(this.lessons, updated))
+  }
+}
+
+export type RecordReviewEventInput = Readonly<{
+  lessonId: string
+  reviewItemId: string
+  rating: ReviewRating
+  response: string
+}>
+
+const normalizeRecordReviewEventInput = (input: RecordReviewEventInput): RecordReviewEventInput => {
+  if (!UUID.test(input.lessonId)) throw new Error('Lesson id is invalid')
+  if (!UUID.test(input.reviewItemId)) throw new Error('Review item id is invalid')
+  const response = input.response.trim()
+  if (response.length === 0) throw new Error('Review response is required')
+  if (response.length > 1_000) throw new Error('Review response is too long')
+  return { ...input, response }
+}
+
+export class RecordReviewEvent {
+  public constructor(
+    private readonly repository: LessonRepositoryPort,
+    private readonly clock: ClockPort,
+    private readonly ids: IdGeneratorPort,
+  ) {}
+
+  public async execute(input: RecordReviewEventInput): Promise<LessonSessionView> {
+    let normalized: RecordReviewEventInput
+    try {
+      normalized = normalizeRecordReviewEventInput(input)
+    } catch (error) {
+      throw validationError(error)
+    }
+
+    let session: StoredLessonSession | undefined
+    try {
+      session = await this.repository.findById(normalized.lessonId)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (session === undefined) {
+      throw new LessonUseCaseError('LESSON_NOT_FOUND', 'The lesson was not found.', false)
+    }
+
+    const reviewItem = session.reviewItems.find((item) => item.id === normalized.reviewItemId)
+    if (reviewItem === undefined) {
+      throw new LessonUseCaseError('LESSON_NOT_FOUND', 'The lesson was not found.', false)
+    }
+
+    const reviewedAt = this.clock.now()
+    const nextDueAt = nextDueAtForRating(reviewedAt, normalized.rating)
+    let event
+    try {
+      event = normalizeReviewEvent({
+        id: this.ids.generate(),
+        reviewItemId: reviewItem.id,
+        lessonId: session.id,
+        rating: normalized.rating,
+        response: normalized.response,
+        previousDueAt: reviewItem.dueAt,
+        nextDueAt,
+        reviewedAt,
+        createdAt: reviewedAt,
+      })
+    } catch (error) {
+      throw asInternalError(error)
+    }
+
+    const updated: StoredLessonSession = {
+      ...session,
+      reviewItems: session.reviewItems.map((item) =>
+        item.id === reviewItem.id
+          ? {
+              ...item,
+              dueAt: nextDueAt,
+              status: 'active',
+              updatedAt: reviewedAt,
+            }
+          : item,
+      ),
+      reviewEvents: [...session.reviewEvents, event],
+      updatedAt: reviewedAt,
+    }
+
+    return toView(await saveLesson(this.repository, updated))
   }
 }
 
@@ -1284,7 +1572,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       throw asDatabaseError(error)
     }
     if (activeProvider === undefined) {
-      return localTutorFirstQuestion(input)
+      return localTutorFirstQuestion(input, input.lessonMode)
     }
 
     let apiKey: string | undefined
@@ -1304,6 +1592,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             modelName: activeProvider.modelName,
             documentTitle: input.documentTitle,
             sourceSnippet: input.sourceSnippet,
+            lessonMode: input.lessonMode,
+            paperStage: input.paperStage,
             contextChunks: input.contextChunks,
           }
         : {
@@ -1311,6 +1601,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             apiKey,
             documentTitle: input.documentTitle,
             sourceSnippet: input.sourceSnippet,
+            lessonMode: input.lessonMode,
+            paperStage: input.paperStage,
             contextChunks: input.contextChunks,
           },
       token,
@@ -1333,7 +1625,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       throw asDatabaseError(error)
     }
     if (activeProvider === undefined) {
-      return localTutorReply(input)
+      return localTutorReply(input, input.lessonMode)
     }
 
     let apiKey: string | undefined
@@ -1353,6 +1645,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             modelName: activeProvider.modelName,
             documentTitle: input.documentTitle,
             sourceSnippet: input.sourceSnippet,
+            lessonMode: input.lessonMode,
+            paperStage: input.paperStage,
             contextChunks: input.contextChunks,
             learnerReply: input.learnerReply,
           }
@@ -1361,6 +1655,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             apiKey,
             documentTitle: input.documentTitle,
             sourceSnippet: input.sourceSnippet,
+            lessonMode: input.lessonMode,
+            paperStage: input.paperStage,
             contextChunks: input.contextChunks,
             learnerReply: input.learnerReply,
           },

@@ -89,6 +89,10 @@ const session = {
   ],
   masteryEvidence: [],
   misconceptionSignals: [],
+  reviewItems: [],
+  reviewEvents: [],
+  lessonMode: 'standard' as const,
+  paperProfile: null,
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
@@ -100,6 +104,7 @@ const dependencies = () => ({
   submitLessonReply: { execute: vi.fn().mockResolvedValue(session) },
   retryLessonRun: { execute: vi.fn().mockResolvedValue(session) },
   cancelLessonRun: { execute: vi.fn().mockReturnValue({ cancelled: true }) },
+  recordReviewEvent: { execute: vi.fn().mockResolvedValue(session) },
 })
 
 describe('lesson IPC handlers', () => {
@@ -124,6 +129,7 @@ describe('lesson IPC handlers', () => {
       lesson: {
         documentId,
         documentTitle: 'Paper Map',
+        lessonMode: 'paper',
         source: { startOffset: 4, endOffset: 12, snippet: 'Evidence' },
       },
     })
@@ -132,6 +138,7 @@ describe('lesson IPC handlers', () => {
     expect(deps.startLessonFromDocument.execute).toHaveBeenCalledWith({
       documentId,
       documentTitle: 'Paper Map',
+      lessonMode: 'paper',
       source: { startOffset: 4, endOffset: 12, snippet: 'Evidence' },
     })
   })
@@ -196,6 +203,27 @@ describe('lesson IPC handlers', () => {
     expect(result).toEqual({ ok: true, data: { cancelled: true }, requestId })
     expect(deps.cancelLessonRun.execute).toHaveBeenCalledWith({
       operationId: '00000000-0000-4000-8000-000000000501',
+    })
+  })
+
+  it('records a lesson review event through one use case', async () => {
+    const deps = dependencies()
+    const result = await createLessonIpcHandlers(
+      deps as unknown as LessonIpcDependencies,
+    ).recordReview({
+      requestId,
+      lessonId,
+      reviewItemId: '00000000-0000-4000-8000-000000000951',
+      rating: 'forgot',
+      response: 'I still need one more pass.',
+    })
+
+    expect(result).toEqual({ ok: true, data: session, requestId })
+    expect(deps.recordReviewEvent.execute).toHaveBeenCalledWith({
+      lessonId,
+      reviewItemId: '00000000-0000-4000-8000-000000000951',
+      rating: 'forgot',
+      response: 'I still need one more pass.',
     })
   })
 

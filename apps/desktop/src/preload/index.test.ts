@@ -133,6 +133,7 @@ const documentTextBlock: DocumentTextBlockDto = {
 const lessonDraft: LessonStartDraftDto = {
   documentId: documentSummary.id,
   documentTitle: documentSummary.title,
+  lessonMode: 'paper',
   source: {
     startOffset: 0,
     endOffset: 4,
@@ -223,6 +224,10 @@ const lessonSession: LessonSessionDto = {
   ],
   masteryEvidence: [],
   misconceptionSignals: [],
+  reviewItems: [],
+  reviewEvents: [],
+  lessonMode: 'standard',
+  paperProfile: null,
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
@@ -264,6 +269,7 @@ describe('preload API', () => {
       reply: expect.any(Function),
       retryRun: expect.any(Function),
       cancelRun: expect.any(Function),
+      recordReview: expect.any(Function),
     })
   })
 
@@ -442,6 +448,25 @@ describe('preload API', () => {
       channel: LESSON_CHANNELS.cancelRun,
       payload: { requestId: REQUEST_ID, operationId: OPERATION_ID },
       response: { ok: true, data: { cancelled: true }, requestId: REQUEST_ID },
+    },
+    {
+      name: 'lessons.recordReview',
+      call: (api: DeepStormingApi) =>
+        api.lessons.recordReview({
+          lessonId: OPERATION_ID,
+          reviewItemId: '00000000-0000-4000-8000-000000000951',
+          rating: 'remembered',
+          response: '我可以清楚解释这段证据了。',
+        }),
+      channel: LESSON_CHANNELS.recordReview,
+      payload: {
+        requestId: REQUEST_ID,
+        lessonId: OPERATION_ID,
+        reviewItemId: '00000000-0000-4000-8000-000000000951',
+        rating: 'remembered',
+        response: '我可以清楚解释这段证据了。',
+      },
+      response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
     },
   ])('invokes one fixed IPC channel and validates $name responses', async (testCase) => {
     const api = await loadApi()

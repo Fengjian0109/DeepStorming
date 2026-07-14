@@ -3,7 +3,10 @@ import {
   LESSON_CHANNELS,
   getLessonRequestSchema,
   lessonModelRunInputSummarySchema,
+  lessonRecordReviewDraftSchema,
   lessonModelRunSchema,
+  lessonReviewEventSchema,
+  lessonReviewItemSchema,
   lessonStepSchema,
   lessonSessionResultSchema,
   lessonSessionSchema,
@@ -26,6 +29,8 @@ const modelRunId = '00000000-0000-4000-8000-000000000501'
 const stepId = '00000000-0000-4000-8000-000000000701'
 const evidenceId = '00000000-0000-4000-8000-000000000801'
 const misconceptionSignalId = '00000000-0000-4000-8000-000000000901'
+const reviewItemId = '00000000-0000-4000-8000-000000000951'
+const reviewEventId = '00000000-0000-4000-8000-000000000961'
 
 const session = {
   id: lessonId,
@@ -135,6 +140,36 @@ const session = {
       createdAt: '2026-07-11T00:01:00.000Z',
     },
   ],
+  reviewItems: [
+    {
+      id: reviewItemId,
+      lessonId,
+      masteryEvidenceId: evidenceId,
+      misconceptionSignalId,
+      prompt: '复习：学习者表达卡住。请重新解释这段证据想说明什么。',
+      answerOutline: [
+        'Learner connected the answer to the cited evidence.',
+        'Learner explicitly said they were stuck.',
+      ],
+      status: 'active',
+      dueAt: '2026-07-14T00:00:00.000Z',
+      createdAt: '2026-07-11T00:01:00.000Z',
+      updatedAt: '2026-07-11T00:01:00.000Z',
+    },
+  ],
+  reviewEvents: [
+    {
+      id: reviewEventId,
+      reviewItemId,
+      lessonId,
+      rating: 'forgot',
+      response: 'I still mix up the rationale.',
+      previousDueAt: '2026-07-14T00:00:00.000Z',
+      nextDueAt: '2026-07-15T09:00:00.000Z',
+      reviewedAt: '2026-07-14T09:00:00.000Z',
+      createdAt: '2026-07-14T09:00:00.000Z',
+    },
+  ],
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
 } as const
@@ -148,6 +183,7 @@ describe('lesson contracts', () => {
       reply: 'lessons:reply',
       retryRun: 'lessons:retry-run',
       cancelRun: 'lessons:cancel-run',
+      recordReview: 'lessons:record-review',
     })
   })
 
@@ -265,6 +301,85 @@ describe('lesson contracts', () => {
         modelRuns: [{ ...session.modelRuns[0], inputSummary: { plainText: 'full text' } }],
       }).success,
     ).toBe(false)
+  })
+
+  it('validates paper lesson dto payloads', () => {
+    expect(
+      lessonSessionSchema.parse({
+        id: '00000000-0000-4000-8000-000000000101',
+        title: 'Paper Map 课堂',
+        status: 'active',
+        documentId: '00000000-0000-4000-8000-000000000201',
+        documentTitle: 'Paper Map',
+        sourceAnchors: [
+          {
+            id: '00000000-0000-4000-8000-000000000301',
+            documentId: '00000000-0000-4000-8000-000000000201',
+            startOffset: 4,
+            endOffset: 12,
+            snippet: 'Evidence',
+            target: { kind: 'text_range' },
+          },
+        ],
+        messages: [],
+        modelRuns: [],
+        currentState: 'opening',
+        steps: [],
+        masteryEvidence: [],
+        misconceptionSignals: [],
+        reviewItems: [],
+        reviewEvents: [],
+        lessonMode: 'paper',
+        paperProfile: {
+          currentStage: 'orientation',
+          stageSummary: 'The learner has only a rough intuition so far.',
+          termsIntroduced: ['Transformer'],
+          citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+        },
+        createdAt: '2026-07-13T00:00:00.000Z',
+        updatedAt: '2026-07-13T00:00:00.000Z',
+      }).lessonMode,
+    ).toBe('paper')
+  })
+
+  it('validates review item and review event dto payloads', () => {
+    expect(
+      lessonReviewItemSchema.parse({
+        id: reviewItemId,
+        lessonId,
+        masteryEvidenceId: evidenceId,
+        misconceptionSignalId: null,
+        prompt: '复习：请重新解释这段课堂证据，并说明你的判断依据。',
+        answerOutline: ['先说明证据', '再说明判断依据'],
+        status: 'active',
+        dueAt: '2026-07-14T00:00:00.000Z',
+        createdAt: '2026-07-13T00:00:00.000Z',
+        updatedAt: '2026-07-13T00:00:00.000Z',
+      }).status,
+    ).toBe('active')
+
+    expect(
+      lessonReviewEventSchema.parse({
+        id: reviewEventId,
+        reviewItemId,
+        lessonId,
+        rating: 'forgot',
+        response: 'I still mix up the rationale.',
+        previousDueAt: '2026-07-14T00:00:00.000Z',
+        nextDueAt: '2026-07-15T09:00:00.000Z',
+        reviewedAt: '2026-07-14T09:00:00.000Z',
+        createdAt: '2026-07-14T09:00:00.000Z',
+      }).rating,
+    ).toBe('forgot')
+
+    expect(() =>
+      lessonRecordReviewDraftSchema.parse({
+        lessonId,
+        reviewItemId,
+        rating: 'remembered',
+        response: '   ',
+      }),
+    ).toThrow()
   })
 
   it('validates lesson step DTO status fields', () => {

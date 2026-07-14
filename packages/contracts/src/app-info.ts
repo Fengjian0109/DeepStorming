@@ -22,6 +22,7 @@ import type {
 } from './provider'
 import type {
   CancelLessonRunResult,
+  LessonRecordReviewDraftDto,
   LessonReplyDraftDto,
   LessonRunRetryDraftDto,
   LessonSessionResult,
@@ -77,6 +78,7 @@ export type DeepStormingApi = {
     reply: (reply: LessonReplyDraftDto) => Promise<LessonSessionResult>
     retryRun: (retry: LessonRunRetryDraftDto) => Promise<LessonSessionResult>
     cancelRun: (operationId: string) => Promise<CancelLessonRunResult>
+    recordReview: (review: LessonRecordReviewDraftDto) => Promise<LessonSessionResult>
   }
   provider: {
     list: () => Promise<ListProvidersResult>

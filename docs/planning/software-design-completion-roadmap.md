@@ -1,8 +1,8 @@
 # DeepStorming 软件设计收敛路线图
 
-- 日期：2026-07-13
+- 日期：2026-07-14
 - 目标：把当前已完成的 Provider / 文本文档 / LessonSession 基线，收敛到可发布 MVP 所需的剩余软件设计与实施顺序。
-- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位、D4 检索上下文、D5 TutorAction / LessonState 状态机，以及 D6-MVP Mastery Evidence / Misconception 已完成；下一阶段进入 ReviewItem / ReviewEvent / scheduler、真实云 Provider 手动验收和发布准备。
+- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位、D4 检索上下文、D5 TutorAction / LessonState 状态机、D6 Review Scheduler MVP、D7 Paper Lesson Mode MVP，以及 D1 DeepSeek 真实云 Provider 手动验收已完成；D8 已推进到自用版发布候选阶段，并保留更完整的论文工作流扩展与公开发布工作。
 
 ## 1. 当前设计基线
 
@@ -23,6 +23,8 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 4. LessonSession 从文档证据启动、首问、学习者回答、Provider-backed follow-up、生成记录、失败/取消保存、重试和安全错误摘要。
 5. LessonState / LessonStep 状态机审计：每次首问、追问、失败、取消和重试都有可恢复的状态转移记录。
 6. D6-MVP 学习诊断：成功课堂回答会生成可持久化的 MasteryEvidence；卡住表达会生成 MisconceptionSignal；课堂页和重启恢复都能展示“学习诊断”。
+7. D6 Review Scheduler MVP：`suggestedReview` 的诊断会自动生成 lesson-scoped `ReviewItem`，课堂页可记录 `ReviewEvent` 并更新下一次复习时间。
+8. D7 Paper Lesson Mode MVP：PDF 导入文档默认进入 `lessonMode='paper'`，课堂可展示论文阶段卡片、使用 paper tutor prompts，并在回答后推进/恢复 `paperProfile`。
 
 ## 2. 剩余软件设计队列
 
@@ -46,6 +48,11 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 
 - 至少一个 DeepSeek 模型和一个 OpenAI-compatible endpoint 通过手动验收，或明确记录阻塞原因。
 - 手动验收不把 API Key、Authorization header、原始响应正文写入仓库、日志、SQLite、fixtures、screenshots 或报告。
+
+当前状态：
+
+- DeepSeek 手动验收已完成并记录，使用 `deepseek-v4-flash` 成功通过创建、启用、连接测试、一次真实课堂生成与重启恢复验证。
+- OpenAI-compatible 真实端点验收仍可在后续有明确需求时补做。
 
 ### D2. PDF 文档底座
 
@@ -140,21 +147,36 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 - Deterministic 评分规则和安全错误边界。
 - 课堂页“学习诊断”展示与重启持久化。
 
-剩余 D6 工作：
+已完成的 D6 Review Scheduler MVP：
 
 - ReviewItem / ReviewEvent。
-- Scheduler：根据诊断结果创建、更新和调度复习任务。
+- Scheduler：根据诊断结果创建、更新和调度 lesson-scoped 复习任务。
+- 课堂页内的最小复习闭环：展示复习任务、记录 remembered / forgot、更新下一次 `dueAt`、重启后持久恢复。
+
+剩余 D6 工作：
+
+- 独立复习中心、跨课堂聚合、全局 due today 视图。
+- 通知 / 日历 / 后台提醒。
 - 更完整的评分 rubric，以及从 deterministic 规则升级到结构化诊断模型的边界。
 
 ### D7. 论文工作流
 
 目的：支持论文结构、贡献、方法、证据、局限、研究启发的专用阅读路径。
 
-设计范围：
+已完成的 D7-MVP：
 
-- PaperProfile。
-- Section / Claim / Evidence / Limitation。
+- PaperProfile / `lessonMode='paper'`。
+- PDF 导入文档默认进入论文课堂模式。
+- 论文专用首问/追问 prompt。
+- `orientation -> problem_framing` 的最小阶段推进与重启恢复。
+- 课堂页“当前论文阶段”展示。
+
+剩余 D7 工作：
+
+- Section / Claim / Evidence / Limitation 的结构化抽取与持久化。
 - Why → What → How → Evidence → Limits → Next 地图。
+- 更细粒度的 paper stage（方法、实验、局限、启发）推进规则。
+- 跨论文工作区与论文专用复习聚合视图。
 
 ### D8. 发布候选
 
@@ -168,10 +190,16 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 - DMG 或 zip 分发。
 - 隐私说明、诊断导出、备份恢复、升级演练。
 
+当前状态：
+
+- 自用版发布候选已推进到可本地打包、可重装、可备份的阶段。
+- 已明确未签名自用版的隐私边界、备份/恢复建议与 Gatekeeper 限制。
+- 签名、公证和公开分发仍待后续完成。
+
 ## 3. 推荐实施顺序
 
 ```text
-D1 真实云 Provider 手动验收（可与 D3 并行手动验收）
+D1 真实云 Provider 手动验收与发布前收尾（DeepSeek 已完成）
   ↓
 D2 PDF 文档底座（已完成）
   ↓
@@ -181,16 +209,14 @@ D4 Chunk / 检索 / 上下文预算（已完成）
   ↓
 D5 TutorAction / LessonState（已完成）
   ↓
-D6-MVP Mastery Evidence / Misconception（已完成）
+D6 Mastery Evidence / Misconception + Review Scheduler（已完成）
   ↓
-D6 ReviewItem / ReviewEvent / scheduler
+D7 Paper Lesson Mode MVP（已完成）→ D7 论文工作流扩展
   ↓
-D7 论文工作流
-  ↓
-D8 发布候选
+D8 发布候选（当前已推进到自用版发布候选）
 ```
 
-这个顺序的核心理由是：先验证真实 Provider，再让 PDF 进入系统；先保存 page/block 事实，再做阅读器、检索和课堂引用；先有可恢复课堂状态机，再让评分和复习写入长期学习记录。
+这个顺序的核心理由是：先完成真实 Provider 验收与发布前风险收敛，再基于已完成的 PDF / lesson / review 基线推进发布候选；当前已经先把 DeepSeek 和自用版发布候选打通，后续若继续推进，应围绕 OpenAI-compatible 真实验收、公开发布能力和更完整的论文工作流扩展，而不是回退基础课堂闭环。
 
 ## 4. 设计完成定义
 

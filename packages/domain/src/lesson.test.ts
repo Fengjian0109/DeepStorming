@@ -3,8 +3,11 @@ import {
   LESSON_MESSAGE_ROLES,
   LESSON_MODEL_RUN_STATUSES,
   LESSON_SESSION_STATUSES,
+  normalizeLessonSession,
   normalizeMasteryEvidence,
   normalizeMisconceptionSignal,
+  normalizeReviewEvent,
+  normalizeReviewItem,
   normalizeLessonContextChunkSummary,
   normalizeLessonStep,
   normalizeLessonModelRunInputSummary,
@@ -30,6 +33,7 @@ describe('lesson domain', () => {
       documentId: '00000000-0000-4000-8000-000000000001',
       title: 'Paper Map 课堂',
       documentTitle: 'Paper Map',
+      lessonMode: 'standard',
       source: {
         startOffset: 4,
         endOffset: 12,
@@ -37,6 +41,21 @@ describe('lesson domain', () => {
         target: { kind: 'text_range' },
       },
     })
+  })
+
+  it('normalizes lesson start drafts with paper mode', () => {
+    expect(
+      normalizeLessonStartDraft({
+        documentId: '00000000-0000-4000-8000-000000000001',
+        documentTitle: 'Paper Map',
+        lessonMode: 'paper',
+        source: {
+          startOffset: 4,
+          endOffset: 12,
+          snippet: 'Evidence snippet',
+        },
+      }).lessonMode,
+    ).toBe('paper')
   })
 
   it('normalizes a pdf block target', () => {
@@ -100,6 +119,67 @@ describe('lesson domain', () => {
 
   it('defines the accepted lesson model run statuses', () => {
     expect(LESSON_MODEL_RUN_STATUSES).toEqual(['started', 'succeeded', 'failed', 'cancelled'])
+  })
+
+  it('normalizes paper lesson profiles for paper lessons', () => {
+    const session = normalizeLessonSession({
+      id: '00000000-0000-4000-8000-000000000101',
+      title: 'Paper Map 课堂',
+      status: 'active',
+      documentId: '00000000-0000-4000-8000-000000000201',
+      documentTitle: 'Paper Map',
+      sourceAnchors: [],
+      messages: [],
+      modelRuns: [],
+      currentState: 'opening',
+      steps: [],
+      masteryEvidence: [],
+      misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+        stageSummary: 'We established the paper problem and the learner background.',
+        termsIntroduced: ['Transformer'],
+        citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      },
+      createdAt: '2026-07-13T00:00:00.000Z',
+      updatedAt: '2026-07-13T00:00:00.000Z',
+    })
+
+    expect(session.paperProfile?.currentStage).toBe('orientation')
+    expect(session.lessonMode).toBe('paper')
+  })
+
+  it('rejects mismatched lessonMode and paperProfile', () => {
+    expect(() =>
+      normalizeLessonSession({
+        id: '00000000-0000-4000-8000-000000000101',
+        title: 'Notes 课堂',
+        status: 'active',
+        documentId: '00000000-0000-4000-8000-000000000201',
+        documentTitle: 'Notes',
+        sourceAnchors: [],
+        messages: [],
+        modelRuns: [],
+        currentState: 'opening',
+        steps: [],
+        masteryEvidence: [],
+        misconceptionSignals: [],
+        reviewItems: [],
+        reviewEvents: [],
+        lessonMode: 'standard',
+        paperProfile: {
+          currentStage: 'orientation',
+          stageSummary: null,
+          termsIntroduced: [],
+          citedAnchorIds: [],
+        },
+        createdAt: '2026-07-13T00:00:00.000Z',
+        updatedAt: '2026-07-13T00:00:00.000Z',
+      }),
+    ).toThrow('Paper lesson profile is invalid')
   })
 
   it('normalizes mastery evidence rationale and rejects invalid confidence', () => {
@@ -206,6 +286,54 @@ describe('lesson domain', () => {
         createdAt: '2026-07-11T00:01:00.000Z',
       }),
     ).toThrow('Misconception rationale is too long')
+  })
+
+  it('normalizes review items with trimmed prompts and outlines', () => {
+    expect(
+      normalizeReviewItem({
+        id: '00000000-0000-4000-8000-000000000951',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        masteryEvidenceId: '00000000-0000-4000-8000-000000000801',
+        misconceptionSignalId: '00000000-0000-4000-8000-000000000901',
+        prompt: '  复习：学习者把关键概念混淆了。请重新解释这段证据想说明什么。  ',
+        answerOutline: ['  先解释原证据 ', ' 再指出误区 '],
+        status: 'active',
+        dueAt: '2026-07-14T00:00:00.000Z',
+        createdAt: '2026-07-13T00:00:00.000Z',
+        updatedAt: '2026-07-13T00:00:00.000Z',
+      }).answerOutline,
+    ).toEqual(['先解释原证据', '再指出误区'])
+  })
+
+  it('rejects blank review outlines and invalid ratings', () => {
+    expect(() =>
+      normalizeReviewItem({
+        id: '00000000-0000-4000-8000-000000000951',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        masteryEvidenceId: '00000000-0000-4000-8000-000000000801',
+        misconceptionSignalId: null,
+        prompt: '复习：请重新解释这段课堂证据。',
+        answerOutline: ['   '],
+        status: 'active',
+        dueAt: '2026-07-14T00:00:00.000Z',
+        createdAt: '2026-07-13T00:00:00.000Z',
+        updatedAt: '2026-07-13T00:00:00.000Z',
+      }),
+    ).toThrow('Review answer outline item is required')
+
+    expect(() =>
+      normalizeReviewEvent({
+        id: '00000000-0000-4000-8000-000000000961',
+        reviewItemId: '00000000-0000-4000-8000-000000000951',
+        lessonId: '00000000-0000-4000-8000-000000000101',
+        rating: 'unknown' as never,
+        response: 'I think I remember this now.',
+        previousDueAt: '2026-07-14T00:00:00.000Z',
+        nextDueAt: '2026-07-17T00:00:00.000Z',
+        reviewedAt: '2026-07-14T09:00:00.000Z',
+        createdAt: '2026-07-14T09:00:00.000Z',
+      }),
+    ).toThrow('Review rating is invalid')
   })
 
   it('validates lesson state transitions', () => {

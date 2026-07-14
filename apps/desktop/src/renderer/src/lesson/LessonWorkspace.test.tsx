@@ -90,8 +90,23 @@ const session = {
   ],
   masteryEvidence: [],
   misconceptionSignals: [],
+  reviewItems: [],
+  reviewEvents: [],
+  lessonMode: 'standard' as const,
+  paperProfile: null,
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
+}
+
+const paperSession = {
+  ...session,
+  id: '00000000-0000-4000-8000-000000000111',
+  title: 'Paper Map 论文课堂',
+  lessonMode: 'paper' as const,
+  paperProfile: {
+    currentStage: 'problem_framing' as const,
+    stageSummary: 'The learner is still orienting around the paper.',
+  },
 }
 
 const repliedSession = {
@@ -225,6 +240,24 @@ const stuckSession = {
       createdAt: '2026-07-11T00:02:00.000Z',
     },
   ],
+  reviewItems: [
+    {
+      id: '00000000-0000-4000-8000-000000000951',
+      lessonId: session.id,
+      masteryEvidenceId: '00000000-0000-4000-8000-000000000702',
+      misconceptionSignalId: '00000000-0000-4000-8000-000000000801',
+      prompt: '复习：学习者表达卡住。请重新解释这段证据想说明什么。',
+      answerOutline: [
+        'Learner explicitly signaled they are stuck or unsure.',
+        'Learner used language that indicates confusion or being stuck.',
+      ],
+      status: 'active' as const,
+      dueAt: '2026-07-12T00:00:00.000Z',
+      createdAt: '2026-07-11T00:02:00.000Z',
+      updatedAt: '2026-07-11T00:02:00.000Z',
+    },
+  ],
+  reviewEvents: [],
 }
 
 const failedSession = {
@@ -352,6 +385,9 @@ beforeEach(() => {
       cancelRun: vi
         .fn()
         .mockResolvedValue({ ok: true, data: { cancelled: true }, requestId: crypto.randomUUID() }),
+      recordReview: vi
+        .fn()
+        .mockResolvedValue({ ok: true, data: stuckSession, requestId: crypto.randomUUID() }),
     },
   })
 })
@@ -362,6 +398,28 @@ afterEach(() => {
 })
 
 describe('LessonWorkspace', () => {
+  it('renders paper stage and summary for paper lessons', async () => {
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [paperSession], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: paperSession, requestId: crypto.randomUUID() })
+
+    render(<LessonWorkspace selectedLessonId={paperSession.id} />)
+
+    expect(await screen.findByText('当前论文阶段')).toBeTruthy()
+    expect(screen.getByText('问题定位')).toBeTruthy()
+    expect(screen.getByText('The learner is still orienting around the paper.')).toBeTruthy()
+  })
+
+  it('does not render paper metadata for standard lessons', async () => {
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    expect(await screen.findByRole('heading', { name: '课堂' })).toBeTruthy()
+    expect(screen.queryByText('当前论文阶段')).toBeNull()
+  })
+
   it('lists lesson sessions and opens a selected session', async () => {
     const user = userEvent.setup()
     render(<LessonWorkspace selectedLessonId={session.id} />)
@@ -472,12 +530,40 @@ describe('LessonWorkspace', () => {
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
     expect(await screen.findByText('建议复习 · 75%')).toBeTruthy()
-    expect(screen.getByText('Learner explicitly signaled they are stuck or unsure.')).toBeTruthy()
+    expect(
+      screen.getAllByText('Learner explicitly signaled they are stuck or unsure.'),
+    ).toHaveLength(2)
     expect(screen.getByText('可能误区：学习者表达卡住 · medium')).toBeTruthy()
     expect(
-      screen.getByText('Learner used language that indicates confusion or being stuck.'),
-    ).toBeTruthy()
+      screen.getAllByText('Learner used language that indicates confusion or being stuck.'),
+    ).toHaveLength(2)
     expect(screen.getByText('建议加入后续复习')).toBeTruthy()
+  })
+
+  it('renders review tasks and records remembered reviews', async () => {
+    const user = userEvent.setup()
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [stuckSession], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: stuckSession, requestId: crypto.randomUUID() })
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    expect(await screen.findByText('复习任务')).toBeTruthy()
+    expect(screen.getByText('复习：学习者表达卡住。请重新解释这段证据想说明什么。')).toBeTruthy()
+    await user.type(screen.getByLabelText('这次复习回答'), '我已经能解释证据和判断依据。')
+    await user.click(screen.getByRole('button', { name: '记住了' }))
+
+    await waitFor(() =>
+      expect(window.deepstorming.lessons.recordReview).toHaveBeenCalledWith({
+        lessonId: session.id,
+        reviewItemId: '00000000-0000-4000-8000-000000000951',
+        rating: 'remembered',
+        response: '我已经能解释证据和判断依据。',
+      }),
+    )
+    expect(await screen.findByText('复习记录已保存。')).toBeTruthy()
   })
 
   it('shows snippet fallback when a lesson run has no retrieval chunks', async () => {

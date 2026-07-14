@@ -8,6 +8,7 @@ export const LESSON_CHANNELS = {
   reply: 'lessons:reply',
   retryRun: 'lessons:retry-run',
   cancelRun: 'lessons:cancel-run',
+  recordReview: 'lessons:record-review',
 } as const
 
 const requestIdSchema = z.string().uuid()
@@ -41,6 +42,27 @@ export const masteryJudgementSchema = z.enum([
   'needs_review',
 ])
 export const misconceptionSeveritySchema = z.enum(['low', 'medium', 'high'])
+export const reviewItemStatusSchema = z.enum(['active', 'completed', 'suspended'])
+export const reviewRatingSchema = z.enum(['remembered', 'forgot'])
+export const lessonModeSchema = z.enum(['standard', 'paper'])
+export const paperReadingStageSchema = z.enum([
+  'orientation',
+  'problem_framing',
+  'method_intuition',
+  'method_mechanics',
+  'evidence_check',
+  'critical_review',
+  'transfer',
+  'synthesis',
+])
+export const paperLessonProfileSchema = z
+  .object({
+    currentStage: paperReadingStageSchema,
+    stageSummary: z.string().max(500).nullable(),
+    termsIntroduced: z.array(z.string().trim().min(1).max(120)).max(24),
+    citedAnchorIds: z.array(z.string().uuid()).max(24),
+  })
+  .strict()
 export const lessonSourceTargetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('text_range') }).strict(),
   z
@@ -220,6 +242,35 @@ export const lessonMisconceptionSignalSchema = z
   })
   .strict()
 
+export const lessonReviewItemSchema = z
+  .object({
+    id: z.string().uuid(),
+    lessonId: lessonIdSchema,
+    masteryEvidenceId: z.string().uuid(),
+    misconceptionSignalId: z.string().uuid().nullable(),
+    prompt: requiredTextSchema.max(280),
+    answerOutline: z.array(requiredTextSchema.max(280)).min(1).max(5),
+    status: reviewItemStatusSchema,
+    dueAt: timestampSchema,
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
+  })
+  .strict()
+
+export const lessonReviewEventSchema = z
+  .object({
+    id: z.string().uuid(),
+    reviewItemId: z.string().uuid(),
+    lessonId: lessonIdSchema,
+    rating: reviewRatingSchema,
+    response: requiredTextSchema.max(1_000),
+    previousDueAt: timestampSchema,
+    nextDueAt: timestampSchema.nullable(),
+    reviewedAt: timestampSchema,
+    createdAt: timestampSchema,
+  })
+  .strict()
+
 export const lessonSessionSchema = z
   .object({
     id: lessonIdSchema,
@@ -234,6 +285,10 @@ export const lessonSessionSchema = z
     steps: z.array(lessonStepSchema),
     masteryEvidence: z.array(lessonMasteryEvidenceSchema),
     misconceptionSignals: z.array(lessonMisconceptionSignalSchema),
+    reviewItems: z.array(lessonReviewItemSchema),
+    reviewEvents: z.array(lessonReviewEventSchema),
+    lessonMode: lessonModeSchema.default('standard'),
+    paperProfile: paperLessonProfileSchema.nullable().default(null),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -244,6 +299,7 @@ export const lessonStartDraftSchema = z
     documentId: documentIdSchema,
     documentTitle: requiredTextSchema,
     title: requiredTextSchema.optional(),
+    lessonMode: lessonModeSchema.optional(),
     source: z
       .object({
         startOffset: z.number().int().nonnegative(),
@@ -271,6 +327,15 @@ export const lessonRunRetryDraftSchema = z
     lessonId: lessonIdSchema,
     modelRunId: z.string().uuid(),
     operationId: z.string().uuid().optional(),
+  })
+  .strict()
+
+export const lessonRecordReviewDraftSchema = z
+  .object({
+    lessonId: lessonIdSchema,
+    reviewItemId: z.string().uuid(),
+    rating: reviewRatingSchema,
+    response: requiredTextSchema.max(1_000),
   })
   .strict()
 
@@ -323,6 +388,15 @@ export const cancelLessonRunRequestSchema = z
     operationId: z.string().uuid(),
   })
   .strict()
+export const recordReviewRequestSchema = z
+  .object({
+    requestId: requestIdSchema,
+    lessonId: lessonIdSchema,
+    reviewItemId: z.string().uuid(),
+    rating: reviewRatingSchema,
+    response: requiredTextSchema.max(1_000),
+  })
+  .strict()
 
 const lessonErrorSchema = z
   .object({
@@ -363,16 +437,20 @@ export type LessonModelRunDto = z.infer<typeof lessonModelRunSchema>
 export type LessonStepDto = z.infer<typeof lessonStepSchema>
 export type LessonMasteryEvidenceDto = z.infer<typeof lessonMasteryEvidenceSchema>
 export type LessonMisconceptionSignalDto = z.infer<typeof lessonMisconceptionSignalSchema>
+export type LessonReviewItemDto = z.infer<typeof lessonReviewItemSchema>
+export type LessonReviewEventDto = z.infer<typeof lessonReviewEventSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
 export type LessonReplyDraftDto = z.infer<typeof lessonReplyDraftSchema>
 export type LessonRunRetryDraftDto = z.infer<typeof lessonRunRetryDraftSchema>
+export type LessonRecordReviewDraftDto = z.infer<typeof lessonRecordReviewDraftSchema>
 export type ListLessonsRequest = z.infer<typeof listLessonsRequestSchema>
 export type StartLessonFromDocumentRequest = z.infer<typeof startLessonFromDocumentRequestSchema>
 export type GetLessonRequest = z.infer<typeof getLessonRequestSchema>
 export type ReplyToLessonRequest = z.infer<typeof replyToLessonRequestSchema>
 export type RetryLessonRunRequest = z.infer<typeof retryLessonRunRequestSchema>
 export type CancelLessonRunRequest = z.infer<typeof cancelLessonRunRequestSchema>
+export type RecordReviewRequest = z.infer<typeof recordReviewRequestSchema>
 export type LessonSessionsResult = z.infer<typeof lessonSessionsResultSchema>
 export type LessonSessionResult = z.infer<typeof lessonSessionResultSchema>
 export type CancelLessonRunResult = z.infer<typeof cancelLessonRunResultSchema>

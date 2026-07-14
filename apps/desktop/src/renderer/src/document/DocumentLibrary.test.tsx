@@ -146,6 +146,8 @@ beforeEach(() => {
       get: vi.fn(),
       reply: vi.fn(),
       retryRun: vi.fn(),
+      cancelRun: vi.fn(),
+      recordReview: vi.fn(),
     },
     provider: {
       list: vi.fn(),

@@ -1,6 +1,6 @@
 # DeepStorming 真实云 Provider 与发布前验收清单
 
-- 日期：2026-07-12
+- 日期：2026-07-14
 - 范围：DeepSeek Provider、OpenAI-compatible Provider、Provider-backed Lesson reply/retry、发布前安全与包体检查。
 - 目的：在用户本地手动验证真实云模型，不把真实凭据写入仓库、日志、SQLite 明文、fixtures、screenshots 或报告。
 
@@ -49,6 +49,23 @@ Evidence links a claim to observable behavior. A learner should explain what the
 | D-08 | 错误模型      | 填不存在模型后测试连接。                                                       | 映射为模型不存在稳定错误，状态进入 error。                           |
 | D-09 | 重启持久化    | 关闭并重启应用。                                                               | Provider 元数据、active 状态、课堂消息和 run 历史仍可读取。          |
 
+## 4.1 DeepSeek 手动验收记录（2026-07-14）
+
+- App commit：`8c2b5ea`
+- macOS 版本：本地 macOS（arm64）
+- Provider 类型：deepseek
+- Base URL：`https://api.deepseek.com`
+- 模型名：`deepseek-v4-flash`
+- API Key 是否只通过批准的本地方式输入：是
+- 连接测试：success
+- 课堂生成：success
+- 重启后是否可恢复：是
+- 敏感信息扫描是否通过：passed
+- 备注：
+  - 验收使用临时本地 `userData` 目录。
+  - 未在文档、仓库文件、终端输出中记录真实 API Key、Authorization header、原始响应正文或完整 prompt。
+  - 本轮未额外执行错误 Key / 错误模型破坏性验证，避免对真实 key 流程引入不必要风险。
+
 ## 5. OpenAI-compatible 手动验收矩阵
 
 | 编号 | 场景              | 操作                                            | 期望                                             |
@@ -61,6 +78,8 @@ Evidence links a claim to observable behavior. A learner should explain what the
 | O-06 | 429 / quota / 401 | 使用测试账户或服务端配置触发稳定 HTTP 错误。    | 显示稳定错误码，不泄露响应正文。                 |
 | O-07 | 空 choices        | 使用本地兼容测试服务返回缺失/空 `choices`。     | 映射 `PROVIDER_RESPONSE_INVALID`。               |
 | O-08 | 重启              | 重启后读取 Provider、课堂、生成记录和错误摘要。 | 所有持久化状态一致。                             |
+
+当前状态：OpenAI-compatible 真实端点手动验收仍待后续有明确需求时补做。本轮 D1 已先完成 DeepSeek 真实 Provider 验收。
 
 ## 6. 发布前清单
 
@@ -79,6 +98,13 @@ Evidence links a claim to observable behavior. A learner should explain what the
 - Notarization 成功。
 - Gatekeeper 首次打开不报未知开发者阻断。
 - 生成用户可下载的 zip 或 DMG。
+
+### 6.2A 自用版发布候选（当前已推进到这一层）
+
+- 允许未签名、未公证的本地目录包用于个人设备自用。
+- 明确记录 Gatekeeper / 未知开发者提示是当前自用版限制，而不是功能性失败。
+- 要求可本地重装、可备份、可恢复。
+- 继续把签名、公证和公开分发保留为后续工作。
 
 ### 6.3 隐私与数据说明
 

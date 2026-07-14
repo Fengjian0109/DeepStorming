@@ -1,5 +1,6 @@
 import type {
   LessonMessage,
+  LessonMode,
   LessonModelRun,
   LessonState,
   LessonStep,
@@ -8,6 +9,10 @@ import type {
   LessonSessionStatus,
   MasteryEvidence,
   MisconceptionSignal,
+  PaperLessonProfile,
+  PaperReadingStage,
+  ReviewEvent,
+  ReviewItem,
   TutorActionType,
 } from '@deepstorming/domain'
 import type { StoredDocumentTextBlock } from './document-ports'
@@ -19,6 +24,8 @@ export type StoredLessonModelRun = LessonModelRun
 export type StoredLessonStep = LessonStep
 export type StoredMasteryEvidence = MasteryEvidence
 export type StoredMisconceptionSignal = MisconceptionSignal
+export type StoredReviewItem = ReviewItem
+export type StoredReviewEvent = ReviewEvent
 
 export interface DocumentSourceLocatorPort {
   findTextBlock(
@@ -41,6 +48,10 @@ export type StoredLessonSession = Readonly<{
   steps: readonly StoredLessonStep[]
   masteryEvidence: readonly StoredMasteryEvidence[]
   misconceptionSignals: readonly StoredMisconceptionSignal[]
+  reviewItems: readonly StoredReviewItem[]
+  reviewEvents: readonly StoredReviewEvent[]
+  lessonMode: LessonMode
+  paperProfile: PaperLessonProfile | null
   createdAt: string
   updatedAt: string
 }>
@@ -50,6 +61,8 @@ export type LessonSessionView = LessonSession
 export type LessonTutorReplyRequest = Readonly<{
   documentTitle: string
   sourceSnippet: string
+  lessonMode: LessonMode
+  paperStage: PaperReadingStage | null
   contextChunks: readonly LessonTutorContextChunk[]
   learnerReply: string
 }>
@@ -57,6 +70,8 @@ export type LessonTutorReplyRequest = Readonly<{
 export type LessonTutorFirstQuestionRequest = Readonly<{
   documentTitle: string
   sourceSnippet: string
+  lessonMode: LessonMode
+  paperStage: PaperReadingStage | null
   contextChunks: readonly LessonTutorContextChunk[]
 }>
 
