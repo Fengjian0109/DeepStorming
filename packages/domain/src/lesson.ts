@@ -30,6 +30,15 @@ export const PAPER_READING_STAGES = [
   'transfer',
   'synthesis',
 ] as const
+export const PAPER_READING_MAP_SLOT_KINDS = [
+  'why',
+  'what',
+  'how',
+  'evidence',
+  'limits',
+  'next',
+] as const
+export const PAPER_READING_MAP_SLOT_STATUSES = ['empty', 'seeded', 'updated'] as const
 
 export type LessonSessionStatus = (typeof LESSON_SESSION_STATUSES)[number]
 export type LessonMessageRole = (typeof LESSON_MESSAGE_ROLES)[number]
@@ -44,12 +53,27 @@ export type ReviewItemStatus = (typeof REVIEW_ITEM_STATUSES)[number]
 export type ReviewRating = (typeof REVIEW_RATINGS)[number]
 export type LessonMode = (typeof LESSON_MODES)[number]
 export type PaperReadingStage = (typeof PAPER_READING_STAGES)[number]
+export type PaperReadingMapSlotKind = (typeof PAPER_READING_MAP_SLOT_KINDS)[number]
+export type PaperReadingMapSlotStatus = (typeof PAPER_READING_MAP_SLOT_STATUSES)[number]
+
+export type PaperReadingMapSlot = Readonly<{
+  kind: PaperReadingMapSlotKind
+  summary: string | null
+  status: PaperReadingMapSlotStatus
+  citedAnchorIds: readonly string[]
+  updatedAt: string | null
+}>
+
+export type PaperReadingMap = Readonly<{
+  slots: readonly PaperReadingMapSlot[]
+}>
 
 export type PaperLessonProfile = Readonly<{
   currentStage: PaperReadingStage
   stageSummary: string | null
   termsIntroduced: readonly string[]
   citedAnchorIds: readonly string[]
+  readingMap: PaperReadingMap
 }>
 
 export type LessonSourceTarget =
@@ -250,8 +274,13 @@ export type LessonStartDraft = Readonly<{
   }>
 }>
 
+type LegacyPaperLessonProfile = Omit<PaperLessonProfile, 'readingMap'> &
+  Partial<Pick<PaperLessonProfile, 'readingMap'>>
+
 export type LegacyLessonSession = Omit<LessonSession, 'lessonMode' | 'paperProfile'> &
-  Partial<Pick<LessonSession, 'lessonMode' | 'paperProfile'>>
+  Partial<Pick<LessonSession, 'lessonMode'>> & {
+    paperProfile?: LegacyPaperLessonProfile | null
+  }
 
 export type NormalizedLessonStartDraft = Readonly<{
   documentId: string
@@ -337,8 +366,67 @@ const assertUuid = (value: string, message: string): string => {
   return value
 }
 
+export const createDefaultPaperReadingMap = (): PaperReadingMap => ({
+  slots: PAPER_READING_MAP_SLOT_KINDS.map((kind) => ({
+    kind,
+    summary: null,
+    status: 'empty',
+    citedAnchorIds: [],
+    updatedAt: null,
+  })),
+})
+
+const normalizePaperReadingMap = (map: PaperReadingMap | undefined): PaperReadingMap => {
+  if (map === undefined) return createDefaultPaperReadingMap()
+  if (map.slots.length !== PAPER_READING_MAP_SLOT_KINDS.length) {
+    throw new Error('Paper reading map is invalid')
+  }
+
+  const slotsByKind = new Map(map.slots.map((slot) => [slot.kind, slot]))
+  if (slotsByKind.size !== PAPER_READING_MAP_SLOT_KINDS.length) {
+    throw new Error('Paper reading map is invalid')
+  }
+
+  return {
+    slots: PAPER_READING_MAP_SLOT_KINDS.map((kind) => {
+      const slot = slotsByKind.get(kind)
+      if (slot === undefined) {
+        throw new Error('Paper reading map is invalid')
+      }
+      if (!includes(PAPER_READING_MAP_SLOT_STATUSES, slot.status)) {
+        throw new Error('Paper reading map slot is invalid')
+      }
+
+      const summary =
+        slot.summary === null
+          ? null
+          : normalizeNonBlank(slot.summary, 'Paper reading map summary is invalid').slice(0, 500)
+
+      if (summary === null && (slot.status !== 'empty' || slot.updatedAt !== null)) {
+        throw new Error('Paper reading map slot is invalid')
+      }
+      if (summary !== null && slot.updatedAt === null) {
+        throw new Error('Paper reading map slot is invalid')
+      }
+
+      return {
+        kind,
+        summary,
+        status: slot.status,
+        citedAnchorIds: slot.citedAnchorIds.map((id) =>
+          assertUuid(id, 'Paper reading map cited anchor id is invalid'),
+        ),
+        updatedAt:
+          slot.updatedAt === null
+            ? null
+            : assertIsoTimestamp(slot.updatedAt, 'Paper reading map updatedAt is invalid'),
+      }
+    }),
+  }
+}
+
 const normalizePaperLessonProfile = (
-  profile: PaperLessonProfile | null,
+  profile: LegacyPaperLessonProfile | null,
   lessonMode: LessonMode,
 ): PaperLessonProfile | null => {
   if (lessonMode === 'standard') {
@@ -361,6 +449,7 @@ const normalizePaperLessonProfile = (
     citedAnchorIds: profile.citedAnchorIds.map((id) =>
       assertUuid(id, 'Paper cited anchor id is invalid'),
     ),
+    readingMap: normalizePaperReadingMap(profile.readingMap),
   }
 }
 

@@ -3,6 +3,8 @@ import {
   LESSON_MESSAGE_ROLES,
   LESSON_MODEL_RUN_STATUSES,
   LESSON_SESSION_STATUSES,
+  PAPER_READING_MAP_SLOT_KINDS,
+  createDefaultPaperReadingMap,
   normalizeLessonSession,
   normalizeMasteryEvidence,
   normalizeMisconceptionSignal,
@@ -143,6 +145,24 @@ describe('lesson domain', () => {
         stageSummary: 'We established the paper problem and the learner background.',
         termsIntroduced: ['Transformer'],
         citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+        readingMap: {
+          slots: [
+            {
+              kind: 'why',
+              summary: '  The paper asks why evidence supports the claim.  ',
+              status: 'seeded',
+              citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+              updatedAt: '2026-07-14T00:00:00.000Z',
+            },
+            ...PAPER_READING_MAP_SLOT_KINDS.filter((kind) => kind !== 'why').map((kind) => ({
+              kind,
+              summary: null,
+              status: 'empty' as const,
+              citedAnchorIds: [],
+              updatedAt: null,
+            })),
+          ],
+        },
       },
       createdAt: '2026-07-13T00:00:00.000Z',
       updatedAt: '2026-07-13T00:00:00.000Z',
@@ -150,6 +170,55 @@ describe('lesson domain', () => {
 
     expect(session.paperProfile?.currentStage).toBe('orientation')
     expect(session.lessonMode).toBe('paper')
+    expect(session.paperProfile?.readingMap.slots[0]).toEqual({
+      kind: 'why',
+      summary: 'The paper asks why evidence supports the claim.',
+      status: 'seeded',
+      citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      updatedAt: '2026-07-14T00:00:00.000Z',
+    })
+  })
+
+  it('creates a default paper reading map with six empty slots', () => {
+    expect(createDefaultPaperReadingMap()).toEqual({
+      slots: PAPER_READING_MAP_SLOT_KINDS.map((kind) => ({
+        kind,
+        summary: null,
+        status: 'empty',
+        citedAnchorIds: [],
+        updatedAt: null,
+      })),
+    })
+  })
+
+  it('adds a default reading map to legacy paper profiles', () => {
+    const session = normalizeLessonSession({
+      id: '00000000-0000-4000-8000-000000000101',
+      title: 'Paper Map 课堂',
+      status: 'active',
+      documentId: '00000000-0000-4000-8000-000000000201',
+      documentTitle: 'Paper Map',
+      sourceAnchors: [],
+      messages: [],
+      modelRuns: [],
+      currentState: 'opening',
+      steps: [],
+      masteryEvidence: [],
+      misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+        stageSummary: null,
+        termsIntroduced: [],
+        citedAnchorIds: [],
+      },
+      createdAt: '2026-07-14T00:00:00.000Z',
+      updatedAt: '2026-07-14T00:00:00.000Z',
+    })
+
+    expect(session.paperProfile?.readingMap).toEqual(createDefaultPaperReadingMap())
   })
 
   it('rejects mismatched lessonMode and paperProfile', () => {
@@ -175,11 +244,68 @@ describe('lesson domain', () => {
           stageSummary: null,
           termsIntroduced: [],
           citedAnchorIds: [],
+          readingMap: createDefaultPaperReadingMap(),
         },
         createdAt: '2026-07-13T00:00:00.000Z',
         updatedAt: '2026-07-13T00:00:00.000Z',
       }),
     ).toThrow('Paper lesson profile is invalid')
+  })
+
+  it('rejects invalid paper reading maps', () => {
+    const baseSession = {
+      id: '00000000-0000-4000-8000-000000000101',
+      title: 'Paper Map 课堂',
+      status: 'active' as const,
+      documentId: '00000000-0000-4000-8000-000000000201',
+      documentTitle: 'Paper Map',
+      sourceAnchors: [],
+      messages: [],
+      modelRuns: [],
+      currentState: 'opening' as const,
+      steps: [],
+      masteryEvidence: [],
+      misconceptionSignals: [],
+      reviewItems: [],
+      reviewEvents: [],
+      lessonMode: 'paper' as const,
+      createdAt: '2026-07-14T00:00:00.000Z',
+      updatedAt: '2026-07-14T00:00:00.000Z',
+    }
+
+    expect(() =>
+      normalizeLessonSession({
+        ...baseSession,
+        paperProfile: {
+          currentStage: 'orientation',
+          stageSummary: null,
+          termsIntroduced: [],
+          citedAnchorIds: [],
+          readingMap: { slots: [] },
+        },
+      }),
+    ).toThrow('Paper reading map is invalid')
+
+    expect(() =>
+      normalizeLessonSession({
+        ...baseSession,
+        paperProfile: {
+          currentStage: 'orientation',
+          stageSummary: null,
+          termsIntroduced: [],
+          citedAnchorIds: [],
+          readingMap: {
+            slots: PAPER_READING_MAP_SLOT_KINDS.map((kind) => ({
+              kind,
+              summary: null,
+              status: 'seeded' as const,
+              citedAnchorIds: [],
+              updatedAt: null,
+            })),
+          },
+        },
+      }),
+    ).toThrow('Paper reading map slot is invalid')
   })
 
   it('normalizes mastery evidence rationale and rejects invalid confidence', () => {
