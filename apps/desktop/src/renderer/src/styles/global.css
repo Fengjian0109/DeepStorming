@@ -904,6 +904,87 @@ h2 {
   box-shadow: 0 8px 24px rgb(32 52 43 / 18%);
 }
 
+.lesson-info-drawer {
+  position: absolute;
+  z-index: 12;
+  top: 0;
+  right: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: 420px;
+  max-width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-left: 1px solid rgb(32 52 43 / 14%);
+  background: #fffdf7;
+  box-shadow: -20px 0 60px rgb(32 52 43 / 16%);
+}
+
+.lesson-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid rgb(32 52 43 / 10%);
+}
+
+.lesson-info-header h2:focus {
+  outline: none;
+}
+
+.lesson-info-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid rgb(32 52 43 / 10%);
+}
+
+.lesson-info-tabs button {
+  min-width: fit-content;
+  color: #52675d;
+  background: transparent;
+}
+
+.lesson-info-tabs button[aria-selected='true'] {
+  color: #fff;
+  background: #23533d;
+}
+
+.lesson-info-content {
+  min-height: 0;
+  padding: 18px;
+  overflow: auto;
+}
+
+.lesson-info-section,
+.lesson-review-card,
+.lesson-technical-run,
+.lesson-diagnosis-signal {
+  display: grid;
+  gap: 10px;
+}
+
+.lesson-info-section > p,
+.lesson-review-card > p,
+.lesson-technical-run > p,
+.lesson-diagnosis-signal > p {
+  margin: 0;
+}
+
+.lesson-review-card,
+.lesson-technical-run,
+.lesson-diagnosis-signal {
+  padding: 14px;
+  border-radius: 12px;
+  background: rgb(32 52 43 / 5%);
+}
+
+.lesson-info-section > * + * {
+  margin-top: 8px;
+}
+
 .lesson-anchor-list {
   display: grid;
   gap: 12px;
