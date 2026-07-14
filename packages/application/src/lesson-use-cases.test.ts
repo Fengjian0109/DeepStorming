@@ -325,6 +325,8 @@ class FakeVault implements SecretVaultPort {
 }
 
 class FakeGateway implements ProviderGatewayPort {
+  public firstQuestionContents: string[] = []
+  public replyContents: string[] = []
   public readonly calls: Array<{
     readonly input: {
       readonly modelName: string
@@ -341,6 +343,7 @@ class FakeGateway implements ProviderGatewayPort {
         readonly charCount: number
       }[]
       readonly learnerReply?: string
+      readonly repair?: Readonly<{ reason: string }>
     }
     readonly token: CancellationToken
   }> = []
@@ -366,7 +369,16 @@ class FakeGateway implements ProviderGatewayPort {
     token: CancellationToken,
   ) {
     this.calls.push({ input, token })
-    return { content: 'Provider 首问' }
+    return {
+      content:
+        this.firstQuestionContents.shift() ??
+        JSON.stringify({
+          narration: null,
+          responseMarkdown: 'Provider 首问',
+          citations: [],
+          figureReferences: [],
+        }),
+    }
   }
 
   async generateLessonTutorReply(
@@ -385,11 +397,21 @@ class FakeGateway implements ProviderGatewayPort {
         readonly charCount: number
       }[]
       learnerReply: string
+      repair?: Readonly<{ reason: string }>
     },
     token: CancellationToken,
   ) {
     this.calls.push({ input, token })
-    return { content: 'Provider 追问' }
+    return {
+      content:
+        this.replyContents.shift() ??
+        JSON.stringify({
+          narration: null,
+          responseMarkdown: 'Provider 追问',
+          citations: [],
+          figureReferences: [],
+        }),
+    }
   }
 }
 
@@ -1678,6 +1700,12 @@ describe('lesson use cases', () => {
       content: 'Provider 追问',
       providerId: activeProvider.id,
       modelName: 'deepseek-chat',
+      tutorTurn: {
+        narration: null,
+        responseMarkdown: 'Provider 追问',
+        citations: [],
+        figureReferences: [],
+      },
     })
     expect(vault.refs).toEqual(['secret-ref'])
     expect(factory.providers).toEqual([
@@ -1702,6 +1730,51 @@ describe('lesson use cases', () => {
         token: expect.objectContaining({ cancelled: false }),
       },
     ])
+  })
+
+  it('repairs one invalid structured tutor turn and rejects a second invalid response', async () => {
+    const providers = new FakeProviderRepository()
+    const vault = new FakeVault()
+    const repairedFactory = new FakeGatewayFactory()
+    repairedFactory.gateway.replyContents.push(
+      'not-json',
+      JSON.stringify({
+        narration: '她点了点证据。',
+        responseMarkdown: '请再说明你的判断依据。',
+        citations: [],
+        figureReferences: [],
+      }),
+    )
+    const generator = new ProviderLessonTutorReplyGenerator(providers, vault, repairedFactory)
+    const request = {
+      documentTitle: 'Paper Map',
+      sourceSnippet: 'Evidence',
+      lessonMode: 'standard' as const,
+      paperStage: null,
+      contextChunks: [],
+      learnerReply: '这是我的判断。',
+    }
+
+    await expect(
+      generator.generateFollowUp(request, {
+        cancelled: false,
+        onCancel: () => () => undefined,
+      }),
+    ).resolves.toMatchObject({ content: '请再说明你的判断依据。' })
+    expect(repairedFactory.gateway.calls).toHaveLength(2)
+    expect(repairedFactory.gateway.calls[1]?.input.repair).toEqual({
+      reason: 'Tutor turn failed validation.',
+    })
+
+    const failedFactory = new FakeGatewayFactory()
+    failedFactory.gateway.replyContents.push('bad-1', 'bad-2')
+    await expect(
+      new ProviderLessonTutorReplyGenerator(providers, vault, failedFactory).generateFollowUp(
+        request,
+        { cancelled: false, onCancel: () => () => undefined },
+      ),
+    ).rejects.toMatchObject({ code: 'AI_GENERATION_FAILED', retryable: true })
+    expect(failedFactory.gateway.calls).toHaveLength(2)
   })
 
   it('requires an active provider instead of generating a local tutor fallback', async () => {

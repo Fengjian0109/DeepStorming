@@ -94,10 +94,38 @@ export const lessonMessageSchema = z
     lessonId: lessonIdSchema,
     modelRunId: z.string().uuid().nullable(),
     role: lessonMessageRoleSchema,
-    content: requiredTextSchema.max(2_000),
+    content: requiredTextSchema.max(8_000),
     sourceAnchorIds: z.array(z.string().uuid()),
     promptVersion: requiredTextSchema.max(80),
     createdAt: timestampSchema,
+    tutorTurn: z
+      .object({
+        narration: z.string().trim().min(1).max(1_000).nullable(),
+        responseMarkdown: requiredTextSchema.max(8_000),
+        citations: z
+          .array(
+            z
+              .object({
+                chunkId: requiredTextSchema.max(200),
+                quote: requiredTextSchema.max(1_000),
+                rationale: requiredTextSchema.max(500),
+              })
+              .strict(),
+          )
+          .max(8),
+        figureReferences: z
+          .array(
+            z
+              .object({
+                figureId: requiredTextSchema.max(200),
+                rationale: requiredTextSchema.max(500),
+              })
+              .strict(),
+          )
+          .max(4),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
 
@@ -359,6 +387,7 @@ const lessonSharedErrorCodeSchema = appErrorCodeSchema.extract([
   'DATABASE_UNAVAILABLE',
   'OPERATION_CANCELLED',
   'AI_PROVIDER_REQUIRED',
+  'AI_GENERATION_FAILED',
 ])
 
 export const lessonErrorCodeSchema = z.union([

@@ -58,6 +58,18 @@ const session = {
       sourceAnchorIds: [anchorId],
       promptVersion: 'mock-tutor-v1',
       createdAt: '2026-07-11T00:00:00.000Z',
+      tutorTurn: {
+        narration: '导师圈出了证据片段。',
+        responseMarkdown: '我们先从 **Evidence** 开始：$x^2$ 表示什么？',
+        citations: [
+          {
+            chunkId: '00000000-0000-4000-8000-000000000901',
+            quote: 'Evidence',
+            rationale: '这是当前问题所依据的原文。',
+          },
+        ],
+        figureReferences: [],
+      },
     },
   ],
   modelRuns: [
@@ -293,6 +305,28 @@ describe('lesson contracts', () => {
       lessonSessionSchema.safeParse({
         ...session,
         messages: [{ ...session.messages[0], role: 'assistant' }],
+      }).success,
+    ).toBe(false)
+    expect(
+      lessonSessionSchema.safeParse({
+        ...session,
+        messages: [
+          {
+            ...session.messages[0],
+            tutorTurn: { ...session.messages[0].tutorTurn, debugReasoning: 'private' },
+          },
+        ],
+      }).success,
+    ).toBe(false)
+    expect(
+      lessonSessionSchema.safeParse({
+        ...session,
+        messages: [
+          {
+            ...session.messages[0],
+            tutorTurn: { ...session.messages[0].tutorTurn, narration: '   ' },
+          },
+        ],
       }).success,
     ).toBe(false)
     expect(

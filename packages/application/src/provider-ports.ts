@@ -130,6 +130,7 @@ export interface ProviderGatewayPort {
       }>[]
       tutorSnapshot?: LessonTutorSnapshot
       pace?: LessonPace
+      repair?: Readonly<{ reason: string }>
     }>,
     token: CancellationToken,
   ): Promise<Readonly<{ content: string }>>
@@ -151,6 +152,7 @@ export interface ProviderGatewayPort {
       learnerReply: string
       tutorSnapshot?: LessonTutorSnapshot
       pace?: LessonPace
+      repair?: Readonly<{ reason: string }>
     }>,
     token: CancellationToken,
   ): Promise<Readonly<{ content: string }>>

@@ -211,12 +211,15 @@ erDiagram
 | message_index          | INTEGER | NOT NULL, `CHECK (message_index >= 0)`     | 会话内消息顺序                        |
 | created_at             | TEXT    | NOT NULL                                   | 消息创建时间                          |
 | model_run_id           | TEXT    | NULL                                       | 生成该消息的模型运行记录；Migration 5 |
+| tutor_turn_json        | TEXT    | NULL                                       | 严格 TutorTurn；Migration 18          |
 
 索引与约束：
 
 - `role` 通过 `CHECK` 约束限制为 `system/tutor/learner`。
 - `UNIQUE(lesson_id,message_index)` 保证同一课堂内消息顺序不重复。
 - `model_run_id` 由 Migration 5 追加，可为空以兼容已创建的本地课堂消息。
+- `tutor_turn_json` 由 Migration 18 (`structured_tutor_turn`) 追加；保存动作描写、Markdown 正文、文本引用和图片引用。历史消息为 `NULL`，Renderer 回退显示原 `content`。
+- 写入前由 Application 校验引用 chunk 归属和 quote 逐字匹配；数据库不保存未经校验的 Provider 原始响应。
 - 当前不保存 Provider 请求、token、原始 prompt 或错误详情；Model Run 只保存脱敏摘要。
 
 ### 5.0.6 `lesson_model_runs`（Migration 5）

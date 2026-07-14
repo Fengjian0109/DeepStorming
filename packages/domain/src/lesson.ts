@@ -1,3 +1,6 @@
+import { LESSON_PACES, type LessonPace, type LessonTutorSnapshot } from './learning-settings'
+import type { TutorTurn } from './tutor-turn'
+
 export const LESSON_SESSION_STATUSES = ['active', 'archived'] as const
 export const LESSON_MESSAGE_ROLES = ['system', 'tutor', 'learner'] as const
 export const LESSON_MODEL_RUN_STATUSES = ['started', 'succeeded', 'failed', 'cancelled'] as const
@@ -151,6 +154,7 @@ export type LessonMessage = Readonly<{
   sourceAnchorIds: readonly string[]
   promptVersion: string
   createdAt: string
+  tutorTurn?: TutorTurn
 }>
 
 export type LessonPromptManifest = Readonly<{
@@ -689,4 +693,3 @@ export const normalizeLessonStartDraft = (draft: LessonStartDraft): NormalizedLe
     },
   }
 }
-import { LESSON_PACES, type LessonPace, type LessonTutorSnapshot } from './learning-settings'

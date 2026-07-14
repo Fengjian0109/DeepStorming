@@ -47,6 +47,7 @@ import type {
 } from './provider-ports'
 import { toProviderProfile } from './provider-use-cases'
 import type { LearningSettingsRepositoryPort } from './learning-settings-ports'
+import { parseTutorTurnCandidate, TutorTurnValidationError } from './tutor-turn-validation'
 
 export type LessonUseCaseErrorCode =
   | 'LESSON_VALIDATION_FAILED'
@@ -58,6 +59,7 @@ export type LessonUseCaseErrorCode =
   | 'INTERNAL_ERROR'
   | 'AI_PROVIDER_REQUIRED'
   | 'LESSON_TUTOR_NOT_FOUND'
+  | 'AI_GENERATION_FAILED'
 
 export class LessonUseCaseError extends Error {
   public constructor(
@@ -269,6 +271,13 @@ const tutorNotFoundError = (): LessonUseCaseError =>
     'LESSON_TUTOR_NOT_FOUND',
     'The selected tutor is unavailable. Choose an active tutor and try again.',
     false,
+  )
+
+const aiGenerationFailedError = (): LessonUseCaseError =>
+  new LessonUseCaseError(
+    'AI_GENERATION_FAILED',
+    'The AI returned an invalid structured tutor response after one repair attempt.',
+    true,
   )
 
 const resolveLessonConfiguration = async (
@@ -984,6 +993,7 @@ export class StartLessonFromDocument {
           promptVersion:
             draft.lessonMode === 'paper' ? PAPER_TUTOR_PROMPT_VERSION : MOCK_TUTOR_PROMPT_VERSION,
           createdAt,
+          ...(firstQuestion.tutorTurn === undefined ? {} : { tutorTurn: firstQuestion.tutorTurn }),
         },
       ],
       modelRuns: [
@@ -1229,6 +1239,7 @@ export class SubmitLessonReply {
               ? PAPER_TUTOR_FOLLOW_UP_PROMPT_VERSION
               : MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION,
           createdAt,
+          ...(tutorReply.tutorTurn === undefined ? {} : { tutorTurn: tutorReply.tutorTurn }),
         },
       ],
       modelRuns: pending.modelRuns.map((run) =>
@@ -1430,6 +1441,7 @@ export class RetryLessonRun {
               ? PAPER_TUTOR_FOLLOW_UP_PROMPT_VERSION
               : MOCK_TUTOR_FOLLOW_UP_PROMPT_VERSION,
           createdAt,
+          ...(tutorReply.tutorTurn === undefined ? {} : { tutorTurn: tutorReply.tutorTurn }),
         },
       ],
       modelRuns: pending.modelRuns.map((run) =>
@@ -1583,35 +1595,44 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
     }
 
     const gateway = this.gatewayFactory.create(toProviderProfile(activeProvider))
-    const generated = await gateway.generateLessonTutorFirstQuestion(
-      apiKey === undefined
-        ? {
-            modelName: activeProvider.modelName,
-            documentTitle: input.documentTitle,
-            sourceSnippet: input.sourceSnippet,
-            lessonMode: input.lessonMode,
-            paperStage: input.paperStage,
-            contextChunks: input.contextChunks,
-            ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
-            ...(input.pace === undefined ? {} : { pace: input.pace }),
-          }
-        : {
-            modelName: activeProvider.modelName,
-            apiKey,
-            documentTitle: input.documentTitle,
-            sourceSnippet: input.sourceSnippet,
-            lessonMode: input.lessonMode,
-            paperStage: input.paperStage,
-            contextChunks: input.contextChunks,
-            ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
-            ...(input.pace === undefined ? {} : { pace: input.pace }),
-          },
-      token,
-    )
+    const request = {
+      modelName: activeProvider.modelName,
+      ...(apiKey === undefined ? {} : { apiKey }),
+      documentTitle: input.documentTitle,
+      sourceSnippet: input.sourceSnippet,
+      lessonMode: input.lessonMode,
+      paperStage: input.paperStage,
+      contextChunks: input.contextChunks,
+      ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
+      ...(input.pace === undefined ? {} : { pace: input.pace }),
+    }
+    const generated = await gateway.generateLessonTutorFirstQuestion(request, token)
+    let tutorTurn
+    try {
+      tutorTurn = parseTutorTurnCandidate(generated.content, {
+        contextChunks: input.contextChunks,
+        allowedFigureIds: [],
+      })
+    } catch (error) {
+      if (!(error instanceof TutorTurnValidationError)) throw error
+      const repaired = await gateway.generateLessonTutorFirstQuestion(
+        { ...request, repair: { reason: 'Tutor turn failed validation.' } },
+        token,
+      )
+      try {
+        tutorTurn = parseTutorTurnCandidate(repaired.content, {
+          contextChunks: input.contextChunks,
+          allowedFigureIds: [],
+        })
+      } catch {
+        throw aiGenerationFailedError()
+      }
+    }
     return {
-      content: generated.content,
+      content: tutorTurn.responseMarkdown,
       providerId: activeProvider.id,
       modelName: activeProvider.modelName,
+      tutorTurn,
     }
   }
 
@@ -1640,37 +1661,45 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
     }
 
     const gateway = this.gatewayFactory.create(toProviderProfile(activeProvider))
-    const generated = await gateway.generateLessonTutorReply(
-      apiKey === undefined
-        ? {
-            modelName: activeProvider.modelName,
-            documentTitle: input.documentTitle,
-            sourceSnippet: input.sourceSnippet,
-            lessonMode: input.lessonMode,
-            paperStage: input.paperStage,
-            contextChunks: input.contextChunks,
-            learnerReply: input.learnerReply,
-            ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
-            ...(input.pace === undefined ? {} : { pace: input.pace }),
-          }
-        : {
-            modelName: activeProvider.modelName,
-            apiKey,
-            documentTitle: input.documentTitle,
-            sourceSnippet: input.sourceSnippet,
-            lessonMode: input.lessonMode,
-            paperStage: input.paperStage,
-            contextChunks: input.contextChunks,
-            learnerReply: input.learnerReply,
-            ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
-            ...(input.pace === undefined ? {} : { pace: input.pace }),
-          },
-      token,
-    )
+    const request = {
+      modelName: activeProvider.modelName,
+      ...(apiKey === undefined ? {} : { apiKey }),
+      documentTitle: input.documentTitle,
+      sourceSnippet: input.sourceSnippet,
+      lessonMode: input.lessonMode,
+      paperStage: input.paperStage,
+      contextChunks: input.contextChunks,
+      learnerReply: input.learnerReply,
+      ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
+      ...(input.pace === undefined ? {} : { pace: input.pace }),
+    }
+    const generated = await gateway.generateLessonTutorReply(request, token)
+    let tutorTurn
+    try {
+      tutorTurn = parseTutorTurnCandidate(generated.content, {
+        contextChunks: input.contextChunks,
+        allowedFigureIds: [],
+      })
+    } catch (error) {
+      if (!(error instanceof TutorTurnValidationError)) throw error
+      const repaired = await gateway.generateLessonTutorReply(
+        { ...request, repair: { reason: 'Tutor turn failed validation.' } },
+        token,
+      )
+      try {
+        tutorTurn = parseTutorTurnCandidate(repaired.content, {
+          contextChunks: input.contextChunks,
+          allowedFigureIds: [],
+        })
+      } catch {
+        throw aiGenerationFailedError()
+      }
+    }
     return {
-      content: generated.content,
+      content: tutorTurn.responseMarkdown,
       providerId: activeProvider.id,
       modelName: activeProvider.modelName,
+      tutorTurn,
     }
   }
 }

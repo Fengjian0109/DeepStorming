@@ -36,6 +36,12 @@ const session = (overrides: Partial<StoredLessonSession> = {}): StoredLessonSess
       sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
       promptVersion: 'mock-tutor-v1',
       createdAt: '2026-07-11T00:00:00.000Z',
+      tutorTurn: {
+        narration: '她圈出了证据。',
+        responseMarkdown: '你觉得它想解决的核心问题是什么？',
+        citations: [],
+        figureReferences: [],
+      },
     },
   ],
   modelRuns: [

@@ -2,8 +2,19 @@
 
 - 更新时间：2026-07-14
 - 当前分支：`codex/all-stages`
-- 当前阶段：AI-first workspace redesign — Stage 2 AI-only settings and lesson binding
-- 状态：Stage 1 已完成；Stage 2 的设置中心、严格 AI-only 契约、导师快照与三档课堂节奏已实现，正在进入后续富对话、课程生命周期与上下文压缩阶段
+- 当前阶段：AI-first workspace redesign — Stage 3 rich conversation
+- 状态：Stage 1–2 已完成；Stage 3 的结构化导师回复、单次修复与持久化已完成，正在推进 Markdown/LaTeX、引用卡片和 PDF 图片管线
+
+## AI-first workspace redesign — Stage 3
+
+已完成的结构化回复基础：
+
+- AI 必须返回严格 `TutorTurn` JSON：动作描写、Markdown 正文、可验证文本引用和图片引用彼此分离。
+- Application 校验字段、引用 chunk 归属及逐字 quote；首次无效时只允许同一 Provider 修复一次，第二次失败返回可重试的 `AI_GENERATION_FAILED`，不把无效内容写成导师消息。
+- TutorTurn 通过 Contracts、Domain 与 SQLite `tutor_turn_json` 持久化，同时保留 `content` 兼容旧消息。
+- Migration 18 为历史课堂保持可读，新消息可恢复完整结构化显示数据。
+
+进行中：安全 Markdown/GFM 与 LaTeX 渲染、强调引用、PDF 图片提取和对话图片卡片。
 
 ## AI-first workspace redesign — Stage 2
 

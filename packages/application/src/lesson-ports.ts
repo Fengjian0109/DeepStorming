@@ -16,6 +16,7 @@ import type {
   ReviewEvent,
   ReviewItem,
   TutorActionType,
+  TutorTurn,
 } from '@deepstorming/domain'
 import type { StoredDocumentTextBlock } from './document-ports'
 import type { CancellationToken } from './provider-ports'
@@ -90,6 +91,7 @@ export type LessonTutorReplyResult = Readonly<{
   actionType?: TutorActionType
   stateAfter?: LessonState
   rationale?: string
+  tutorTurn?: TutorTurn
 }>
 
 export type LessonTutorContextChunk = Readonly<{

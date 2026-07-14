@@ -378,6 +378,19 @@ type RetrievedEvidence = {
 
 课堂生成为严格 AI-only：Application 在没有激活 Provider 时返回稳定错误，不提供隐式本地教学回退。Mock Provider 仍是一个显式 Provider Adapter，只用于开发与自动化测试。
 
+Provider 的可显示结果使用严格 `TutorTurn` 信封，而不是从自由文本猜测动作、引用或图片：
+
+```ts
+type TutorTurn = {
+  narration: string | null
+  responseMarkdown: string
+  citations: { chunkId: string; quote: string; rationale: string }[]
+  figureReferences: { figureId: string; rationale: string }[]
+}
+```
+
+Application 必须校验 JSON 结构、引用 chunk 是否属于本次检索上下文，以及 quote 是否逐字存在于该 chunk。第一次失败时可向同一 Provider 发起一次带固定修复说明的重试；第二次仍无效则以 `AI_GENERATION_FAILED` 结束本轮，不持久化无效导师消息或学习诊断。
+
 ### 12.2 TutorAction
 
 ```ts

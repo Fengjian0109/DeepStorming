@@ -72,6 +72,7 @@ test('applies migration two and creates document tables', async () => {
     { version: 15, name: 'paper_lesson_metadata' },
     { version: 16, name: 'learning_settings' },
     { version: 17, name: 'lesson_tutor_configuration' },
+    { version: 18, name: 'structured_tutor_turn' },
   ])
 
   db.close()
@@ -111,6 +112,7 @@ test('applies migrations three and four and creates lesson tables', async () => 
     { version: 15, name: 'paper_lesson_metadata' },
     { version: 16, name: 'learning_settings' },
     { version: 17, name: 'lesson_tutor_configuration' },
+    { version: 18, name: 'structured_tutor_turn' },
   ])
   const columns = db.prepare('PRAGMA table_info(lesson_model_runs)').all() as Array<{
     name: string
@@ -143,6 +145,10 @@ test('applies migrations three and four and creates lesson tables', async () => 
       'tutor_snapshot_json',
     ]),
   )
+  const messageColumns = db.prepare("PRAGMA table_info('lesson_messages')").all() as Array<{
+    name: string
+  }>
+  expect(messageColumns.map((column) => column.name)).toContain('tutor_turn_json')
   const stepColumns = db.prepare("PRAGMA table_info('lesson_steps')").all() as Array<{
     name: string
   }>
@@ -185,8 +191,8 @@ test('applies migrations through learning settings and creates review scheduler 
   await migrateDatabase(db, { databasePath: path, userDataPath: dir })
 
   expect(MIGRATIONS.at(-1)).toMatchObject({
-    version: 17,
-    name: 'lesson_tutor_configuration',
+    version: 18,
+    name: 'structured_tutor_turn',
   })
   const tables = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -352,8 +358,8 @@ test('enforces lesson mastery evidence migration constraints', async () => {
   await migrateDatabase(db, { databasePath: path, userDataPath: dir })
 
   expect(MIGRATIONS.at(-1)).toMatchObject({
-    version: 17,
-    name: 'lesson_tutor_configuration',
+    version: 18,
+    name: 'structured_tutor_turn',
   })
   db.prepare(
     `INSERT INTO learning_documents
@@ -499,7 +505,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 18, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 19, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })
@@ -629,7 +635,7 @@ test('upgrades a database with published v10 chunks to add v11 fts sync triggers
 
   expect(
     db.prepare('SELECT version,name FROM schema_migrations ORDER BY version DESC LIMIT 1').get(),
-  ).toEqual({ version: 17, name: 'lesson_tutor_configuration' })
+  ).toEqual({ version: 18, name: 'structured_tutor_turn' })
   const triggers = db
     .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='document_chunks'")
     .all() as Array<{ name: string }>

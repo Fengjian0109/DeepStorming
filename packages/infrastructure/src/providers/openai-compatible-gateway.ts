@@ -99,6 +99,7 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
       lessonMode?: 'standard' | 'paper'
       tutorSnapshot?: LessonTutorSnapshot
       pace?: LessonPace
+      repair?: Readonly<{ reason: string }>
     }>,
     token: CancellationToken,
   ): Promise<Readonly<{ content: string }>> {
@@ -108,13 +109,13 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
         ? {
             modelName: input.modelName,
             messages: lessonTutorMessages(input),
-            maxTokens: 220,
+            maxTokens: 800,
           }
         : {
             modelName: input.modelName,
             apiKey: input.apiKey,
             messages: lessonTutorMessages(input),
-            maxTokens: 220,
+            maxTokens: 800,
           }
     const body = await this.postChatCompletion(
       request,
@@ -150,6 +151,7 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
       lessonMode?: 'standard' | 'paper'
       tutorSnapshot?: LessonTutorSnapshot
       pace?: LessonPace
+      repair?: Readonly<{ reason: string }>
     }>,
     token: CancellationToken,
   ): Promise<Readonly<{ content: string }>> {
@@ -159,13 +161,13 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
         ? {
             modelName: input.modelName,
             messages: lessonTutorFirstQuestionMessages(input),
-            maxTokens: 220,
+            maxTokens: 800,
           }
         : {
             modelName: input.modelName,
             apiKey: input.apiKey,
             messages: lessonTutorFirstQuestionMessages(input),
-            maxTokens: 220,
+            maxTokens: 800,
           }
     const body = await this.postChatCompletion(
       request,
@@ -360,6 +362,18 @@ const tutorSystemInstruction = (
     .join('\n')
 }
 
+const structuredTutorOutputInstruction = (repair?: Readonly<{ reason: string }>): string =>
+  [
+    '仅输出一个 JSON 对象，不要使用 Markdown 代码栅。字段必须且只能是 narration、responseMarkdown、citations、figureReferences。',
+    'narration 是简短动作描写或 null；responseMarkdown 是对学习者展示的 Markdown/LaTeX 正文。',
+    'citations 是 {chunkId,quote,rationale} 数组，quote 必须逐字来自对应上下文；figureReferences 是 {figureId,rationale} 数组。没有可验证项时使用空数组。',
+    repair === undefined
+      ? ''
+      : `上一次输出无效：${repair.reason}这是唯一一次修复机会，请严格返回合法 JSON。`,
+  ]
+    .filter((line) => line.length > 0)
+    .join('\n')
+
 const lessonTutorFirstQuestionMessages = (input: {
   readonly documentTitle: string
   readonly sourceSnippet: string
@@ -373,13 +387,14 @@ const lessonTutorFirstQuestionMessages = (input: {
   readonly lessonMode?: 'standard' | 'paper'
   readonly tutorSnapshot?: LessonTutorSnapshot
   readonly pace?: LessonPace
+  readonly repair?: Readonly<{ reason: string }>
 }): readonly Readonly<{ role: 'system' | 'user'; content: string }>[] => [
   {
     role: 'system',
-    content: tutorSystemInstruction(
+    content: `${tutorSystemInstruction(
       input,
       '只基于用户提供的证据片段和扩展上下文提出开场问题，不编造来源。',
-    ),
+    )}\n${structuredTutorOutputInstruction(input.repair)}`,
   },
   {
     role: 'user',
@@ -401,13 +416,14 @@ const lessonTutorMessages = (input: {
   readonly lessonMode?: 'standard' | 'paper'
   readonly tutorSnapshot?: LessonTutorSnapshot
   readonly pace?: LessonPace
+  readonly repair?: Readonly<{ reason: string }>
 }): readonly Readonly<{ role: 'system' | 'user'; content: string }>[] => [
   {
     role: 'system',
-    content: tutorSystemInstruction(
+    content: `${tutorSystemInstruction(
       input,
       '只基于用户提供的证据片段、扩展上下文和学习者回答继续追问，不编造来源。',
-    ),
+    )}\n${structuredTutorOutputInstruction(input.repair)}`,
   },
   {
     role: 'user',

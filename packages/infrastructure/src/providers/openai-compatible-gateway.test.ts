@@ -217,7 +217,7 @@ test('posts lesson tutor prompt and returns first assistant message content', as
       {
         role: 'system',
         content:
-          '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段、扩展上下文和学习者回答继续追问，不编造来源。',
+          '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段、扩展上下文和学习者回答继续追问，不编造来源。\n仅输出一个 JSON 对象，不要使用 Markdown 代码栅。字段必须且只能是 narration、responseMarkdown、citations、figureReferences。\nnarration 是简短动作描写或 null；responseMarkdown 是对学习者展示的 Markdown/LaTeX 正文。\ncitations 是 {chunkId,quote,rationale} 数组，quote 必须逐字来自对应上下文；figureReferences 是 {figureId,rationale} 数组。没有可验证项时使用空数组。',
       },
       {
         role: 'user',
@@ -225,7 +225,7 @@ test('posts lesson tutor prompt and returns first assistant message content', as
           '文档：Research Notes\n证据片段：Evidence\n扩展上下文：\n1. [1-1] Prior context\n学习者回答：它在说明证据如何支撑判断。\n请用中文提出一个简短追问，帮助学习者验证自己的判断。',
       },
     ],
-    max_tokens: 220,
+    max_tokens: 800,
     stream: false,
   })
 })
@@ -304,7 +304,7 @@ test('posts first-question tutor prompt with chunk context', async () => {
       {
         role: 'system',
         content:
-          '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段和扩展上下文提出开场问题，不编造来源。',
+          '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段和扩展上下文提出开场问题，不编造来源。\n仅输出一个 JSON 对象，不要使用 Markdown 代码栅。字段必须且只能是 narration、responseMarkdown、citations、figureReferences。\nnarration 是简短动作描写或 null；responseMarkdown 是对学习者展示的 Markdown/LaTeX 正文。\ncitations 是 {chunkId,quote,rationale} 数组，quote 必须逐字来自对应上下文；figureReferences 是 {figureId,rationale} 数组。没有可验证项时使用空数组。',
       },
       {
         role: 'user',
@@ -312,9 +312,32 @@ test('posts first-question tutor prompt with chunk context', async () => {
           '文档：Research Notes\n证据片段：Evidence\n扩展上下文：\n1. [1-1] Prior context\n请用中文提出一个简短开场问题，帮助学习者先判断这段证据想解决的核心问题。',
       },
     ],
-    max_tokens: 220,
+    max_tokens: 800,
     stream: false,
   })
+})
+
+test('marks a structured tutor retry as the only repair attempt', async () => {
+  await startServer((_request, response) => {
+    response.setHeader('content-type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: '{}' } }] }))
+  })
+
+  await new OpenAICompatibleGateway(baseUrl).generateLessonTutorReply(
+    {
+      modelName: 'model-a',
+      documentTitle: 'Research Notes',
+      sourceSnippet: 'Evidence',
+      contextChunks: [],
+      learnerReply: '我的判断。',
+      repair: { reason: 'Tutor turn failed validation. ' },
+    },
+    liveToken(),
+  )
+
+  const systemPrompt = JSON.parse(requests[0]?.body ?? '{}').messages[0].content as string
+  expect(systemPrompt).toContain('上一次输出无效：Tutor turn failed validation.')
+  expect(systemPrompt).toContain('这是唯一一次修复机会')
 })
 
 test('rejects empty lesson tutor content as invalid provider response', async () => {

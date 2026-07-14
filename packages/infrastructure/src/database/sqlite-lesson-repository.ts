@@ -10,7 +10,12 @@ import type {
   StoredLessonSession,
   StoredLessonSourceAnchor,
 } from '@deepstorming/application'
-import type { LessonPace, LessonSourceTarget, LessonTutorSnapshot } from '@deepstorming/domain'
+import type {
+  LessonPace,
+  LessonSourceTarget,
+  LessonTutorSnapshot,
+  TutorTurn,
+} from '@deepstorming/domain'
 import { databaseError, type SqliteDatabase } from './database'
 
 type LessonRow = {
@@ -48,6 +53,7 @@ type MessageRow = {
   prompt_version: string
   message_index: number
   created_at: string
+  tutor_turn_json: string | null
 }
 
 type ModelRunRow = {
@@ -167,6 +173,9 @@ const mapMessage = (row: MessageRow): StoredLessonMessage => ({
   sourceAnchorIds: parseSourceAnchorIds(row.source_anchor_ids_json),
   promptVersion: row.prompt_version,
   createdAt: row.created_at,
+  ...(row.tutor_turn_json === null
+    ? {}
+    : { tutorTurn: parseJsonObject<TutorTurn>(row.tutor_turn_json) }),
 })
 
 const mapModelRun = (row: ModelRunRow): StoredLessonModelRun => ({
@@ -631,7 +640,9 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
           )
         }
         const insertMessage = this.db.prepare(
-          'INSERT INTO lesson_messages VALUES (?,?,?,?,?,?,?,?,?)',
+          `INSERT INTO lesson_messages
+           (id,lesson_id,role,content,source_anchor_ids_json,prompt_version,message_index,created_at,model_run_id,tutor_turn_json)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
         )
         session.messages.forEach((message, index) => {
           insertMessage.run(
@@ -644,6 +655,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             index,
             message.createdAt,
             message.modelRunId,
+            message.tutorTurn === undefined ? null : JSON.stringify(message.tutorTurn),
           )
         })
         const insertModelRun = this.db.prepare(
@@ -726,7 +738,9 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
         this.db.prepare('DELETE FROM lesson_messages WHERE lesson_id=?').run(session.id)
 
         const insertMessage = this.db.prepare(
-          'INSERT INTO lesson_messages VALUES (?,?,?,?,?,?,?,?,?)',
+          `INSERT INTO lesson_messages
+           (id,lesson_id,role,content,source_anchor_ids_json,prompt_version,message_index,created_at,model_run_id,tutor_turn_json)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
         )
         session.messages.forEach((message, index) => {
           insertMessage.run(
@@ -739,6 +753,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             index,
             message.createdAt,
             message.modelRunId,
+            message.tutorTurn === undefined ? null : JSON.stringify(message.tutorTurn),
           )
         })
 

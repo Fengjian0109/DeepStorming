@@ -63,8 +63,13 @@ test('generates deterministic lesson tutor replies from source evidence and lear
       liveToken(),
     ),
   ).resolves.toEqual({
-    content:
-      '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“Prior context”。下一步你会如何验证这个判断？',
+    content: JSON.stringify({
+      narration: null,
+      responseMarkdown:
+        '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“Prior context”。下一步你会如何验证这个判断？',
+      citations: [],
+      figureReferences: [],
+    }),
   })
 })
 
@@ -115,7 +120,12 @@ test('generates deterministic first questions from source evidence and chunk con
       liveToken(),
     ),
   ).resolves.toEqual({
-    content:
-      '我们先从《Research Notes》的这段证据开始：Evidence\n\n结合这些上下文片段，你觉得它想解决的核心问题是什么？',
+    content: JSON.stringify({
+      narration: null,
+      responseMarkdown:
+        '我们先从《Research Notes》的这段证据开始：Evidence\n\n结合这些上下文片段，你觉得它想解决的核心问题是什么？',
+      citations: [],
+      figureReferences: [],
+    }),
   })
 })
