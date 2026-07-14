@@ -286,7 +286,11 @@ describe('DocumentLibrary', () => {
       originalName: 'paper.pdf',
     })
     expect(await screen.findByRole('heading', { name: 'paper' })).toBeTruthy()
-    expect(await screen.findByText('PDF body')).toBeTruthy()
+    expect(window.deepstorming.documents.getPages).not.toHaveBeenCalled()
+    expect(screen.queryByText('PDF 页面 1')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: '打开阅读器' }))
+
     expect(await screen.findByText('PDF 页面 1')).toBeTruthy()
     expect(await screen.findByText('Block 1 · PDF body')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '选择 Block 1' }))
@@ -306,6 +310,31 @@ describe('DocumentLibrary', () => {
         },
       },
     })
+  })
+
+  it('does not mount full text or load PDF pages until the reader is opened', async () => {
+    const longText = '知识'.repeat(800) + '完整正文末尾'
+    window.deepstorming.documents.list = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [{ ...document, characterCount: longText.length }],
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.documents.get = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { ...document, characterCount: longText.length, plainText: longText },
+      requestId: crypto.randomUUID(),
+    })
+
+    const user = userEvent.setup()
+    render(<DocumentLibrary />)
+    await user.click(await screen.findByRole('button', { name: '打开文档：Notes' }))
+
+    expect(screen.queryByText(longText)).toBeNull()
+    expect(window.deepstorming.documents.getPages).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '打开阅读器' }))
+    expect(await screen.findByText(longText)).toBeTruthy()
+    expect(window.deepstorming.documents.getPages).not.toHaveBeenCalled()
   })
 
   it('shows a safe PDF import error', async () => {
@@ -350,7 +379,8 @@ describe('DocumentLibrary', () => {
     })
     const user = userEvent.setup()
     render(<DocumentLibrary />)
-    await user.click(await screen.findByRole('button', { name: '删除 Notes' }))
+    await user.click(await screen.findByRole('button', { name: '打开文档：Notes' }))
+    await user.click(await screen.findByRole('button', { name: '删除文档' }))
     expect(await screen.findByRole('dialog', { name: '确认删除文档' })).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '确认删除' }))
     await waitFor(() =>
@@ -407,7 +437,7 @@ describe('DocumentLibrary', () => {
     const user = userEvent.setup()
     render(<DocumentLibrary />)
 
-    await user.click((await screen.findAllByRole('button', { name: '查看详情' }))[0]!)
+    await user.click(await screen.findByRole('button', { name: '打开文档：Notes' }))
     firstDetail.resolve({
       ok: true,
       data: { ...document, plainText: 'first body' },
@@ -416,7 +446,7 @@ describe('DocumentLibrary', () => {
 
     expect(await screen.findByText('first body')).toBeTruthy()
 
-    await user.click((await screen.findAllByRole('button', { name: '查看详情' }))[1]!)
+    await user.click(await screen.findByRole('button', { name: '打开文档：Draft 2' }))
 
     await waitFor(() => expect(screen.queryByText('first body')).toBeNull())
     expect(screen.getByText('正在加载文档详情…')).toBeTruthy()
@@ -429,7 +459,7 @@ describe('DocumentLibrary', () => {
 
     expect((await screen.findByRole('alert')).textContent).toContain('文档详情加载失败。')
     expect(screen.queryByText('first body')).toBeNull()
-    expect(screen.getByText('选择一篇文档后可查看正文。')).toBeTruthy()
+    expect(screen.getByText('选择一篇文档后可查看摘要。')).toBeTruthy()
   })
 
   it('shows a stable error when file reading fails', async () => {
@@ -515,6 +545,7 @@ describe('DocumentLibrary', () => {
       documentType: 'paper' as const,
       sourceKind: 'text_file' as const,
       title: 'Evidence PDF',
+      originalFileName: 'evidence.pdf',
     }
     window.deepstorming.documents.list = vi.fn().mockResolvedValue({
       ok: true,
@@ -576,10 +607,14 @@ describe('DocumentLibrary', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Evidence PDF', level: 2 })).toBeTruthy()
-    expect(globalThis.document.querySelector('.pdf-block-active')?.textContent).toContain('Block 1')
+    await waitFor(() =>
+      expect(globalThis.document.querySelector('.pdf-block-active')?.textContent).toContain(
+        'Block 1',
+      ),
+    )
     expect(onFocusConsumed).toHaveBeenCalledTimes(1)
 
-    await user.click((await screen.findAllByRole('button', { name: '查看详情' }))[1]!)
+    await user.click(await screen.findByRole('button', { name: '打开文档：Draft 2' }))
     expect(await screen.findByRole('heading', { name: 'Draft 2', level: 2 })).toBeTruthy()
 
     rerender(<DocumentLibrary focusTarget={undefined} onFocusConsumed={onFocusConsumed} />)
@@ -588,7 +623,11 @@ describe('DocumentLibrary', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Evidence PDF', level: 2 })).toBeTruthy(),
     )
-    expect(globalThis.document.querySelector('.pdf-block-active')?.textContent).toContain('Block 1')
+    await waitFor(() =>
+      expect(globalThis.document.querySelector('.pdf-block-active')?.textContent).toContain(
+        'Block 1',
+      ),
+    )
     expect(onFocusConsumed).toHaveBeenCalledTimes(2)
   })
 })

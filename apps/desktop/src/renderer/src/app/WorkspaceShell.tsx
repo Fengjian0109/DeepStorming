@@ -34,12 +34,13 @@ type DragState = Readonly<{
   startLayout: WorkspaceLayout
 }>
 
-const ContextualRootContext = createContext<HTMLElement | null>(null)
+const ContextualRootContext = createContext<HTMLElement | null | undefined>(undefined)
 
 export const WorkspaceContextual = ({
   children,
-}: Readonly<{ children: React.ReactNode }>): React.ReactPortal | null => {
+}: Readonly<{ children: React.ReactNode }>): React.ReactPortal | React.JSX.Element | null => {
   const root = useContext(ContextualRootContext)
+  if (root === undefined) return <>{children}</>
   return root === null ? null : createPortal(children, root)
 }
 
