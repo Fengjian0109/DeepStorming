@@ -25,6 +25,7 @@ export const appErrorCodeSchema = z.enum([
   'LAST_TUTOR_REQUIRED',
   'AVATAR_IMPORT_FAILED',
   'AI_PROVIDER_REQUIRED',
+  'LESSON_TUTOR_NOT_FOUND',
 ])
 
 export type AppErrorCode = z.infer<typeof appErrorCodeSchema>

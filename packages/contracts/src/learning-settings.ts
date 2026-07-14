@@ -48,6 +48,14 @@ export const tutorProfileSchema = tutorProfileDraftSchema
   })
   .strict()
 
+export const lessonTutorSnapshotSchema = tutorProfileDraftSchema
+  .extend({
+    tutorProfileId: z.string().uuid(),
+    tutorProfileRevision: z.number().int().positive(),
+    promptVersion: requiredTextSchema,
+  })
+  .strict()
+
 export const userProfileDraftSchema = z
   .object({
     displayName: requiredTextSchema,

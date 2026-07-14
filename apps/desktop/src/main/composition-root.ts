@@ -166,6 +166,7 @@ export const createCompositionRoot = async (
         documentImportRepository,
         assembleLessonContext,
         lessonTutorReplyGenerator,
+        learningSettingsRepository,
       ),
       getLessonSession: new GetLessonSession(lessonRepository),
       submitLessonReply: new SubmitLessonReply(

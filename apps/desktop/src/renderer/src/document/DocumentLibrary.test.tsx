@@ -27,6 +27,40 @@ const documentTwo = {
   updatedAt: '2026-07-11T00:00:00.000Z',
 }
 
+const tutorId = '00000000-0000-4000-8000-000000000601'
+const learningSettings = {
+  userProfile: { displayName: '学习者', revision: 1, updatedAt: '2026-07-11T00:00:00.000Z' },
+  tutorProfiles: [
+    {
+      id: tutorId,
+      revision: 1,
+      status: 'active' as const,
+      name: '苏格拉底导师',
+      personality: '耐心、好奇',
+      tone: '清晰、温和',
+      expertiseTags: ['通识学习'],
+      strictness: 3,
+      socraticIntensity: 4,
+      guidanceStyle: 'question_first' as const,
+      bookStrategy: '逐层追问',
+      paperStrategy: '检验论证',
+      customInstructions: '',
+      promptVersion: 'tutor-profile-v1',
+      createdAt: '2026-07-11T00:00:00.000Z',
+      updatedAt: '2026-07-11T00:00:00.000Z',
+    },
+  ],
+  classroomPreferences: {
+    defaultBookTutorId: tutorId,
+    defaultPaperTutorId: tutorId,
+    defaultPace: 'standard' as const,
+    sendShortcut: 'enter' as const,
+    autoScroll: true,
+    contextCompressionRemainingPercent: 30,
+    recentTurnCount: 8,
+  },
+}
+
 const lessonSession = {
   id: '00000000-0000-4000-8000-000000000101',
   title: 'Notes 课堂',
@@ -148,6 +182,13 @@ beforeEach(() => {
       retryRun: vi.fn(),
       cancelRun: vi.fn(),
       recordReview: vi.fn(),
+    },
+    learningSettings: {
+      get: vi.fn().mockResolvedValue({
+        ok: true,
+        data: learningSettings,
+        requestId: crypto.randomUUID(),
+      }),
     },
     provider: {
       list: vi.fn(),
@@ -295,9 +336,13 @@ describe('DocumentLibrary', () => {
     expect(await screen.findByText('Block 1 · PDF body')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '选择 Block 1' }))
     await user.click(screen.getByRole('button', { name: '用此 block 开始课堂' }))
+    expect(await screen.findByRole('dialog', { name: '课堂准备' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '进入课堂' }))
     expect(window.deepstorming.lessons.startFromDocument).toHaveBeenCalledWith({
       documentId: pdfDocument.id,
       documentTitle: 'paper',
+      tutorProfileId: tutorId,
+      pace: 'standard',
       source: {
         startOffset: 0,
         endOffset: 8,
@@ -524,10 +569,15 @@ describe('DocumentLibrary', () => {
     await user.click(screen.getByRole('button', { name: '保存文档' }))
 
     await user.click(await screen.findByRole('button', { name: '开始课堂' }))
+    expect(await screen.findByRole('dialog', { name: '课堂准备' })).toBeTruthy()
+    await user.click(screen.getByLabelText('慢：一步一确认'))
+    await user.click(screen.getByRole('button', { name: '进入课堂' }))
 
     expect(window.deepstorming.lessons.startFromDocument).toHaveBeenCalledWith({
       documentId: document.id,
       documentTitle: 'Notes',
+      tutorProfileId: tutorId,
+      pace: 'slow',
       source: {
         startOffset: 0,
         endOffset: 4,

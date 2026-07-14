@@ -1,4 +1,10 @@
-import type { PaperReadingStage, ProviderProfile, ProviderTestStatus } from '@deepstorming/domain'
+import type {
+  LessonPace,
+  LessonTutorSnapshot,
+  PaperReadingStage,
+  ProviderProfile,
+  ProviderTestStatus,
+} from '@deepstorming/domain'
 export type { ClockPort, IdGeneratorPort } from './document-ports'
 
 export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & {
@@ -122,6 +128,8 @@ export interface ProviderGatewayPort {
         pageNumberEnd: number
         charCount: number
       }>[]
+      tutorSnapshot?: LessonTutorSnapshot
+      pace?: LessonPace
     }>,
     token: CancellationToken,
   ): Promise<Readonly<{ content: string }>>
@@ -141,6 +149,8 @@ export interface ProviderGatewayPort {
         charCount: number
       }>[]
       learnerReply: string
+      tutorSnapshot?: LessonTutorSnapshot
+      pace?: LessonPace
     }>,
     token: CancellationToken,
   ): Promise<Readonly<{ content: string }>>

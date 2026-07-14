@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { appErrorCodeSchema, appErrorDetailsSchema } from './app-result'
+import { lessonPaceSchema, lessonTutorSnapshotSchema } from './learning-settings'
 
 export const LESSON_CHANNELS = {
   list: 'lessons:list',
@@ -289,6 +290,8 @@ export const lessonSessionSchema = z
     reviewEvents: z.array(lessonReviewEventSchema),
     lessonMode: lessonModeSchema.default('standard'),
     paperProfile: paperLessonProfileSchema.nullable().default(null),
+    tutorSnapshot: lessonTutorSnapshotSchema.optional(),
+    pace: lessonPaceSchema.optional(),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -300,6 +303,8 @@ export const lessonStartDraftSchema = z
     documentTitle: requiredTextSchema,
     title: requiredTextSchema.optional(),
     lessonMode: lessonModeSchema.optional(),
+    tutorProfileId: z.string().uuid().optional(),
+    pace: lessonPaceSchema.optional(),
     source: z
       .object({
         startOffset: z.number().int().nonnegative(),
@@ -344,6 +349,7 @@ export const lessonBusinessErrorCodeSchema = z.enum([
   'LESSON_DOCUMENT_NOT_FOUND',
   'LESSON_SOURCE_NOT_FOUND',
   'LESSON_NOT_FOUND',
+  'LESSON_TUTOR_NOT_FOUND',
 ])
 
 const lessonSharedErrorCodeSchema = appErrorCodeSchema.extract([

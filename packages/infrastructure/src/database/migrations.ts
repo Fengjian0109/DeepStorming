@@ -353,6 +353,10 @@ CREATE TABLE classroom_preferences (
  recent_turn_count INTEGER NOT NULL CHECK (recent_turn_count BETWEEN 1 AND 50)
 );`
 
+const LESSON_TUTOR_CONFIGURATION_SQL = `
+ALTER TABLE lesson_sessions ADD COLUMN lesson_pace TEXT CHECK (lesson_pace IN ('slow','standard','fast'));
+ALTER TABLE lesson_sessions ADD COLUMN tutor_snapshot_json TEXT;`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -370,6 +374,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 14, name: 'lesson_review_scheduler', sql: LESSON_REVIEW_SCHEDULER_SQL },
   { version: 15, name: 'paper_lesson_metadata', sql: PAPER_LESSON_METADATA_SQL },
   { version: 16, name: 'learning_settings', sql: LEARNING_SETTINGS_SQL },
+  { version: 17, name: 'lesson_tutor_configuration', sql: LESSON_TUTOR_CONFIGURATION_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')

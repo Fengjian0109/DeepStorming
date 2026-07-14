@@ -85,15 +85,15 @@ describe('provider request contracts', () => {
     [cancelProviderTestRequestSchema, { requestId, operationId }],
   ] as const
 
-  it.each(requests)('accepts valid %s input', (schema, input) => {
+  it.each(requests)('accepts valid provider request input', (schema, input) => {
     expect(schema.safeParse(input).success).toBe(true)
   })
 
-  it.each(requests)('rejects unknown fields for %s', (schema, input) => {
+  it.each(requests)('rejects unknown provider request fields', (schema, input) => {
     expect(schema.safeParse({ ...input, unknown: true }).success).toBe(false)
   })
 
-  it.each(requests)('requires a UUID requestId for %s', (schema, input) => {
+  it.each(requests)('requires a UUID provider requestId', (schema, input) => {
     expect(schema.safeParse({ ...input, requestId: 'not-a-uuid' }).success).toBe(false)
   })
 
@@ -106,7 +106,7 @@ describe('provider request contracts', () => {
     [cancelProviderTestRequestSchema, { requestId, operationId: 'not-a-uuid' }],
   ] as const
 
-  it.each(requestsWithIdentifiers)('requires UUID identifiers for %s', (schema, input) => {
+  it.each(requestsWithIdentifiers)('requires UUID provider identifiers', (schema, input) => {
     expect(schema.safeParse(input).success).toBe(false)
   })
 
@@ -177,7 +177,7 @@ describe('provider result contracts', () => {
     ).toBe(true)
   })
 
-  it.each(resultSchemas)('accepts a valid failure result for %s', (schema) => {
+  it.each(resultSchemas)('accepts a valid provider failure result', (schema) => {
     expect(schema.safeParse(failureResult).success).toBe(true)
   })
 

@@ -58,6 +58,40 @@ describe('lesson domain', () => {
     ).toBe('paper')
   })
 
+  it('normalizes the selected tutor and lesson pace', () => {
+    expect(
+      normalizeLessonStartDraft({
+        documentId: '00000000-0000-4000-8000-000000000001',
+        documentTitle: 'Paper Map',
+        tutorProfileId: '00000000-0000-4000-8000-000000000201',
+        pace: 'slow',
+        source: { startOffset: 4, endOffset: 12, snippet: 'Evidence' },
+      }),
+    ).toMatchObject({
+      tutorProfileId: '00000000-0000-4000-8000-000000000201',
+      pace: 'slow',
+    })
+  })
+
+  it('rejects invalid tutor and pace selections', () => {
+    expect(() =>
+      normalizeLessonStartDraft({
+        documentId: '00000000-0000-4000-8000-000000000001',
+        documentTitle: 'Paper Map',
+        tutorProfileId: 'invalid',
+        source: { startOffset: 4, endOffset: 12, snippet: 'Evidence' },
+      }),
+    ).toThrow('Lesson tutor profile id is invalid')
+    expect(() =>
+      normalizeLessonStartDraft({
+        documentId: '00000000-0000-4000-8000-000000000001',
+        documentTitle: 'Paper Map',
+        pace: 'turbo' as 'fast',
+        source: { startOffset: 4, endOffset: 12, snippet: 'Evidence' },
+      }),
+    ).toThrow('Lesson pace is invalid')
+  })
+
   it('normalizes a pdf block target', () => {
     expect(
       normalizeLessonStartDraft({

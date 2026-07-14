@@ -87,6 +87,8 @@ export type LessonSession = Readonly<{
   reviewEvents: readonly ReviewEvent[]
   lessonMode: LessonMode
   paperProfile: PaperLessonProfile | null
+  tutorSnapshot?: LessonTutorSnapshot
+  pace?: LessonPace
   createdAt: string
   updatedAt: string
 }>
@@ -242,6 +244,8 @@ export type LessonStartDraft = Readonly<{
   documentTitle: string
   title?: string
   lessonMode?: LessonMode
+  tutorProfileId?: string
+  pace?: LessonPace
   source: Readonly<{
     startOffset: number
     endOffset: number
@@ -258,6 +262,8 @@ export type NormalizedLessonStartDraft = Readonly<{
   documentTitle: string
   title: string
   lessonMode: LessonMode
+  tutorProfileId?: string
+  pace?: LessonPace
   source: Readonly<{
     startOffset: number
     endOffset: number
@@ -648,6 +654,12 @@ export const normalizeLessonStartDraft = (draft: LessonStartDraft): NormalizedLe
       : normalizeNonBlank(draft.title, 'Lesson title must not be blank')
   const lessonMode = draft.lessonMode ?? 'standard'
   assertLessonMode(lessonMode)
+  if (draft.tutorProfileId !== undefined && !UUID.test(draft.tutorProfileId)) {
+    throw new Error('Lesson tutor profile id is invalid')
+  }
+  if (draft.pace !== undefined && !LESSON_PACES.includes(draft.pace)) {
+    throw new Error('Lesson pace is invalid')
+  }
 
   const target = draft.source.target ?? { kind: 'text_range' as const }
   if (target.kind === 'pdf_block') {
@@ -667,6 +679,8 @@ export const normalizeLessonStartDraft = (draft: LessonStartDraft): NormalizedLe
     documentTitle,
     title,
     lessonMode,
+    ...(draft.tutorProfileId === undefined ? {} : { tutorProfileId: draft.tutorProfileId }),
+    ...(draft.pace === undefined ? {} : { pace: draft.pace }),
     source: {
       startOffset: draft.source.startOffset,
       endOffset: draft.source.endOffset,
@@ -675,3 +689,4 @@ export const normalizeLessonStartDraft = (draft: LessonStartDraft): NormalizedLe
     },
   }
 }
+import { LESSON_PACES, type LessonPace, type LessonTutorSnapshot } from './learning-settings'

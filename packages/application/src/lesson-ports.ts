@@ -1,6 +1,8 @@
 import type {
   LessonMessage,
   LessonMode,
+  LessonPace,
+  LessonTutorSnapshot,
   LessonModelRun,
   LessonState,
   LessonStep,
@@ -52,6 +54,8 @@ export type StoredLessonSession = Readonly<{
   reviewEvents: readonly StoredReviewEvent[]
   lessonMode: LessonMode
   paperProfile: PaperLessonProfile | null
+  tutorSnapshot?: LessonTutorSnapshot
+  pace?: LessonPace
   createdAt: string
   updatedAt: string
 }>
@@ -65,6 +69,8 @@ export type LessonTutorReplyRequest = Readonly<{
   paperStage: PaperReadingStage | null
   contextChunks: readonly LessonTutorContextChunk[]
   learnerReply: string
+  tutorSnapshot?: LessonTutorSnapshot
+  pace?: LessonPace
 }>
 
 export type LessonTutorFirstQuestionRequest = Readonly<{
@@ -73,6 +79,8 @@ export type LessonTutorFirstQuestionRequest = Readonly<{
   lessonMode: LessonMode
   paperStage: PaperReadingStage | null
   contextChunks: readonly LessonTutorContextChunk[]
+  tutorSnapshot?: LessonTutorSnapshot
+  pace?: LessonPace
 }>
 
 export type LessonTutorReplyResult = Readonly<{

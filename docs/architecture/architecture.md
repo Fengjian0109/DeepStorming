@@ -364,6 +364,7 @@ type RetrievedEvidence = {
 应用负责：
 
 - 当前课堂状态和允许的下一步。
+- 开课时解析并冻结导师 revision 快照与三档课堂节奏；历史课程不回读可变的导师配置。
 - 选择学习目标、检索范围和 Prompt 版本。
 - 保存用户消息、模型事件、引用和状态转换。
 - 校验模型结构化输出。
@@ -374,6 +375,8 @@ type RetrievedEvidence = {
 - 在给定状态和证据内生成提问、提示、短讲解或评价候选。
 - 输出结构化教学动作和引用声明。
 - 不直接决定数据库写入或任意跳转状态。
+
+课堂生成为严格 AI-only：Application 在没有激活 Provider 时返回稳定错误，不提供隐式本地教学回退。Mock Provider 仍是一个显式 Provider Adapter，只用于开发与自动化测试。
 
 ### 12.2 TutorAction
 

@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { PaperReadingStage, ProviderProfile } from '@deepstorming/domain'
+import {
+  DEFAULT_CLASSROOM_PREFERENCES,
+  type PaperReadingStage,
+  type ProviderProfile,
+} from '@deepstorming/domain'
 import type { DocumentRepositoryPort, StoredDocumentDetail } from './document-ports'
 import type {
   DocumentSourceLocatorPort,
@@ -173,6 +177,7 @@ class FakeLessonRepository implements LessonRepositoryPort {
 }
 
 class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
+  public readonly firstQuestionCalls: unknown[] = []
   public readonly calls: Array<{
     readonly documentTitle: string
     readonly sourceSnippet: string
@@ -194,6 +199,7 @@ class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
     },
     _token: CancellationToken,
   ) {
+    this.firstQuestionCalls.push(input)
     return {
       content: `Provider 首问：${input.sourceSnippet}`,
       providerId: '00000000-0000-4000-8000-000000000501',
@@ -571,6 +577,70 @@ describe('lesson use cases', () => {
     expect(created.lessonMode).toBe('paper')
     expect(created.paperProfile?.currentStage).toBe('orientation')
     expect(created.modelRuns[0]?.promptManifest.key).toBe('lesson.paper.first_question')
+  })
+
+  it('freezes the selected tutor revision and pace into a new lesson', async () => {
+    const tutorId = '00000000-0000-4000-8000-000000000201'
+    const generator = createTutorGenerator()
+    const settings = {
+      getSnapshot: async () => ({
+        userProfile: { displayName: '学习者', revision: 1, updatedAt: now },
+        tutorProfiles: [
+          {
+            id: tutorId,
+            revision: 3,
+            status: 'active' as const,
+            name: '苏格拉底导师',
+            personality: '耐心、好奇',
+            tone: '清晰、温和',
+            expertiseTags: ['深度学习'],
+            strictness: 3,
+            socraticIntensity: 5,
+            guidanceStyle: 'question_first' as const,
+            bookStrategy: '逐层追问',
+            paperStrategy: '检验论证',
+            customInstructions: '优先要求学习者举证',
+            promptVersion: 'tutor-profile-v3',
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+        classroomPreferences: {
+          ...DEFAULT_CLASSROOM_PREFERENCES,
+          defaultBookTutorId: tutorId,
+          defaultPaperTutorId: tutorId,
+        },
+      }),
+    }
+
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+      generator,
+      settings,
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      tutorProfileId: tutorId,
+      pace: 'slow',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    expect(created.pace).toBe('slow')
+    expect(created.tutorSnapshot).toMatchObject({
+      tutorProfileId: tutorId,
+      tutorProfileRevision: 3,
+      personality: '耐心、好奇',
+      promptVersion: 'tutor-profile-v3',
+    })
+    expect(generator.firstQuestionCalls[0]).toMatchObject({
+      pace: 'slow',
+      tutorSnapshot: { tutorProfileId: tutorId, tutorProfileRevision: 3 },
+    })
   })
 
   it('rejects explicit paper mode for non-paper documents', async () => {

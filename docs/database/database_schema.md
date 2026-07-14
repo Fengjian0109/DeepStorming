@@ -1088,6 +1088,11 @@ body
 
 ## 13. 数据不变量
 
+`lesson_sessions` 的新课程配置字段：
+
+- `lesson_pace`：`slow | standard | fast`，旧课程可为 `NULL`。
+- `tutor_snapshot_json`：开课时冻结的导师 ID、revision、提示词版本、性格、语气、擅长领域和教学策略；旧课程可为 `NULL`。
+
 1. `documents.status = ready` 时必须至少存在一条 `document_pages`。
 2. `document_chunks` 的页范围必须属于同一文档。
 3. `message_citations.chunk_id` 必须与课堂主要文档或允许的补充文档关联。

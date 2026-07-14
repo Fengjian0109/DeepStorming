@@ -3,6 +3,7 @@ import {
   type CancellationToken,
   type ProviderGatewayPort,
 } from '@deepstorming/application'
+import type { LessonPace, LessonTutorSnapshot } from '@deepstorming/domain'
 
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>
 
@@ -95,6 +96,9 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
         charCount: number
       }>[]
       learnerReply: string
+      lessonMode?: 'standard' | 'paper'
+      tutorSnapshot?: LessonTutorSnapshot
+      pace?: LessonPace
     }>,
     token: CancellationToken,
   ): Promise<Readonly<{ content: string }>> {
@@ -143,6 +147,9 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
         pageNumberEnd: number
         charCount: number
       }>[]
+      lessonMode?: 'standard' | 'paper'
+      tutorSnapshot?: LessonTutorSnapshot
+      pace?: LessonPace
     }>,
     token: CancellationToken,
   ): Promise<Readonly<{ content: string }>> {
@@ -322,6 +329,37 @@ const formatContextChunks = (
         )
         .join('\n')
 
+const tutorSystemInstruction = (
+  input: Readonly<{
+    lessonMode?: 'standard' | 'paper'
+    tutorSnapshot?: LessonTutorSnapshot
+    pace?: LessonPace
+  }>,
+  groundingRule: string,
+): string => {
+  const tutor = input.tutorSnapshot
+  if (tutor === undefined) return `你是 DeepStorming 的课堂导师。${groundingRule}`
+  const strategy = input.lessonMode === 'paper' ? tutor.paperStrategy : tutor.bookStrategy
+  const paceRule =
+    input.pace === 'slow'
+      ? '慢节奏：每次只推进一个小步骤，先确认理解再继续。'
+      : input.pace === 'fast'
+        ? '快节奏：保持紧凑，在学习者理解时快速推进。'
+        : '标准节奏：在追问、提示和短讲解之间保持平衡。'
+  return [
+    `你是 DeepStorming 的课堂导师“${tutor.name}”。`,
+    `性格：${tutor.personality}。语气：${tutor.tone}。`,
+    `擅长领域：${tutor.expertiseTags.join('、') || '通识学习'}。`,
+    `引导策略：${strategy}`,
+    `苏格拉底强度 ${tutor.socraticIntensity}/5，严格度 ${tutor.strictness}/5，引导风格 ${tutor.guidanceStyle}。`,
+    paceRule,
+    tutor.customInstructions,
+    groundingRule,
+  ]
+    .filter((line) => line.length > 0)
+    .join('\n')
+}
+
 const lessonTutorFirstQuestionMessages = (input: {
   readonly documentTitle: string
   readonly sourceSnippet: string
@@ -332,11 +370,16 @@ const lessonTutorFirstQuestionMessages = (input: {
     pageNumberEnd: number
     charCount: number
   }>[]
+  readonly lessonMode?: 'standard' | 'paper'
+  readonly tutorSnapshot?: LessonTutorSnapshot
+  readonly pace?: LessonPace
 }): readonly Readonly<{ role: 'system' | 'user'; content: string }>[] => [
   {
     role: 'system',
-    content:
-      '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段和扩展上下文提出开场问题，不编造来源。',
+    content: tutorSystemInstruction(
+      input,
+      '只基于用户提供的证据片段和扩展上下文提出开场问题，不编造来源。',
+    ),
   },
   {
     role: 'user',
@@ -355,11 +398,16 @@ const lessonTutorMessages = (input: {
     charCount: number
   }>[]
   readonly learnerReply: string
+  readonly lessonMode?: 'standard' | 'paper'
+  readonly tutorSnapshot?: LessonTutorSnapshot
+  readonly pace?: LessonPace
 }): readonly Readonly<{ role: 'system' | 'user'; content: string }>[] => [
   {
     role: 'system',
-    content:
-      '你是 DeepStorming 的课堂导师。只基于用户提供的证据片段、扩展上下文和学习者回答继续追问，不编造来源。',
+    content: tutorSystemInstruction(
+      input,
+      '只基于用户提供的证据片段、扩展上下文和学习者回答继续追问，不编造来源。',
+    ),
   },
   {
     role: 'user',

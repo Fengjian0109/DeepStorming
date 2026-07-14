@@ -10,7 +10,7 @@ import type {
   StoredLessonSession,
   StoredLessonSourceAnchor,
 } from '@deepstorming/application'
-import type { LessonSourceTarget } from '@deepstorming/domain'
+import type { LessonPace, LessonSourceTarget, LessonTutorSnapshot } from '@deepstorming/domain'
 import { databaseError, type SqliteDatabase } from './database'
 
 type LessonRow = {
@@ -22,6 +22,8 @@ type LessonRow = {
   document_title: string
   lesson_mode: StoredLessonSession['lessonMode']
   paper_profile_json: string | null
+  lesson_pace: LessonPace | null
+  tutor_snapshot_json: string | null
   created_at: string
   updated_at: string
 }
@@ -278,6 +280,10 @@ const mapSession = (
     row.paper_profile_json === null
       ? null
       : parseJsonObject<StoredLessonSession['paperProfile']>(row.paper_profile_json),
+  ...(row.lesson_pace === null ? {} : { pace: row.lesson_pace }),
+  ...(row.tutor_snapshot_json === null
+    ? {}
+    : { tutorSnapshot: parseJsonObject<LessonTutorSnapshot>(row.tutor_snapshot_json) }),
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -591,8 +597,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
         this.db
           .prepare(
             `INSERT INTO lesson_sessions
-             (id,title,status,document_id,document_title,created_at,updated_at,current_state,lesson_mode,paper_profile_json)
-             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+             (id,title,status,document_id,document_title,created_at,updated_at,current_state,lesson_mode,paper_profile_json,lesson_pace,tutor_snapshot_json)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
           )
           .run(
             session.id,
@@ -605,6 +611,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             session.currentState,
             session.lessonMode,
             session.paperProfile === null ? null : JSON.stringify(session.paperProfile),
+            session.pace ?? null,
+            session.tutorSnapshot === undefined ? null : JSON.stringify(session.tutorSnapshot),
           )
         const insertAnchor = this.db.prepare(
           `INSERT INTO lesson_source_anchors
@@ -694,7 +702,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
       this.db.transaction(() => {
         this.db
           .prepare(
-            'UPDATE lesson_sessions SET title=?,status=?,current_state=?,updated_at=?,lesson_mode=?,paper_profile_json=? WHERE id=?',
+            'UPDATE lesson_sessions SET title=?,status=?,current_state=?,updated_at=?,lesson_mode=?,paper_profile_json=?,lesson_pace=?,tutor_snapshot_json=? WHERE id=?',
           )
           .run(
             session.title,
@@ -703,6 +711,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             session.updatedAt,
             session.lessonMode,
             session.paperProfile === null ? null : JSON.stringify(session.paperProfile),
+            session.pace ?? null,
+            session.tutorSnapshot === undefined ? null : JSON.stringify(session.tutorSnapshot),
             session.id,
           )
         this.db.prepare('DELETE FROM lesson_review_events WHERE lesson_id=?').run(session.id)

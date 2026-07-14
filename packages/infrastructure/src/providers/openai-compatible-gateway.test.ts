@@ -230,6 +230,46 @@ test('posts lesson tutor prompt and returns first assistant message content', as
   })
 })
 
+test('includes the frozen tutor profile and pace in the AI system prompt', async () => {
+  await startServer((_request, response) => {
+    response.setHeader('content-type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: '继续思考。' } }] }))
+  })
+
+  await new OpenAICompatibleGateway(baseUrl).generateLessonTutorFirstQuestion(
+    {
+      modelName: 'model-a',
+      documentTitle: 'Research Notes',
+      sourceSnippet: 'Evidence',
+      contextChunks: [],
+      lessonMode: 'paper',
+      pace: 'slow',
+      tutorSnapshot: {
+        tutorProfileId: '00000000-0000-4000-8000-000000000201',
+        tutorProfileRevision: 3,
+        name: '苏格拉底导师',
+        personality: '耐心、好奇',
+        tone: '清晰、温和',
+        expertiseTags: ['深度学习'],
+        strictness: 3,
+        socraticIntensity: 5,
+        guidanceStyle: 'question_first',
+        bookStrategy: '逐层追问',
+        paperStrategy: '检验论文的问题、方法、证据与局限',
+        customInstructions: '优先要求学习者举证',
+        promptVersion: 'tutor-profile-v3',
+      },
+    },
+    liveToken(),
+  )
+
+  const systemPrompt = JSON.parse(requests[0]?.body ?? '{}').messages[0].content as string
+  expect(systemPrompt).toContain('课堂导师“苏格拉底导师”')
+  expect(systemPrompt).toContain('检验论文的问题、方法、证据与局限')
+  expect(systemPrompt).toContain('慢节奏')
+  expect(systemPrompt).toContain('优先要求学习者举证')
+})
+
 test('posts first-question tutor prompt with chunk context', async () => {
   await startServer((_request, response) => {
     response.setHeader('content-type', 'application/json')

@@ -5,6 +5,7 @@ import type {
   DocumentSearchResultDto,
   DocumentSummaryDto,
   DocumentTextBlockDto,
+  LearningSettingsDto,
 } from '@deepstorming/contracts'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -12,6 +13,7 @@ import { WorkspaceContextual } from '../app/WorkspaceShell'
 import { DocumentCreateDialog } from './DocumentCreateDialog'
 import { DocumentDetailPanel } from './DocumentDetailPanel'
 import { DocumentList } from './DocumentList'
+import { LessonPreparationDialog } from './LessonPreparationDialog'
 import { PdfReaderPanel } from './PdfReaderPanel'
 
 type AsyncState =
@@ -60,6 +62,20 @@ export type DocumentEvidenceFocus = Readonly<{
   blockId: string
 }>
 
+type LessonSourceSelection = Readonly<{
+  documentId: string
+  documentTitle: string
+  startOffset: number
+  endOffset: number
+  snippet: string
+  target?: Readonly<{
+    kind: 'pdf_block'
+    pageNumber: number
+    blockId: string
+    blockIndex: number
+  }>
+}>
+
 export const DocumentLibrary = ({
   onLessonStarted,
   focusTarget,
@@ -78,6 +94,13 @@ export const DocumentLibrary = ({
   const [selectedPdfTarget, setSelectedPdfTarget] =
     useState<Readonly<{ pageNumber: number; blockId: string }>>()
   const [searchQuery, setSearchQuery] = useState('')
+  const [lessonPreparation, setLessonPreparation] = useState<
+    Readonly<{
+      source: LessonSourceSelection
+      documentType: DocumentDetailDto['documentType']
+      settings: LearningSettingsDto | null
+    }>
+  >()
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummaryDto>()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -242,19 +265,24 @@ export const DocumentLibrary = ({
     })
   }
 
-  const startLesson = async (input: {
-    documentId: string
-    documentTitle: string
-    startOffset: number
-    endOffset: number
-    snippet: string
-    target?: Readonly<{
-      kind: 'pdf_block'
-      pageNumber: number
-      blockId: string
-      blockIndex: number
-    }>
-  }) => {
+  const prepareLesson = async (
+    source: LessonSourceSelection,
+    documentType: DocumentDetailDto['documentType'],
+  ) => {
+    setLessonPreparation({ source, documentType, settings: null })
+    const result = await window.deepstorming.learningSettings.get()
+    if (!result.ok) {
+      setLessonPreparation(undefined)
+      setAsyncState({ status: 'error', message: result.error.message })
+      return
+    }
+    setLessonPreparation({ source, documentType, settings: result.data })
+  }
+
+  const startLesson = async (
+    input: LessonSourceSelection,
+    selection: Readonly<{ tutorProfileId: string; pace: 'slow' | 'standard' | 'fast' }>,
+  ) => {
     const token = operationSequence.current + 1
     operationSequence.current = token
     setAsyncState({ status: 'loading', message: '正在创建课堂…' })
@@ -262,6 +290,8 @@ export const DocumentLibrary = ({
     const result = await window.deepstorming.lessons.startFromDocument({
       documentId: input.documentId,
       documentTitle: input.documentTitle,
+      tutorProfileId: selection.tutorProfileId,
+      pace: selection.pace,
       source: {
         startOffset: input.startOffset,
         endOffset: input.endOffset,
@@ -280,6 +310,7 @@ export const DocumentLibrary = ({
     }
 
     setAsyncState({ status: 'success', message: '课堂已创建。' })
+    setLessonPreparation(undefined)
     onLessonStarted?.(result.data.id)
   }
 
@@ -435,16 +466,19 @@ export const DocumentLibrary = ({
           selectedTarget={selectedPdfTarget}
           onSelectTarget={setSelectedPdfTarget}
           onStartLesson={(input) =>
-            void startLesson({
-              ...input,
-              documentTitle: document.title,
-              target: {
-                kind: 'pdf_block',
-                pageNumber: input.pageNumber,
-                blockId: input.blockId,
-                blockIndex: input.blockIndex,
+            void prepareLesson(
+              {
+                ...input,
+                documentTitle: document.title,
+                target: {
+                  kind: 'pdf_block',
+                  pageNumber: input.pageNumber,
+                  blockId: input.blockId,
+                  blockIndex: input.blockIndex,
+                },
               },
-            })
+              document.documentType,
+            )
           }
         />
       )
@@ -520,13 +554,16 @@ export const DocumentLibrary = ({
                     <button
                       type="button"
                       onClick={() =>
-                        void startLesson({
-                          documentId: result.documentId,
-                          documentTitle: result.title,
-                          startOffset: result.startOffset,
-                          endOffset: result.endOffset,
-                          snippet: result.snippet,
-                        })
+                        void prepareLesson(
+                          {
+                            documentId: result.documentId,
+                            documentTitle: result.title,
+                            startOffset: result.startOffset,
+                            endOffset: result.endOffset,
+                            snippet: result.snippet,
+                          },
+                          result.documentType,
+                        )
                       }
                       disabled={asyncState.status === 'loading'}
                     >
@@ -615,13 +652,16 @@ export const DocumentLibrary = ({
               busy={asyncState.status === 'loading'}
               readerOpen={readerOpen}
               onStartLesson={() =>
-                void startLesson({
-                  documentId: detailState.document.id,
-                  documentTitle: detailState.document.title,
-                  startOffset: 0,
-                  endOffset: snippetFrom(detailState.document.plainText).length,
-                  snippet: snippetFrom(detailState.document.plainText),
-                })
+                void prepareLesson(
+                  {
+                    documentId: detailState.document.id,
+                    documentTitle: detailState.document.title,
+                    startOffset: 0,
+                    endOffset: snippetFrom(detailState.document.plainText).length,
+                    snippet: snippetFrom(detailState.document.plainText),
+                  },
+                  detailState.document.documentType,
+                )
               }
               onOpenReader={() => void openReader(detailState.document)}
               onCloseReader={closeReader}
@@ -639,6 +679,17 @@ export const DocumentLibrary = ({
         onSubmit={createDocument}
         onError={(message) => setAsyncState({ status: 'error', message })}
       />
+
+      {lessonPreparation && (
+        <LessonPreparationDialog
+          open
+          settings={lessonPreparation.settings}
+          documentType={lessonPreparation.documentType}
+          busy={asyncState.status === 'loading'}
+          onClose={() => setLessonPreparation(undefined)}
+          onStart={(selection) => void startLesson(lessonPreparation.source, selection)}
+        />
+      )}
 
       {deleteTarget && (
         <div className="modal-backdrop">

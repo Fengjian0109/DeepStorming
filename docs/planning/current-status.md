@@ -1,9 +1,19 @@
 # DeepStorming 当前开发状态
 
 - 更新时间：2026-07-14
-- 当前分支：`codex/chat-first-workspace`
-- 当前阶段：AI-first workspace redesign — Stage 1 interface foundation
-- 状态：Stage 1 实现与验收完成；后续 AI-only 教学契约、富对话渲染、完整课程生命周期和上下文压缩尚未开始
+- 当前分支：`codex/all-stages`
+- 当前阶段：AI-first workspace redesign — Stage 2 AI-only settings and lesson binding
+- 状态：Stage 1 已完成；Stage 2 的设置中心、严格 AI-only 契约、导师快照与三档课堂节奏已实现，正在进入后续富对话、课程生命周期与上下文压缩阶段
+
+## AI-first workspace redesign — Stage 2
+
+已完成：
+
+- Provider、导师/伙伴、学习者资料和课堂偏好统一进入设置中心；支持头像、性格、语气、擅长领域、严格度、苏格拉底强度、书籍/论文策略和自定义指令。
+- 课堂不再自动退回到本地规则导师；未激活 Provider 时稳定返回 `AI_PROVIDER_REQUIRED`。Mock Provider 仅作为用户显式启用的开发/测试 Provider。
+- 每次开课前必须选择导师与慢/标准/快三档节奏。新课程保存导师 revision 快照与节奏，后续编辑导师不会改写旧课记录。
+- 导师性格、语气、领域、教学策略、自定义指令和课堂节奏已进入真实 AI system prompt。
+- Migration 17 为 `lesson_sessions` 增加 `lesson_pace` 和 `tutor_snapshot_json`，并保持旧课程可读。
 
 ## AI-first workspace redesign — Stage 1 interface foundation
 
@@ -24,9 +34,8 @@ Stage 1 将桌面端从功能卡片堆叠页重构为“分层侧栏 + 对话主
 
 明确未完成：
 
-- 严格 AI-only 导师契约，以及导师/伙伴的提示词、性格、擅长领域和头像配置。
 - Markdown/LaTeX、强调引用、PDF 图片提取与聊天中的自动图像匹配。
-- 三档课堂节奏、下课保存记忆、课后复习/休息分流、课程完成语义和聊天记录 MD/PDF 导出。
+- 下课保存记忆、课后复习/休息分流、课程完成语义和聊天记录 MD/PDF 导出。
 - 剩余上下文低于阈值时的自动压缩、token 统计与默认 30% 阈值设置。
 
 ## 已完成

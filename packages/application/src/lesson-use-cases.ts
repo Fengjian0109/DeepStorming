@@ -6,6 +6,7 @@ import {
   normalizeLessonStep,
   normalizeLessonStartDraft,
   normalizeTutorAction,
+  createLessonTutorSnapshot,
   type LessonPromptManifest,
   type LessonContextChunkSummary,
   type LessonReplyDraft,
@@ -20,6 +21,8 @@ import {
   type LessonSession,
   type LessonStartDraft,
   type TutorActionType,
+  type LessonPace,
+  type LessonTutorSnapshot,
 } from '@deepstorming/domain'
 import type { ClockPort, DocumentRepositoryPort, IdGeneratorPort } from './document-ports'
 import { DocumentUseCaseError, type AssembleLessonContext } from './document-use-cases'
@@ -43,6 +46,7 @@ import type {
   SecretVaultPort,
 } from './provider-ports'
 import { toProviderProfile } from './provider-use-cases'
+import type { LearningSettingsRepositoryPort } from './learning-settings-ports'
 
 export type LessonUseCaseErrorCode =
   | 'LESSON_VALIDATION_FAILED'
@@ -53,6 +57,7 @@ export type LessonUseCaseErrorCode =
   | 'DATABASE_UNAVAILABLE'
   | 'INTERNAL_ERROR'
   | 'AI_PROVIDER_REQUIRED'
+  | 'LESSON_TUTOR_NOT_FOUND'
 
 export class LessonUseCaseError extends Error {
   public constructor(
@@ -82,6 +87,8 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   reviewEvents: session.reviewEvents,
   lessonMode: session.lessonMode,
   paperProfile: session.paperProfile,
+  ...(session.tutorSnapshot === undefined ? {} : { tutorSnapshot: session.tutorSnapshot }),
+  ...(session.pace === undefined ? {} : { pace: session.pace }),
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })
@@ -256,6 +263,52 @@ const providerRequiredError = (): LessonUseCaseError =>
     'Configure and activate an AI Provider before starting or continuing a lesson.',
     false,
   )
+
+const tutorNotFoundError = (): LessonUseCaseError =>
+  new LessonUseCaseError(
+    'LESSON_TUTOR_NOT_FOUND',
+    'The selected tutor is unavailable. Choose an active tutor and try again.',
+    false,
+  )
+
+const resolveLessonConfiguration = async (
+  repository: Pick<LearningSettingsRepositoryPort, 'getSnapshot'> | undefined,
+  input: Readonly<{
+    lessonMode: LessonMode
+    tutorProfileId?: string
+    pace?: LessonPace
+  }>,
+): Promise<Readonly<{ tutorSnapshot: LessonTutorSnapshot; pace: LessonPace }> | undefined> => {
+  if (repository === undefined) return undefined
+  let settings
+  try {
+    settings = await repository.getSnapshot()
+  } catch {
+    throw databaseError()
+  }
+  if (settings === undefined) throw tutorNotFoundError()
+  const preferredId =
+    input.tutorProfileId ??
+    (input.lessonMode === 'paper'
+      ? settings.classroomPreferences.defaultPaperTutorId
+      : settings.classroomPreferences.defaultBookTutorId)
+  const tutor =
+    settings.tutorProfiles.find(
+      (profile) => profile.id === preferredId && profile.status === 'active',
+    ) ??
+    (preferredId === null
+      ? settings.tutorProfiles.find((profile) => profile.status === 'active')
+      : undefined)
+  if (tutor === undefined) throw tutorNotFoundError()
+  try {
+    return {
+      tutorSnapshot: createLessonTutorSnapshot(tutor),
+      pace: input.pace ?? settings.classroomPreferences.defaultPace,
+    }
+  } catch {
+    throw tutorNotFoundError()
+  }
+}
 
 const cancelledError = (operationId?: string): LessonUseCaseError =>
   new LessonUseCaseError(
@@ -816,6 +869,7 @@ export class StartLessonFromDocument {
     private readonly sourceLocator?: DocumentSourceLocatorPort,
     private readonly lessonContextAssembler?: Pick<AssembleLessonContext, 'execute'>,
     private readonly tutorReplyGenerator?: LessonTutorReplyGeneratorPort,
+    private readonly learningSettings?: Pick<LearningSettingsRepositoryPort, 'getSnapshot'>,
   ) {}
 
   public async execute(input: LessonStartDraft): Promise<LessonSession> {
@@ -879,6 +933,12 @@ export class StartLessonFromDocument {
 
     if (this.lessonContextAssembler === undefined) throw internalError()
 
+    const lessonConfiguration = await resolveLessonConfiguration(this.learningSettings, {
+      lessonMode: draft.lessonMode,
+      ...(draft.tutorProfileId === undefined ? {} : { tutorProfileId: draft.tutorProfileId }),
+      ...(draft.pace === undefined ? {} : { pace: draft.pace }),
+    })
+
     const contextSummary = await assembleLessonContextSummary(this.lessonContextAssembler, {
       documentId: draft.documentId,
       query: draft.source.snippet,
@@ -892,6 +952,7 @@ export class StartLessonFromDocument {
         lessonMode: draft.lessonMode,
         paperStage: draft.lessonMode === 'paper' ? 'orientation' : null,
         contextChunks: contextSummary.tutorContextChunks,
+        ...(lessonConfiguration === undefined ? {} : lessonConfiguration),
       },
       liveToken(),
     )
@@ -986,6 +1047,7 @@ export class StartLessonFromDocument {
               citedAnchorIds: [anchorId],
             }
           : null,
+      ...(lessonConfiguration === undefined ? {} : lessonConfiguration),
       createdAt,
       updatedAt: createdAt,
     }
@@ -1103,6 +1165,8 @@ export class SubmitLessonReply {
           paperStage: currentPaperStage(session),
           contextChunks: contextSummary.tutorContextChunks,
           learnerReply: draft.content,
+          ...(session.tutorSnapshot === undefined ? {} : { tutorSnapshot: session.tutorSnapshot }),
+          ...(session.pace === undefined ? {} : { pace: session.pace }),
         },
         token,
       )
@@ -1302,6 +1366,8 @@ export class RetryLessonRun {
           paperStage: currentPaperStage(session),
           contextChunks: contextSummary.tutorContextChunks,
           learnerReply: learnerMessage.content,
+          ...(session.tutorSnapshot === undefined ? {} : { tutorSnapshot: session.tutorSnapshot }),
+          ...(session.pace === undefined ? {} : { pace: session.pace }),
         },
         token,
       )
@@ -1526,6 +1592,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             lessonMode: input.lessonMode,
             paperStage: input.paperStage,
             contextChunks: input.contextChunks,
+            ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
+            ...(input.pace === undefined ? {} : { pace: input.pace }),
           }
         : {
             modelName: activeProvider.modelName,
@@ -1535,6 +1603,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             lessonMode: input.lessonMode,
             paperStage: input.paperStage,
             contextChunks: input.contextChunks,
+            ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
+            ...(input.pace === undefined ? {} : { pace: input.pace }),
           },
       token,
     )
@@ -1580,6 +1650,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             paperStage: input.paperStage,
             contextChunks: input.contextChunks,
             learnerReply: input.learnerReply,
+            ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
+            ...(input.pace === undefined ? {} : { pace: input.pace }),
           }
         : {
             modelName: activeProvider.modelName,
@@ -1590,6 +1662,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
             paperStage: input.paperStage,
             contextChunks: input.contextChunks,
             learnerReply: input.learnerReply,
+            ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
+            ...(input.pace === undefined ? {} : { pace: input.pace }),
           },
       token,
     )
