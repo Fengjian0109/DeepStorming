@@ -10,7 +10,7 @@ import type {
   StoredLessonSession,
   StoredLessonSourceAnchor,
 } from '@deepstorming/application'
-import type { LessonSourceTarget } from '@deepstorming/domain'
+import { normalizeLessonSession, type LessonSourceTarget } from '@deepstorming/domain'
 import { databaseError, type SqliteDatabase } from './database'
 
 type LessonRow = {
@@ -258,30 +258,30 @@ const mapSession = (
   misconceptionSignals: readonly StoredMisconceptionSignal[],
   reviewItems: readonly StoredReviewItem[],
   reviewEvents: readonly StoredReviewEvent[],
-): StoredLessonSession => ({
-  id: row.id,
-  title: row.title,
-  status: row.status,
-  currentState: row.current_state,
-  documentId: row.document_id,
-  documentTitle: row.document_title,
-  sourceAnchors,
-  messages,
-  modelRuns,
-  steps,
-  masteryEvidence,
-  misconceptionSignals,
-  reviewItems,
-  reviewEvents,
-  lessonMode: row.lesson_mode,
-  paperProfile:
-    row.paper_profile_json === null
-      ? null
-      : parseJsonObject<StoredLessonSession['paperProfile']>(row.paper_profile_json),
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-})
-
+): StoredLessonSession =>
+  normalizeLessonSession({
+    id: row.id,
+    title: row.title,
+    status: row.status,
+    currentState: row.current_state,
+    documentId: row.document_id,
+    documentTitle: row.document_title,
+    sourceAnchors,
+    messages,
+    modelRuns,
+    steps,
+    masteryEvidence,
+    misconceptionSignals,
+    reviewItems,
+    reviewEvents,
+    lessonMode: row.lesson_mode,
+    paperProfile:
+      row.paper_profile_json === null
+        ? null
+        : parseJsonObject<StoredLessonSession['paperProfile']>(row.paper_profile_json),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  })
 export class SqliteLessonRepository implements LessonRepositoryPort {
   public constructor(private readonly db: SqliteDatabase) {}
 

@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createDefaultPaperReadingMap, type PaperReadingStage, type ProviderProfile } from '@deepstorming/domain'
+import {
+  createDefaultPaperReadingMap,
+  type PaperReadingStage,
+  type ProviderProfile,
+} from '@deepstorming/domain'
 import type { DocumentRepositoryPort, StoredDocumentDetail } from './document-ports'
 import type {
   DocumentSourceLocatorPort,
@@ -569,7 +573,9 @@ describe('lesson use cases', () => {
     expect(created.lessonMode).toBe('paper')
     expect(created.paperProfile?.currentStage).toBe('orientation')
     expect(created.paperProfile?.readingMap.slots).toHaveLength(6)
-    expect(created.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'why')).toMatchObject({
+    expect(
+      created.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'why'),
+    ).toMatchObject({
       status: 'seeded',
       citedAnchorIds: [created.sourceAnchors[0]?.id],
     })
@@ -628,8 +634,10 @@ describe('lesson use cases', () => {
     })
 
     expect(updated.paperProfile?.currentStage).toBe('problem_framing')
-    expect(updated.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what')).toMatchObject({
-      status: 'updated',
+    expect(
+      updated.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what'),
+    ).toMatchObject({
+      status: 'seeded',
       summary: expect.stringContaining('gap between observed evidence and model behavior'),
     })
   })
@@ -1683,6 +1691,7 @@ describe('lesson use cases', () => {
   })
 
   it('retries a failed tutor run with a deterministic follow-up', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
     const startIds = [lessonId, anchorId, modelRunId, messageId]
     const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
     let startIndex = 0
@@ -1744,17 +1753,16 @@ describe('lesson use cases', () => {
       createContextAssembler(),
     ).execute({ lessonId, modelRunId: followUpRunId })
 
-    expect(retried.messages.at(-1)).toEqual({
+    expect(retried.messages.at(-1)).toMatchObject({
       id: retryMessageId,
       lessonId,
       modelRunId: retryRunId,
       role: 'tutor',
-      content:
-        '你刚才提到：“它在说明证据如何支撑判断。”。我们把它和证据“Evidence”连起来，参考这些上下文：“无额外上下文”。下一步你会如何验证这个判断？',
       sourceAnchorIds: [anchorId],
-      promptVersion: 'mock-tutor-follow-up-v2',
+      promptVersion: 'paper-tutor-follow-up-v1',
       createdAt: now,
     })
+    expect(retried.messages.at(-1)?.content).toContain('问题定义、关键假设或方法线索')
     expect(retried.modelRuns.at(-1)).toMatchObject({
       id: retryRunId,
       lessonId,
@@ -1767,7 +1775,9 @@ describe('lesson use cases', () => {
       outputMessageId: null,
     })
     expect(retried.currentState).toBe('probing')
-    expect(retried.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what')).toMatchObject({
+    expect(
+      retried.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what'),
+    ).toMatchObject({
       status: 'updated',
       summary: expect.stringContaining('它在说明证据如何支撑判断'),
     })

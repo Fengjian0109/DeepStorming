@@ -450,6 +450,10 @@ test('starts a paper lesson, advances the paper stage, and restores it after res
       await page.getByRole('button', { name: '开始课堂' }).click()
       await expect(page.getByText('当前论文阶段')).toBeVisible()
       await expect(page.getByText('整体定位')).toBeVisible()
+      const paperMap = page.locator('.lesson-paper-map')
+      await expect(paperMap.getByText('论文阅读地图')).toBeVisible()
+      await expect(paperMap.getByText('Why', { exact: true })).toBeVisible()
+      await expect(paperMap.getByText('Evidence', { exact: true })).toBeVisible()
 
       await page
         .getByLabel('你的回答')
@@ -457,6 +461,13 @@ test('starts a paper lesson, advances the paper stage, and restores it after res
       await page.getByRole('button', { name: '提交回答' }).click()
 
       await expect(page.getByText('问题定位')).toBeVisible()
+      await expect(
+        page
+          .locator('.lesson-message-list')
+          .getByText('I think the paper is solving how evidence supports model behavior.', {
+            exact: true,
+          }),
+      ).toBeVisible()
     } finally {
       await first.close()
     }
@@ -467,6 +478,14 @@ test('starts a paper lesson, advances the paper stage, and restores it after res
       await page.locator('nav').getByRole('button', { name: '课堂' }).click()
       await page.getByRole('button', { name: '打开 Paper Map 课堂' }).click()
       await expect(page.getByText('问题定位')).toBeVisible()
+      await expect(page.locator('.lesson-paper-map').getByText('论文阅读地图')).toBeVisible()
+      await expect(
+        page
+          .locator('.lesson-message-list')
+          .getByText('I think the paper is solving how evidence supports model behavior.', {
+            exact: true,
+          }),
+      ).toBeVisible()
     } finally {
       await second.close()
     }

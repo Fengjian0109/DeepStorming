@@ -170,11 +170,11 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 - 论文专用首问/追问 prompt。
 - `orientation -> problem_framing` 的最小阶段推进与重启恢复。
 - 课堂页“当前论文阶段”展示。
+- D7.1 Paper Reading Map MVP：paper lesson 已有 Why / What / How / Evidence / Limits / Next 六槽阅读地图，并随课堂成功交互持久化更新。
 
 剩余 D7 工作：
 
 - Section / Claim / Evidence / Limitation 的结构化抽取与持久化。
-- Why → What → How → Evidence → Limits → Next 地图。
 - 更细粒度的 paper stage（方法、实验、局限、启发）推进规则。
 - 跨论文工作区与论文专用复习聚合视图。
 
@@ -211,7 +211,7 @@ D5 TutorAction / LessonState（已完成）
   ↓
 D6 Mastery Evidence / Misconception + Review Scheduler（已完成）
   ↓
-D7 Paper Lesson Mode MVP（已完成）→ D7 论文工作流扩展
+D7 Paper Lesson Mode MVP（已完成）→ D7.1 Paper Reading Map MVP（已完成）→ D7 论文工作流扩展
   ↓
 D8 发布候选（当前已推进到自用版发布候选）
 ```

@@ -3,7 +3,7 @@
 - 更新时间：2026-07-14
 - 当前分支：`main`
 - 当前阶段：Phase 6 D1 Real DeepSeek Acceptance + D8 Self-Use Release Candidate
-- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环、D5 课堂状态机审计链路、D6-MVP 学习诊断证据闭环、D6 Review Scheduler MVP、D7 Paper Lesson Mode MVP 已完成；D1 处于“DeepSeek 已完成、OpenAI-compatible 待真实端点验收”的部分完成状态；D8 已推进到自用版发布候选
+- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环、D5 课堂状态机审计链路、D6-MVP 学习诊断证据闭环、D6 Review Scheduler MVP、D7 Paper Lesson Mode MVP、D7.1 Paper Reading Map MVP 已完成；D1 处于“DeepSeek 已完成、OpenAI-compatible 待真实端点验收”的部分完成状态；D8 已推进到自用版发布候选
 
 ## 已完成
 
@@ -135,6 +135,12 @@
   - Infrastructure：Migration 15 为 `lesson_sessions` 增加 `lesson_mode` 与 `paper_profile_json`，课堂持久化与重启恢复保留论文阶段。
   - Desktop：PDF 导入文档默认标记为 `documentType='paper'`；课堂详情新增“当前论文阶段”卡片，展示阶段标签与摘要。
   - E2E：新增 paper lesson 启动、阶段推进与重启恢复覆盖，并同步修正 PDF 导入课堂默认进入 paper mode 后的既有断言。
+- Phase 6 D7.1 Paper Reading Map MVP：
+  - Domain / Contracts：`paperProfile` 新增可持久化 `readingMap`，包含 Why / What / How / Evidence / Limits / Next 六个槽位。
+  - Application：paper lesson 启动时 seeded 默认地图，成功回答或成功 retry 后 deterministic 更新相关槽位；失败和取消不更新地图。
+  - Infrastructure：复用 `paper_profile_json`，旧 paper profile 缺少 `readingMap` 时读取为默认空地图，无新增 migration。
+  - Desktop：课堂页在当前论文阶段下方展示“论文阅读地图”，standard lesson 不显示。
+  - E2E：覆盖 PDF paper lesson 启动、回答更新地图与重启恢复。
 - D1 真实 DeepSeek Provider 手动验收：
   - 真实 key 通过本地安全方式输入，完成创建、启用、连接测试、一次真实课堂生成与重启恢复验证。
   - 本轮通过 `deepseek-v4-flash` 完成真实云 Provider 验收；验收记录已做脱敏，不包含 API Key、Authorization header、原始响应正文或完整 prompt。
@@ -148,7 +154,7 @@
 
 ## 当前范围与非目标
 
-- 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、标准课堂与 paper lesson 双模式、首条 Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化、安全错误摘要持久化与展示、LessonState / LessonStep 状态机审计，以及 deterministic 学习诊断证据与误区信号展示。
+- 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、标准课堂与 paper lesson 双模式、首条 Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化、安全错误摘要持久化与展示、LessonState / LessonStep 状态机审计，以及 deterministic 学习诊断证据、误区信号与 paper reading map 展示。
 - 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、embeddings、语义检索、流式课堂、完整评分 rubric、独立复习中心、通知/日历提醒、论文工作区、后台导入任务。
 
 ## 当前门禁

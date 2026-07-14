@@ -51,166 +51,163 @@
 Add imports in `packages/domain/src/lesson.test.ts`:
 
 ```ts
-import {
-  PAPER_READING_MAP_SLOT_KINDS,
-  createDefaultPaperReadingMap,
-} from './lesson'
+import { PAPER_READING_MAP_SLOT_KINDS, createDefaultPaperReadingMap } from './lesson'
 ```
 
 Add these tests near the existing paper profile tests:
 
 ```ts
-  it('creates a default paper reading map with six empty slots', () => {
-    expect(createDefaultPaperReadingMap()).toEqual({
-      slots: PAPER_READING_MAP_SLOT_KINDS.map((kind) => ({
-        kind,
-        summary: null,
-        status: 'empty',
-        citedAnchorIds: [],
-        updatedAt: null,
-      })),
-    })
+it('creates a default paper reading map with six empty slots', () => {
+  expect(createDefaultPaperReadingMap()).toEqual({
+    slots: PAPER_READING_MAP_SLOT_KINDS.map((kind) => ({
+      kind,
+      summary: null,
+      status: 'empty',
+      citedAnchorIds: [],
+      updatedAt: null,
+    })),
   })
+})
 
-  it('normalizes paper lesson reading maps and preserves seeded slots', () => {
-    const session = normalizeLessonSession({
-      id: '00000000-0000-4000-8000-000000000101',
-      title: 'Paper Map 课堂',
-      status: 'active',
-      documentId: '00000000-0000-4000-8000-000000000201',
-      documentTitle: 'Paper Map',
-      sourceAnchors: [],
-      messages: [],
-      modelRuns: [],
-      currentState: 'opening',
-      steps: [],
-      masteryEvidence: [],
-      misconceptionSignals: [],
-      reviewItems: [],
-      reviewEvents: [],
-      lessonMode: 'paper',
-      paperProfile: {
-        currentStage: 'orientation',
-        stageSummary: null,
-        termsIntroduced: [],
-        citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
-        readingMap: {
-          slots: [
-            {
-              kind: 'why',
-              summary: '  The paper asks why evidence supports the claim.  ',
-              status: 'seeded',
-              citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
-              updatedAt: '2026-07-14T00:00:00.000Z',
-            },
-            ...PAPER_READING_MAP_SLOT_KINDS.filter((kind) => kind !== 'why').map((kind) => ({
-              kind,
-              summary: null,
-              status: 'empty' as const,
-              citedAnchorIds: [],
-              updatedAt: null,
-            })),
-          ],
-        },
-      },
-      createdAt: '2026-07-14T00:00:00.000Z',
-      updatedAt: '2026-07-14T00:00:00.000Z',
-    })
-
-    expect(session.paperProfile?.readingMap.slots[0]).toEqual({
-      kind: 'why',
-      summary: 'The paper asks why evidence supports the claim.',
-      status: 'seeded',
+it('normalizes paper lesson reading maps and preserves seeded slots', () => {
+  const session = normalizeLessonSession({
+    id: '00000000-0000-4000-8000-000000000101',
+    title: 'Paper Map 课堂',
+    status: 'active',
+    documentId: '00000000-0000-4000-8000-000000000201',
+    documentTitle: 'Paper Map',
+    sourceAnchors: [],
+    messages: [],
+    modelRuns: [],
+    currentState: 'opening',
+    steps: [],
+    masteryEvidence: [],
+    misconceptionSignals: [],
+    reviewItems: [],
+    reviewEvents: [],
+    lessonMode: 'paper',
+    paperProfile: {
+      currentStage: 'orientation',
+      stageSummary: null,
+      termsIntroduced: [],
       citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
-      updatedAt: '2026-07-14T00:00:00.000Z',
-    })
+      readingMap: {
+        slots: [
+          {
+            kind: 'why',
+            summary: '  The paper asks why evidence supports the claim.  ',
+            status: 'seeded',
+            citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+            updatedAt: '2026-07-14T00:00:00.000Z',
+          },
+          ...PAPER_READING_MAP_SLOT_KINDS.filter((kind) => kind !== 'why').map((kind) => ({
+            kind,
+            summary: null,
+            status: 'empty' as const,
+            citedAnchorIds: [],
+            updatedAt: null,
+          })),
+        ],
+      },
+    },
+    createdAt: '2026-07-14T00:00:00.000Z',
+    updatedAt: '2026-07-14T00:00:00.000Z',
   })
 
-  it('adds a default reading map to legacy paper profiles', () => {
-    const session = normalizeLessonSession({
-      id: '00000000-0000-4000-8000-000000000101',
-      title: 'Paper Map 课堂',
-      status: 'active',
-      documentId: '00000000-0000-4000-8000-000000000201',
-      documentTitle: 'Paper Map',
-      sourceAnchors: [],
-      messages: [],
-      modelRuns: [],
-      currentState: 'opening',
-      steps: [],
-      masteryEvidence: [],
-      misconceptionSignals: [],
-      reviewItems: [],
-      reviewEvents: [],
-      lessonMode: 'paper',
+  expect(session.paperProfile?.readingMap.slots[0]).toEqual({
+    kind: 'why',
+    summary: 'The paper asks why evidence supports the claim.',
+    status: 'seeded',
+    citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+    updatedAt: '2026-07-14T00:00:00.000Z',
+  })
+})
+
+it('adds a default reading map to legacy paper profiles', () => {
+  const session = normalizeLessonSession({
+    id: '00000000-0000-4000-8000-000000000101',
+    title: 'Paper Map 课堂',
+    status: 'active',
+    documentId: '00000000-0000-4000-8000-000000000201',
+    documentTitle: 'Paper Map',
+    sourceAnchors: [],
+    messages: [],
+    modelRuns: [],
+    currentState: 'opening',
+    steps: [],
+    masteryEvidence: [],
+    misconceptionSignals: [],
+    reviewItems: [],
+    reviewEvents: [],
+    lessonMode: 'paper',
+    paperProfile: {
+      currentStage: 'orientation',
+      stageSummary: null,
+      termsIntroduced: [],
+      citedAnchorIds: [],
+    },
+    createdAt: '2026-07-14T00:00:00.000Z',
+    updatedAt: '2026-07-14T00:00:00.000Z',
+  })
+
+  expect(session.paperProfile?.readingMap).toEqual(createDefaultPaperReadingMap())
+})
+
+it('rejects invalid paper reading maps', () => {
+  const baseSession = {
+    id: '00000000-0000-4000-8000-000000000101',
+    title: 'Paper Map 课堂',
+    status: 'active' as const,
+    documentId: '00000000-0000-4000-8000-000000000201',
+    documentTitle: 'Paper Map',
+    sourceAnchors: [],
+    messages: [],
+    modelRuns: [],
+    currentState: 'opening' as const,
+    steps: [],
+    masteryEvidence: [],
+    misconceptionSignals: [],
+    reviewItems: [],
+    reviewEvents: [],
+    lessonMode: 'paper' as const,
+    createdAt: '2026-07-14T00:00:00.000Z',
+    updatedAt: '2026-07-14T00:00:00.000Z',
+  }
+
+  expect(() =>
+    normalizeLessonSession({
+      ...baseSession,
       paperProfile: {
         currentStage: 'orientation',
         stageSummary: null,
         termsIntroduced: [],
         citedAnchorIds: [],
+        readingMap: { slots: [] },
       },
-      createdAt: '2026-07-14T00:00:00.000Z',
-      updatedAt: '2026-07-14T00:00:00.000Z',
-    })
+    }),
+  ).toThrow('Paper reading map is invalid')
 
-    expect(session.paperProfile?.readingMap).toEqual(createDefaultPaperReadingMap())
-  })
-
-  it('rejects invalid paper reading maps', () => {
-    const baseSession = {
-      id: '00000000-0000-4000-8000-000000000101',
-      title: 'Paper Map 课堂',
-      status: 'active' as const,
-      documentId: '00000000-0000-4000-8000-000000000201',
-      documentTitle: 'Paper Map',
-      sourceAnchors: [],
-      messages: [],
-      modelRuns: [],
-      currentState: 'opening' as const,
-      steps: [],
-      masteryEvidence: [],
-      misconceptionSignals: [],
-      reviewItems: [],
-      reviewEvents: [],
-      lessonMode: 'paper' as const,
-      createdAt: '2026-07-14T00:00:00.000Z',
-      updatedAt: '2026-07-14T00:00:00.000Z',
-    }
-
-    expect(() =>
-      normalizeLessonSession({
-        ...baseSession,
-        paperProfile: {
-          currentStage: 'orientation',
-          stageSummary: null,
-          termsIntroduced: [],
-          citedAnchorIds: [],
-          readingMap: { slots: [] },
+  expect(() =>
+    normalizeLessonSession({
+      ...baseSession,
+      paperProfile: {
+        currentStage: 'orientation',
+        stageSummary: null,
+        termsIntroduced: [],
+        citedAnchorIds: [],
+        readingMap: {
+          slots: PAPER_READING_MAP_SLOT_KINDS.map((kind) => ({
+            kind,
+            summary: null,
+            status: 'seeded' as const,
+            citedAnchorIds: [],
+            updatedAt: null,
+          })),
         },
-      }),
-    ).toThrow('Paper reading map is invalid')
-
-    expect(() =>
-      normalizeLessonSession({
-        ...baseSession,
-        paperProfile: {
-          currentStage: 'orientation',
-          stageSummary: null,
-          termsIntroduced: [],
-          citedAnchorIds: [],
-          readingMap: {
-            slots: PAPER_READING_MAP_SLOT_KINDS.map((kind) => ({
-              kind,
-              summary: null,
-              status: 'seeded' as const,
-              citedAnchorIds: [],
-              updatedAt: null,
-            })),
-          },
-        },
-      }),
-    ).toThrow('Paper reading map slot is invalid')
-  })
+      },
+    }),
+  ).toThrow('Paper reading map slot is invalid')
+})
 ```
 
 - [ ] **Step 2: Run Domain tests and verify they fail for missing exports**
@@ -425,47 +422,47 @@ const readingMap = {
 Add tests near existing lesson session schema tests:
 
 ```ts
-  it('parses paper lesson profiles with reading maps', () => {
-    const result = lessonSessionSchema.parse({
+it('parses paper lesson profiles with reading maps', () => {
+  const result = lessonSessionSchema.parse({
+    ...lessonSession,
+    lessonMode: 'paper',
+    paperProfile: {
+      currentStage: 'orientation',
+      stageSummary: null,
+      termsIntroduced: [],
+      citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      readingMap,
+    },
+  })
+
+  expect(result.paperProfile?.readingMap.slots).toHaveLength(6)
+})
+
+it('rejects invalid paper reading map slots', () => {
+  expect(() =>
+    lessonSessionSchema.parse({
       ...lessonSession,
       lessonMode: 'paper',
       paperProfile: {
         currentStage: 'orientation',
         stageSummary: null,
         termsIntroduced: [],
-        citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
-        readingMap,
-      },
-    })
-
-    expect(result.paperProfile?.readingMap.slots).toHaveLength(6)
-  })
-
-  it('rejects invalid paper reading map slots', () => {
-    expect(() =>
-      lessonSessionSchema.parse({
-        ...lessonSession,
-        lessonMode: 'paper',
-        paperProfile: {
-          currentStage: 'orientation',
-          stageSummary: null,
-          termsIntroduced: [],
-          citedAnchorIds: [],
-          readingMap: {
-            slots: [
-              {
-                kind: 'unknown',
-                summary: null,
-                status: 'empty',
-                citedAnchorIds: [],
-                updatedAt: null,
-              },
-            ],
-          },
+        citedAnchorIds: [],
+        readingMap: {
+          slots: [
+            {
+              kind: 'unknown',
+              summary: null,
+              status: 'empty',
+              citedAnchorIds: [],
+              updatedAt: null,
+            },
+          ],
         },
-      }),
-    ).toThrow()
-  })
+      },
+    }),
+  ).toThrow()
+})
 ```
 
 - [ ] **Step 2: Run Contracts tests and verify they fail**
@@ -506,9 +503,12 @@ export const paperReadingMapSlotSchema = z
     updatedAt: timestampSchema.nullable(),
   })
   .strict()
-  .refine((value) => value.summary !== null || (value.status === 'empty' && value.updatedAt === null), {
-    message: 'empty reading map slot must not have update metadata',
-  })
+  .refine(
+    (value) => value.summary !== null || (value.status === 'empty' && value.updatedAt === null),
+    {
+      message: 'empty reading map slot must not have update metadata',
+    },
+  )
   .refine((value) => value.summary === null || value.updatedAt !== null, {
     message: 'non-empty reading map slot must have updatedAt',
   })
@@ -588,53 +588,55 @@ git commit -m "feat: expose paper reading map contracts"
 Add assertions to the existing paper start test in `packages/application/src/lesson-use-cases.test.ts`:
 
 ```ts
-    expect(created.paperProfile?.readingMap.slots).toHaveLength(6)
-    expect(created.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'why')).toMatchObject({
-      status: 'seeded',
-      citedAnchorIds: [created.sourceAnchors[0]?.id],
-    })
-    expect(created.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'evidence')).toMatchObject({
-      status: 'seeded',
-      citedAnchorIds: [created.sourceAnchors[0]?.id],
-    })
+expect(created.paperProfile?.readingMap.slots).toHaveLength(6)
+expect(created.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'why')).toMatchObject({
+  status: 'seeded',
+  citedAnchorIds: [created.sourceAnchors[0]?.id],
+})
+expect(
+  created.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'evidence'),
+).toMatchObject({
+  status: 'seeded',
+  citedAnchorIds: [created.sourceAnchors[0]?.id],
+})
 ```
 
 Add a reply update assertion to the existing paper stage advancement test:
 
 ```ts
-    expect(updated.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what')).toMatchObject({
-      status: 'updated',
-      summary: expect.stringContaining('gap between observed evidence and model behavior'),
-    })
+expect(updated.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what')).toMatchObject({
+  status: 'updated',
+  summary: expect.stringContaining('gap between observed evidence and model behavior'),
+})
 ```
 
 Add a cancelled/failed non-update test near existing cancellation tests:
 
 ```ts
-  it('does not update the paper reading map when provider generation fails', async () => {
-    documents.document = { ...documentRecord, documentType: 'paper' }
-    const failingGenerator = {
-      generateFirstQuestion: vi.fn(async () => ({ content: 'First question' })),
-      generateReply: vi.fn(async () => {
-        throw new LessonUseCaseError('LESSON_PROVIDER_FAILED', 'Provider failed.', true)
-      }),
-    }
-    const useCases = createLessonUseCases({ tutorGenerator: failingGenerator })
-    const started = await useCases.start.execute({
-      documentId: documentRecord.id,
-      documentTitle: 'Paper Map',
-      source: { startOffset: 0, endOffset: 8, snippet: 'Evidence' },
-    })
-    const before = started.paperProfile?.readingMap
-
-    const replied = await useCases.reply.execute({
-      lessonId: started.id,
-      content: 'The paper has a limitation.',
-    })
-
-    expect(replied.paperProfile?.readingMap).toEqual(before)
-    expect(replied.modelRuns.at(-1)?.status).toBe('failed')
+it('does not update the paper reading map when provider generation fails', async () => {
+  documents.document = { ...documentRecord, documentType: 'paper' }
+  const failingGenerator = {
+    generateFirstQuestion: vi.fn(async () => ({ content: 'First question' })),
+    generateReply: vi.fn(async () => {
+      throw new LessonUseCaseError('LESSON_PROVIDER_FAILED', 'Provider failed.', true)
+    }),
+  }
+  const useCases = createLessonUseCases({ tutorGenerator: failingGenerator })
+  const started = await useCases.start.execute({
+    documentId: documentRecord.id,
+    documentTitle: 'Paper Map',
+    source: { startOffset: 0, endOffset: 8, snippet: 'Evidence' },
   })
+  const before = started.paperProfile?.readingMap
+
+  const replied = await useCases.reply.execute({
+    lessonId: started.id,
+    content: 'The paper has a limitation.',
+  })
+
+  expect(replied.paperProfile?.readingMap).toEqual(before)
+  expect(replied.modelRuns.at(-1)?.status).toBe('failed')
+})
 ```
 
 - [ ] **Step 2: Run Application tests and verify they fail**
@@ -726,7 +728,13 @@ const updatePaperReadingMapAfterReply = (
   )
 
   if (/method|方法|algorithm|算法|模型|机制/u.test(lower)) {
-    next = updateReadingMapSlot(next, 'how', `方法线索：${normalized.slice(0, 180)}`, anchorIds, updatedAt)
+    next = updateReadingMapSlot(
+      next,
+      'how',
+      `方法线索：${normalized.slice(0, 180)}`,
+      anchorIds,
+      updatedAt,
+    )
   }
   if (/evidence|实验|result|结果|figure|图表|supports|支撑/u.test(lower)) {
     next = updateReadingMapSlot(
@@ -738,10 +746,22 @@ const updatePaperReadingMapAfterReply = (
     )
   }
   if (/limit|limitation|局限|假设|反例|不能|失败/u.test(lower)) {
-    next = updateReadingMapSlot(next, 'limits', `局限线索：${normalized.slice(0, 180)}`, anchorIds, updatedAt)
+    next = updateReadingMapSlot(
+      next,
+      'limits',
+      `局限线索：${normalized.slice(0, 180)}`,
+      anchorIds,
+      updatedAt,
+    )
   }
   if (/future|next|未来|启发|迁移|应用|改进/u.test(lower)) {
-    next = updateReadingMapSlot(next, 'next', `延展线索：${normalized.slice(0, 180)}`, anchorIds, updatedAt)
+    next = updateReadingMapSlot(
+      next,
+      'next',
+      `延展线索：${normalized.slice(0, 180)}`,
+      anchorIds,
+      updatedAt,
+    )
   }
 
   return next
@@ -839,48 +859,48 @@ git commit -m "feat: update paper reading maps from lessons"
 Add assertions to the existing paper profile persistence test:
 
 ```ts
-    expect(reloaded?.paperProfile?.readingMap.slots).toHaveLength(6)
-    expect(reloaded?.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'why')).toMatchObject({
-      status: 'seeded',
-    })
+expect(reloaded?.paperProfile?.readingMap.slots).toHaveLength(6)
+expect(reloaded?.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'why')).toMatchObject({
+  status: 'seeded',
+})
 ```
 
 Add a legacy compatibility test:
 
 ```ts
-  it('normalizes legacy paper profiles that do not include readingMap', () => {
-    const db = createMigratedDatabase()
-    const repository = new SqliteLessonRepository(db)
-    const now = '2026-07-14T00:00:00.000Z'
-    db.prepare(
-      `INSERT INTO lesson_sessions
+it('normalizes legacy paper profiles that do not include readingMap', () => {
+  const db = createMigratedDatabase()
+  const repository = new SqliteLessonRepository(db)
+  const now = '2026-07-14T00:00:00.000Z'
+  db.prepare(
+    `INSERT INTO lesson_sessions
        (id,title,status,document_id,document_title,created_at,updated_at,current_state,lesson_mode,paper_profile_json)
        VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    ).run(
-      '00000000-0000-4000-8000-000000000101',
-      'Paper Map 课堂',
-      'active',
-      '00000000-0000-4000-8000-000000000201',
-      'Paper Map',
-      now,
-      now,
-      'opening',
-      'paper',
-      JSON.stringify({
-        currentStage: 'orientation',
-        stageSummary: null,
-        termsIntroduced: [],
-        citedAnchorIds: [],
-      }),
-    )
+  ).run(
+    '00000000-0000-4000-8000-000000000101',
+    'Paper Map 课堂',
+    'active',
+    '00000000-0000-4000-8000-000000000201',
+    'Paper Map',
+    now,
+    now,
+    'opening',
+    'paper',
+    JSON.stringify({
+      currentStage: 'orientation',
+      stageSummary: null,
+      termsIntroduced: [],
+      citedAnchorIds: [],
+    }),
+  )
 
-    const session = repository.getById('00000000-0000-4000-8000-000000000101')
+  const session = repository.getById('00000000-0000-4000-8000-000000000101')
 
-    expect(session?.paperProfile?.readingMap.slots).toHaveLength(6)
-    expect(session?.paperProfile?.readingMap.slots.every((slot) => slot.status === 'empty')).toBe(
-      true,
-    )
-  })
+  expect(session?.paperProfile?.readingMap.slots).toHaveLength(6)
+  expect(session?.paperProfile?.readingMap.slots.every((slot) => slot.status === 'empty')).toBe(
+    true,
+  )
+})
 ```
 
 - [ ] **Step 2: Run Infrastructure repository tests and verify failures**
@@ -1015,17 +1035,17 @@ const readingMap = {
 Add expectations to the paper metadata test:
 
 ```ts
-    expect(screen.getByText('论文阅读地图')).toBeTruthy()
-    expect(screen.getByText('Why')).toBeTruthy()
-    expect(screen.getByText('The paper asks why evidence supports model behavior.')).toBeTruthy()
-    expect(screen.getAllByText('等待课堂继续补全').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('已关联证据').length).toBeGreaterThan(0)
+expect(screen.getByText('论文阅读地图')).toBeTruthy()
+expect(screen.getByText('Why')).toBeTruthy()
+expect(screen.getByText('The paper asks why evidence supports model behavior.')).toBeTruthy()
+expect(screen.getAllByText('等待课堂继续补全').length).toBeGreaterThan(0)
+expect(screen.getAllByText('已关联证据').length).toBeGreaterThan(0)
 ```
 
 Add to the standard lesson omission test:
 
 ```ts
-    expect(screen.queryByText('论文阅读地图')).toBeNull()
+expect(screen.queryByText('论文阅读地图')).toBeNull()
 ```
 
 - [ ] **Step 2: Run Renderer tests and verify they fail**
@@ -1072,23 +1092,21 @@ const paperReadingMapStatusLabels: Record<
 Render after the current paper stage section:
 
 ```tsx
-                <section className="lesson-paper-map">
-                  <h3>论文阅读地图</h3>
-                  <div className="lesson-paper-map-grid">
-                    {detailState.session.paperProfile.readingMap.slots.map((slot) => (
-                      <article key={slot.kind} className="lesson-paper-map-slot">
-                        <div className="lesson-paper-map-slot-header">
-                          <strong>{paperReadingMapSlotLabels[slot.kind]}</strong>
-                          <span>{paperReadingMapStatusLabels[slot.status]}</span>
-                        </div>
-                        <p>{slot.summary ?? '等待课堂继续补全'}</p>
-                        {slot.citedAnchorIds.length > 0 ? (
-                          <footer>已关联证据</footer>
-                        ) : null}
-                      </article>
-                    ))}
-                  </div>
-                </section>
+<section className="lesson-paper-map">
+  <h3>论文阅读地图</h3>
+  <div className="lesson-paper-map-grid">
+    {detailState.session.paperProfile.readingMap.slots.map((slot) => (
+      <article key={slot.kind} className="lesson-paper-map-slot">
+        <div className="lesson-paper-map-slot-header">
+          <strong>{paperReadingMapSlotLabels[slot.kind]}</strong>
+          <span>{paperReadingMapStatusLabels[slot.status]}</span>
+        </div>
+        <p>{slot.summary ?? '等待课堂继续补全'}</p>
+        {slot.citedAnchorIds.length > 0 ? <footer>已关联证据</footer> : null}
+      </article>
+    ))}
+  </div>
+</section>
 ```
 
 Place it only inside the existing paper-mode conditional.
@@ -1175,26 +1193,26 @@ git commit -m "feat: show paper reading map in lessons"
 In `tests/e2e/app.spec.ts`, update the paper lesson test:
 
 ```ts
-      await page.getByRole('button', { name: '开始课堂' }).click()
-      await expect(page.getByText('当前论文阶段')).toBeVisible()
-      await expect(page.getByText('整体定位')).toBeVisible()
-      await expect(page.getByText('论文阅读地图')).toBeVisible()
-      await expect(page.getByText('Why')).toBeVisible()
-      await expect(page.getByText('Evidence')).toBeVisible()
+await page.getByRole('button', { name: '开始课堂' }).click()
+await expect(page.getByText('当前论文阶段')).toBeVisible()
+await expect(page.getByText('整体定位')).toBeVisible()
+await expect(page.getByText('论文阅读地图')).toBeVisible()
+await expect(page.getByText('Why')).toBeVisible()
+await expect(page.getByText('Evidence')).toBeVisible()
 ```
 
 After submitting the learner answer:
 
 ```ts
-      await expect(page.getByText('问题定位')).toBeVisible()
-      await expect(page.getByText(/I think the paper is solving/)).toBeVisible()
+await expect(page.getByText('问题定位')).toBeVisible()
+await expect(page.getByText(/I think the paper is solving/)).toBeVisible()
 ```
 
 After restart:
 
 ```ts
-      await expect(page.getByText('论文阅读地图')).toBeVisible()
-      await expect(page.getByText(/I think the paper is solving/)).toBeVisible()
+await expect(page.getByText('论文阅读地图')).toBeVisible()
+await expect(page.getByText(/I think the paper is solving/)).toBeVisible()
 ```
 
 - [ ] **Step 2: Run targeted E2E**
