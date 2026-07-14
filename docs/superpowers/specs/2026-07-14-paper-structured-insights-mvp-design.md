@@ -13,6 +13,8 @@ DeepStorming 已经完成 D7 Paper Lesson Mode MVP 与 D7.1 Paper Reading Map MV
 
 本阶段新增“结构化论文洞察（structured insights）”层：在每次 paper lesson 成功交互后，自动把本轮理解沉淀为结构化 insight cards，并继续同步更新六槽阅读地图。
 
+同时，本阶段明确控制 token 成本：structured insights 不允许为了抽取而额外发起独立模型请求，只能消费当前成功 reply / retry 已返回的可选结构化结果；若没有结构化结果，则直接回退到本地规则抽取。
+
 ## 目标
 
 构建 D7.2 Paper Structured Insights MVP，使 paper lesson 在每次成功 reply / retry 后：
@@ -23,6 +25,7 @@ DeepStorming 已经完成 D7 Paper Lesson Mode MVP 与 D7.1 Paper Reading Map MV
    - 已有六槽 reading map
    - 新增 paper insight cards
 4. 在桌面端课堂详情中展示洞察卡片，并在重启后恢复。
+5. 不因结构化抽取额外增加一轮独立的模型调用。
 
 ## 非目标
 
@@ -34,6 +37,7 @@ DeepStorming 已经完成 D7 Paper Lesson Mode MVP 与 D7.1 Paper Reading Map MV
 - 独立的论文专用 review scheduler
 - 复杂 section 树、严格论文目录解析、引用网络
 - 要求所有 provider 都必须支持结构化输出
+- 为了结构化抽取额外补发第二轮模型请求
 
 ## 用户体验
 
@@ -43,6 +47,8 @@ DeepStorming 已经完成 D7 Paper Lesson Mode MVP 与 D7.1 Paper Reading Map MV
 2. 新增 `论文洞察卡片`，按 Section / Claim / Evidence / Limitation 分组展示本轮沉淀出的结构化结果。
 
 如果当前 provider 提供了合法的结构化结果，系统优先使用模型结果；否则自动回退到规则抽取。用户不需要额外操作，也不需要感知内部回退流程，只会看到稳定更新后的 paper workspace。
+
+这意味着用户看到的是“每次成功回复后都会更新”，但默认不会因为结构化整理再额外消耗一整轮 token。
 
 ## 方案比较
 
@@ -159,6 +165,12 @@ Application 层需要新增一个明确的 paper insights builder / merger，而
 - Application 先验证 `structuredPaperInsights`
   - 合法：优先采用
   - 非法或缺失：忽略并回退规则抽取
+
+关键约束：
+
+- 不允许为了 structured insights 单独再发起第二次 provider 调用
+- structured insights 只能来自当前这次成功 reply / retry 已经返回的 payload
+- 如果当前 payload 没有结构化字段，则直接走规则兜底，不等待也不补请求
 
 这样即使 provider 侧只实现了普通自然语言回复，paper workflow 仍然完整可用。
 
