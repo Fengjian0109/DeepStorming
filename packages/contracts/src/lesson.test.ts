@@ -31,6 +31,24 @@ const evidenceId = '00000000-0000-4000-8000-000000000801'
 const misconceptionSignalId = '00000000-0000-4000-8000-000000000901'
 const reviewItemId = '00000000-0000-4000-8000-000000000951'
 const reviewEventId = '00000000-0000-4000-8000-000000000961'
+const readingMap = {
+  slots: [
+    {
+      kind: 'why',
+      summary: 'The paper asks why evidence supports the claim.',
+      status: 'seeded',
+      citedAnchorIds: [anchorId],
+      updatedAt: '2026-07-14T00:00:00.000Z',
+    },
+    ...(['what', 'how', 'evidence', 'limits', 'next'] as const).map((kind) => ({
+      kind,
+      summary: null,
+      status: 'empty',
+      citedAnchorIds: [],
+      updatedAt: null,
+    })),
+  ],
+} as const
 
 const session = {
   id: lessonId,
@@ -335,11 +353,54 @@ describe('lesson contracts', () => {
           stageSummary: 'The learner has only a rough intuition so far.',
           termsIntroduced: ['Transformer'],
           citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+          readingMap,
         },
         createdAt: '2026-07-13T00:00:00.000Z',
         updatedAt: '2026-07-13T00:00:00.000Z',
       }).lessonMode,
     ).toBe('paper')
+  })
+
+  it('parses paper lesson profiles with reading maps', () => {
+    const result = lessonSessionSchema.parse({
+      ...session,
+      lessonMode: 'paper',
+      paperProfile: {
+        currentStage: 'orientation',
+        stageSummary: null,
+        termsIntroduced: [],
+        citedAnchorIds: [anchorId],
+        readingMap,
+      },
+    })
+
+    expect(result.paperProfile?.readingMap.slots).toHaveLength(6)
+  })
+
+  it('rejects invalid paper reading map slots', () => {
+    expect(() =>
+      lessonSessionSchema.parse({
+        ...session,
+        lessonMode: 'paper',
+        paperProfile: {
+          currentStage: 'orientation',
+          stageSummary: null,
+          termsIntroduced: [],
+          citedAnchorIds: [],
+          readingMap: {
+            slots: [
+              {
+                kind: 'unknown',
+                summary: null,
+                status: 'empty',
+                citedAnchorIds: [],
+                updatedAt: null,
+              },
+            ],
+          },
+        },
+      }),
+    ).toThrow()
   })
 
   it('validates review item and review event dto payloads', () => {

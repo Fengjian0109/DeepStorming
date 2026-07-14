@@ -55,12 +55,53 @@ export const paperReadingStageSchema = z.enum([
   'transfer',
   'synthesis',
 ])
+export const paperReadingMapSlotKindSchema = z.enum([
+  'why',
+  'what',
+  'how',
+  'evidence',
+  'limits',
+  'next',
+])
+export const paperReadingMapSlotStatusSchema = z.enum(['empty', 'seeded', 'updated'])
+export const paperReadingMapSlotSchema = z
+  .object({
+    kind: paperReadingMapSlotKindSchema,
+    summary: z.string().trim().min(1).max(500).nullable(),
+    status: paperReadingMapSlotStatusSchema,
+    citedAnchorIds: z.array(z.string().uuid()).max(24),
+    updatedAt: timestampSchema.nullable(),
+  })
+  .strict()
+  .refine(
+    (value) => value.summary !== null || (value.status === 'empty' && value.updatedAt === null),
+    {
+      message: 'empty reading map slot must not have update metadata',
+    },
+  )
+  .refine((value) => value.summary === null || value.updatedAt !== null, {
+    message: 'non-empty reading map slot must have updatedAt',
+  })
+export const paperReadingMapSchema = z
+  .object({
+    slots: z.array(paperReadingMapSlotSchema).length(6),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      new Set(value.slots.map((slot) => slot.kind)).size === 6 &&
+      ['why', 'what', 'how', 'evidence', 'limits', 'next'].every((kind) =>
+        value.slots.some((slot) => slot.kind === kind),
+      ),
+    { message: 'reading map must contain exactly one slot for each kind' },
+  )
 export const paperLessonProfileSchema = z
   .object({
     currentStage: paperReadingStageSchema,
     stageSummary: z.string().max(500).nullable(),
     termsIntroduced: z.array(z.string().trim().min(1).max(120)).max(24),
     citedAnchorIds: z.array(z.string().uuid()).max(24),
+    readingMap: paperReadingMapSchema,
   })
   .strict()
 export const lessonSourceTargetSchema = z.discriminatedUnion('kind', [
@@ -439,6 +480,10 @@ export type LessonMasteryEvidenceDto = z.infer<typeof lessonMasteryEvidenceSchem
 export type LessonMisconceptionSignalDto = z.infer<typeof lessonMisconceptionSignalSchema>
 export type LessonReviewItemDto = z.infer<typeof lessonReviewItemSchema>
 export type LessonReviewEventDto = z.infer<typeof lessonReviewEventSchema>
+export type PaperReadingMapSlotKindDto = z.infer<typeof paperReadingMapSlotKindSchema>
+export type PaperReadingMapSlotStatusDto = z.infer<typeof paperReadingMapSlotStatusSchema>
+export type PaperReadingMapSlotDto = z.infer<typeof paperReadingMapSlotSchema>
+export type PaperReadingMapDto = z.infer<typeof paperReadingMapSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
 export type LessonReplyDraftDto = z.infer<typeof lessonReplyDraftSchema>
