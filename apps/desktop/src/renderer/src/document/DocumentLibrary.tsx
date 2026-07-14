@@ -8,7 +8,7 @@ import type {
 } from '@deepstorming/contracts'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
-import { DocumentForm } from './DocumentForm'
+import { DocumentCreateDialog } from './DocumentCreateDialog'
 import { DocumentList } from './DocumentList'
 import { PdfReaderPanel } from './PdfReaderPanel'
 
@@ -77,6 +77,7 @@ export const DocumentLibrary = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummaryDto>()
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const listRequestSequence = useRef(0)
   const detailRequestSequence = useRef(0)
   const searchRequestSequence = useRef(0)
@@ -365,29 +366,26 @@ export const DocumentLibrary = ({
         </div>
       </section>
 
-      <div className="document-layout">
-        <aside className="panel">
-          <h2>新建文档</h2>
-          <DocumentForm
-            disabled={asyncState.status === 'loading'}
-            onSubmit={createDocument}
-            onError={(message) => setAsyncState({ status: 'error', message })}
-          />
-          <div className="document-import-card">
-            <h3>导入 PDF</h3>
-            <p className="field-help">导入带文本层的 PDF，DeepStorming 会保存页面和文本块。</p>
-            <label className="file-picker">
-              <span>导入 PDF</span>
-              <input
-                type="file"
-                accept=".pdf,application/pdf"
-                disabled={asyncState.status === 'loading'}
-                onChange={(event) => void importPdf(event)}
-              />
-            </label>
-          </div>
-        </aside>
+      <div className="document-import-section">
+        <div className="document-import-toolbar" role="toolbar" aria-label="添加学习资料">
+          <button type="button" onClick={() => setCreateDialogOpen(true)}>
+            粘贴文本 / 导入 TXT、MD
+          </button>
+          <label className="file-picker">
+            <span>{asyncState.status === 'loading' ? '处理中…' : '导入可选择文字的 PDF'}</span>
+            <input
+              type="file"
+              aria-label="导入可选择文字的 PDF"
+              accept=".pdf,application/pdf"
+              disabled={asyncState.status === 'loading'}
+              onChange={(event) => void importPdf(event)}
+            />
+          </label>
+        </div>
+        <p className="field-help">第一版仅支持带可选择文字层的 PDF，不支持扫描件。</p>
+      </div>
 
+      <div className="document-layout">
         <main className="panel">
           <div className="panel-header">
             <h2>文档列表</h2>
@@ -583,6 +581,14 @@ export const DocumentLibrary = ({
           )}
         </section>
       </div>
+
+      <DocumentCreateDialog
+        open={createDialogOpen}
+        saving={asyncState.status === 'loading'}
+        onClose={() => setCreateDialogOpen(false)}
+        onSubmit={createDocument}
+        onError={(message) => setAsyncState({ status: 'error', message })}
+      />
 
       {deleteTarget && (
         <div className="modal-backdrop">

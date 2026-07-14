@@ -321,9 +321,39 @@ h2 {
 
 .document-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(280px, 1fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(280px, 0.8fr) minmax(360px, 1.2fr);
   gap: 18px;
   align-items: start;
+}
+
+.document-import-section {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 1px solid rgb(32 52 43 / 12%);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 62%);
+}
+
+.document-import-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.document-import-toolbar > * {
+  flex: 0 1 auto;
+}
+
+.document-create-dialog {
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 22px;
+  overflow: auto;
+  border: 1px solid rgb(32 52 43 / 16%);
+  border-radius: 18px;
+  background: #fffdf7;
+  box-shadow: 0 24px 72px rgb(21 43 32 / 24%);
 }
 
 .lesson-layout {
