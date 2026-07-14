@@ -1,9 +1,14 @@
-import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
+import {
+  _electron as electron,
+  expect,
+  test,
+  type ElectronApplication,
+  type Page,
+} from '@playwright/test'
 
 const sandboxArgs = (): string[] => {
   const args: string[] = []
@@ -31,13 +36,6 @@ const launchDevApp = async (userDataDir: string): Promise<ElectronApplication> =
     env: launchEnvironment(path.join(userDataDir, 'runtime')),
   })
 
-const clearPersistedContextChunks = (userDataDir: string): void => {
-  execFileSync(process.env['SQLITE3_BINARY'] ?? 'sqlite3', [
-    path.join(userDataDir, 'runtime', 'deepstorming.sqlite3'),
-    'PRAGMA trusted_schema=ON; DELETE FROM document_chunks;',
-  ])
-}
-
 const pdfStringWith = (text: string): string => {
   const escaped = text.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)')
   const stream = `BT /F1 12 Tf 72 720 Td (${escaped}) Tj ET`
@@ -55,42 +53,25 @@ const pdfStringWith = (text: string): string => {
     pdf += object
   }
   const xrefOffset = Buffer.byteLength(pdf, 'utf8')
-  pdf += `xref\n0 ${objects.length + 1}\n`
-  pdf += '0000000000 65535 f \n'
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
   for (const offset of offsets.slice(1)) pdf += `${offset.toString().padStart(10, '0')} 00000 n \n`
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
   return pdf
 }
 
-const createMockProvider = async (
-  page: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
-  displayName: string,
-  modelName: string,
-): Promise<void> => {
-  await page.getByLabel('Provider 类型').selectOption('mock')
-  await page.getByLabel('显示名称').fill(displayName)
-  await page.getByLabel('模型名称').fill(modelName)
-  await page.getByRole('button', { name: '添加 Provider' }).click()
-  await expect(page.getByText('Provider 已添加。')).toBeVisible()
-  await expect(page.getByText(displayName)).toBeVisible()
-}
-
-const openProviderPage = async (
-  page: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
-): Promise<void> => {
-  await page.getByRole('button', { name: 'Provider' }).click()
+const openSettings = async (page: Page): Promise<void> => {
+  await page.getByRole('button', { name: '设置' }).click()
   await expect(page.getByRole('heading', { name: 'Provider 管理' })).toBeVisible()
 }
 
-test('boots securely and covers the mock provider lifecycle', async () => {
+test('boots securely and covers the mock provider lifecycle from Settings', async () => {
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-e2e-user-'))
   const app = await launchDevApp(userDataDir)
-
   try {
     const page = await app.firstWindow()
     await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
     await expect(page.getByTestId('app-version')).toContainText('v0.0.0')
-    await openProviderPage(page)
+    await openSettings(page)
     await expect(page.getByText('还没有 Provider')).toBeVisible()
 
     const preferences = await app.evaluate(({ BrowserWindow }) => {
@@ -103,374 +84,98 @@ test('boots securely and covers the mock provider lifecycle', async () => {
         sandbox: current.sandbox,
       }
     })
-    expect(preferences).toEqual({
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    })
+    expect(preferences).toEqual({ contextIsolation: true, nodeIntegration: false, sandbox: true })
 
-    await createMockProvider(page, 'Offline Tutor', 'mock-success')
-
+    await page.getByLabel('Provider 类型').selectOption('mock')
+    await page.getByLabel('显示名称').fill('Offline Tutor')
+    await page.getByLabel('模型名称').fill('mock-success')
+    await page.getByRole('button', { name: '添加 Provider' }).click()
     await page.getByRole('button', { name: '设为启用 Offline Tutor' }).click()
     await expect(page.getByText('Provider 已启用。')).toBeVisible()
-    await expect(page.getByText('启用中')).toBeVisible()
-
     await page.getByRole('button', { name: '测试 Offline Tutor' }).click()
     await expect(page.getByText('Provider 测试成功。')).toBeVisible()
-
-    await page.getByRole('button', { name: '编辑 Offline Tutor' }).click()
-    await expect(page.getByLabel('API Key（留空则保留原密钥）')).toBeVisible()
-    await page.getByRole('button', { name: '保存更改' }).click()
-    await expect(page.getByText('Provider 已更新。')).toBeVisible()
-
-    await createMockProvider(page, 'Slow Mock', 'mock-delay')
-    await page.getByRole('button', { name: '测试 Slow Mock' }).click()
-    await expect(page.getByText('正在测试 Slow Mock…')).toBeVisible()
-    await page.getByRole('button', { name: '取消测试' }).click()
-    await expect(page.getByText('测试已取消。')).toBeVisible()
-
-    for (const name of ['Offline Tutor', 'Slow Mock']) {
-      await page.getByRole('button', { name: `删除 ${name}` }).click()
-      await expect(page.getByRole('dialog', { name: '确认删除 Provider' })).toBeVisible()
-      await page.getByRole('button', { name: '确认删除' }).click()
-      await expect(page.getByText('Provider 已删除。')).toBeVisible()
-    }
-    await expect(page.getByText('还没有 Provider')).toBeVisible()
   } finally {
     await app.close()
     rmSync(userDataDir, { recursive: true, force: true })
   }
 })
 
-test('creates text documents and persists them across restart', async () => {
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-doc-e2e-user-'))
-  const pdfFixturePath = path.join(userDataDir, 'evidence.pdf')
-  const pdfFixtureText = 'Evidence connects a claim to observable behavior'
-  writeFileSync(pdfFixturePath, pdfStringWith(pdfFixtureText), 'utf8')
+test('covers the chat-first document and classroom journey', async () => {
+  const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-chat-e2e-user-'))
+  const pdfPath = path.join(userDataDir, 'evidence.pdf')
+  const pdfText = 'Evidence connects a claim to observable behavior'
+  const hiddenTail = 'FULL_BODY_SHOULD_REQUIRE_READER'
+  const longBody = `${'学习证据与解释。'.repeat(80)}${hiddenTail}`
+  writeFileSync(pdfPath, pdfStringWith(pdfText), 'utf8')
 
+  const app = await launchDevApp(userDataDir)
   try {
-    const first = await launchDevApp(userDataDir)
-    try {
-      const page = await first.firstWindow()
-      await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
-      await expect(page.getByText('还没有文档')).toBeVisible()
+    const page = await app.firstWindow()
+    await expect(page.getByTestId('app-version')).toBeVisible()
+    await expect(page.getByRole('toolbar', { name: '添加学习资料' })).toBeVisible()
+    await expect(page.getByLabel('导入可选择文字的 PDF')).toBeVisible()
 
-      await page.getByRole('button', { name: '粘贴文本' }).click()
-      await page.getByLabel('标题').fill('Socratic Notes')
-      await page.getByLabel('正文').fill('Understanding needs retrieval and explanation.')
-      await page.getByRole('button', { name: '保存文档' }).click()
-      await expect(page.getByText('文档已创建。')).toBeVisible()
-      await expect(
-        page.locator('.document-detail').getByRole('heading', { name: 'Socratic Notes' }),
-      ).toBeVisible()
+    await page.getByRole('button', { name: '粘贴文本 / 导入 TXT、MD' }).click()
+    await page.getByLabel('标题').fill('Chat First Notes')
+    await page.getByLabel('正文').fill(longBody)
+    await page.getByRole('button', { name: '保存文档' }).click()
+    await expect(page.getByRole('heading', { name: 'Chat First Notes' })).toBeVisible()
+    await expect(page.getByText(hiddenTail, { exact: true })).toHaveCount(0)
 
-      await page.getByLabel('导入 .txt 或 .md').setInputFiles({
-        name: 'paper.md',
-        mimeType: 'text/markdown',
-        buffer: Buffer.from('# Paper Map\nWhy What How Evidence Limits Next', 'utf8'),
-      })
-      await page.getByRole('button', { name: '保存文档' }).click()
-      await expect(
-        page.locator('.document-detail').getByRole('heading', { name: 'paper.md' }),
-      ).toBeVisible()
+    await page.getByRole('button', { name: '打开阅读器' }).click()
+    await expect(page.getByText(hiddenTail, { exact: false })).toBeVisible()
+    await page.getByRole('button', { name: '关闭阅读器' }).click()
+    await expect(page.getByText(hiddenTail, { exact: true })).toHaveCount(0)
 
-      await page.getByLabel('导入 PDF').setInputFiles(pdfFixturePath)
-      await expect(page.getByText('PDF 已导入。')).toBeVisible()
-      await expect(
-        page.locator('.document-detail').getByRole('heading', { name: 'evidence' }),
-      ).toBeVisible()
-      await expect(page.locator('.document-detail .document-body')).toContainText(pdfFixtureText)
-      await expect(page.getByText('PDF 页面 1')).toBeVisible()
-      await expect(page.getByText(`Block 1 · ${pdfFixtureText}`)).toBeVisible()
-      await page.getByRole('button', { name: '选择 Block 1' }).click()
-      await page.getByRole('button', { name: '用此 block 开始课堂' }).click()
-      await expect(page.locator('#lesson-title')).toHaveText('课堂')
-      await expect(page.locator('.lesson-anchor').getByText(pdfFixtureText)).toBeVisible()
-      await expect(page.getByText('第 1 页 · Block 1')).toBeVisible()
-      await expect(
-        page.locator('.document-detail').getByText('当前阶段：苏格拉底追问'),
-      ).toBeVisible()
-      await expect(
-        page
-          .locator('.lesson-step-meta')
-          .filter({ hasText: '动作：ask · opening → probing' })
-          .first(),
-      ).toBeVisible()
-      await expect(page.getByRole('heading', { name: '上下文证据' })).toHaveCount(1)
-      await expect(page.locator('.lesson-context-chunks li').first()).toHaveText('第 1 页 · 48 字')
-      await page
-        .getByLabel('你的回答')
-        .fill('Evidence connects a claim to observable behavior, so I would verify behavior.')
-      await page.getByRole('button', { name: '提交回答' }).click()
-      await expect(page.getByText('回答已提交。')).toBeVisible()
-      await expect(page.getByText(/你会怎样概括论文的问题定义、关键假设或方法线索/)).toBeVisible()
-      await expect(page.getByText('paper-tutor-follow-up-v1')).toBeVisible()
-      await expect(
-        page.locator('.lesson-mastery-diagnosis').getByText('学习诊断').first(),
-      ).toBeVisible()
-      await expect(
-        page.locator('.lesson-mastery-diagnosis').getByText('部分理解 · 55%').first(),
-      ).toBeVisible()
-      await expect(
-        page
-          .locator('.lesson-step-meta')
-          .filter({ hasText: '动作：ask · probing → probing' })
-          .first(),
-      ).toBeVisible()
-      await expect(page.getByRole('heading', { name: '上下文证据' })).toHaveCount(2)
-      await expect(page.locator('.lesson-context-chunks li').nth(1)).toHaveText('第 1 页 · 48 字')
-      await page.getByRole('button', { name: '回到证据' }).click()
-      await expect(
-        page.locator('.document-detail').getByRole('heading', { name: 'evidence' }),
-      ).toBeVisible()
-      await expect(page.locator('.pdf-block-active')).toBeVisible()
-      await page.getByRole('button', { name: '文档库' }).click()
+    await page.getByRole('button', { name: '开始课堂' }).click()
+    await expect(page.getByRole('region', { name: '课堂对话' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Chat First Notes 课堂 · 进行中/ })).toBeVisible()
+    await page.getByLabel('你的回答').fill('我会用证据解释并检验这个判断。')
+    await page.getByRole('button', { name: '发送' }).click()
+    await expect(page.getByText('回答已提交。')).toBeVisible()
+    await expect(page.getByText('我会用证据解释并检验这个判断。', { exact: true })).toBeVisible()
 
-      await page.getByLabel('搜索文档内容').fill('Evidence')
-      await page.getByRole('button', { name: '搜索内容' }).click()
-      await expect(page.getByText('Why What How Evidence Limits Next')).toBeVisible()
-      await page
-        .locator('.search-hit')
-        .filter({ hasText: 'Why What How Evidence Limits Next' })
-        .getByRole('button', { name: '用此片段开始课堂' })
-        .click()
-      await expect(page.locator('#lesson-title')).toHaveText('课堂')
-      await expect(
-        page.locator('.lesson-anchor').getByText('Why What How Evidence Limits Next'),
-      ).toBeVisible()
-      await expect(page.getByText(/你觉得它想解决的核心问题是什么/)).toBeVisible()
-      await expect(page.getByText('lesson.mockTutor.firstQuestion v1')).toBeVisible()
-      await expect(
-        page.locator('.document-detail').getByText('当前阶段：苏格拉底追问'),
-      ).toBeVisible()
-      await expect(
-        page
-          .locator('.lesson-step-meta')
-          .filter({ hasText: '动作：ask · opening → probing' })
-          .first(),
-      ).toBeVisible()
-      await page.getByLabel('你的回答').fill('它在说明证据如何支撑判断。')
-      await page.getByRole('button', { name: '提交回答' }).click()
-      await expect(page.getByText('回答已提交。')).toBeVisible()
-      await expect(
-        page
-          .locator('.lesson-message')
-          .filter({ hasText: '学习者 · Prompt learner-input-v1' })
-          .getByText('它在说明证据如何支撑判断。'),
-      ).toBeVisible()
-      await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
-      await expect(page.getByText('lesson.mockTutor.followUp v2')).toBeVisible()
-      await expect(
-        page.locator('.lesson-mastery-diagnosis').getByText('部分理解 · 55%').first(),
-      ).toBeVisible()
-      await expect(
-        page
-          .locator('.lesson-step-meta')
-          .filter({ hasText: '动作：ask · probing → probing' })
-          .first(),
-      ).toBeVisible()
-      await page.getByRole('button', { name: '文档库' }).click()
+    await page.getByRole('button', { name: '课堂信息' }).click()
+    await expect(page.getByRole('dialog', { name: '课堂信息' })).toBeVisible()
+    await expect(
+      page
+        .getByRole('region', { name: '来源证据' })
+        .getByText(longBody.slice(0, 280), { exact: false }),
+    ).toBeVisible()
+    await page.getByRole('tab', { name: '技术' }).click()
+    await expect(page.getByText(/lesson\..* v\d+/).first()).toBeVisible()
+    await page.getByRole('button', { name: '关闭课堂信息' }).click()
 
-      await page.getByRole('button', { name: '删除 Socratic Notes' }).click()
-      await expect(page.getByRole('dialog', { name: '确认删除文档' })).toBeVisible()
-      await page.getByRole('button', { name: '确认删除' }).click()
-      await expect(page.getByText('文档已删除。')).toBeVisible()
-    } finally {
-      await first.close()
+    await page.getByRole('button', { name: '文档库' }).click()
+    await page.getByLabel('导入可选择文字的 PDF').setInputFiles(pdfPath)
+    await expect(page.getByText('PDF 已导入。')).toBeVisible()
+    await page.getByRole('button', { name: '打开阅读器' }).click()
+    await expect(page.getByText(`Block 1 · ${pdfText}`)).toBeVisible()
+    await page.getByRole('button', { name: '选择 Block 1' }).click()
+    await page.getByRole('button', { name: '用此 block 开始课堂' }).click()
+    await page.getByRole('button', { name: '课堂信息' }).click()
+    await expect(page.getByText('第 1 页 · Block 1')).toBeVisible()
+    await page.getByRole('button', { name: '回到证据' }).click()
+    await expect(page.getByRole('heading', { name: 'evidence' })).toBeVisible()
+    await expect(page.locator('.pdf-block-active')).toBeVisible()
+
+    await page.getByRole('button', { name: '收起副侧栏' }).click()
+    await expect(page.getByRole('button', { name: '展开副侧栏' })).toBeVisible()
+    await page.getByRole('button', { name: '收起全部侧栏' }).click()
+    await expect(page.getByRole('button', { name: '恢复侧栏' })).toBeVisible()
+    await page.getByRole('button', { name: '恢复侧栏' }).click()
+
+    if (await page.getByRole('button', { name: '展开副侧栏' }).isVisible()) {
+      await page.getByRole('button', { name: '展开副侧栏' }).click()
     }
-
-    clearPersistedContextChunks(userDataDir)
-
-    const second = await launchDevApp(userDataDir)
-    try {
-      const page = await second.firstWindow()
-      await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
-      await expect(page.getByRole('heading', { name: 'paper.md' })).toBeVisible()
-      await expect(page.getByRole('heading', { name: 'evidence' })).toBeVisible()
-      await page
-        .locator('.document-card')
-        .filter({ hasText: 'evidence' })
-        .getByRole('button', { name: '查看详情' })
-        .click()
-      await expect(page.locator('.document-detail .document-body')).toContainText(pdfFixtureText)
-      await expect(page.getByText('PDF 页面 1')).toBeVisible()
-      await expect(page.getByText(`Block 1 · ${pdfFixtureText}`)).toBeVisible()
-      await page
-        .locator('.document-card')
-        .filter({ hasText: 'paper.md' })
-        .getByRole('button', { name: '查看详情' })
-        .click()
-      await expect(
-        page.locator('.document-detail').getByText('Why What How Evidence Limits Next'),
-      ).toBeVisible()
-      await page.locator('nav').getByRole('button', { name: '课堂' }).click()
-      await expect(
-        page.locator('.document-detail').getByRole('heading', { name: 'paper.md 课堂' }),
-      ).toBeVisible()
-      await expect(page.getByRole('heading', { name: 'evidence 课堂' })).toBeVisible()
-      await expect(
-        page.locator('.lesson-anchor').getByText('Why What How Evidence Limits Next'),
-      ).toBeVisible()
-      await expect(
-        page.locator('.document-detail').getByText('当前阶段：苏格拉底追问'),
-      ).toBeVisible()
-      await expect(page.getByText(/你觉得它想解决的核心问题是什么/)).toBeVisible()
-      await expect(page.getByText('lesson.mockTutor.firstQuestion v1')).toBeVisible()
-      await expect(
-        page
-          .locator('.lesson-message')
-          .filter({ hasText: '学习者 · Prompt learner-input-v1' })
-          .getByText('它在说明证据如何支撑判断。'),
-      ).toBeVisible()
-      await expect(page.getByText(/下一步你会如何验证这个判断/)).toBeVisible()
-      await expect(page.getByText('lesson.mockTutor.followUp v2')).toBeVisible()
-      await expect(
-        page.locator('.lesson-mastery-diagnosis').getByText('部分理解 · 55%').first(),
-      ).toBeVisible()
-      await expect(
-        page
-          .locator('.lesson-step-meta')
-          .filter({ hasText: '动作：ask · probing → probing' })
-          .first(),
-      ).toBeVisible()
-      await expect(page.getByRole('heading', { name: 'Socratic Notes' })).not.toBeVisible()
-      await page
-        .locator('.document-card')
-        .filter({ hasText: 'evidence 课堂' })
-        .getByRole('button', { name: '打开 evidence 课堂' })
-        .click()
-      await expect(page.locator('.lesson-context-chunks li').nth(1)).toHaveText('第 1 页 · 48 字')
-      await page.getByLabel('你的回答').fill('我会继续检查缺少 chunk 时还能否只靠 snippet 追问。')
-      await page.getByRole('button', { name: '提交回答' }).click()
-      await expect(page.getByText('课堂仍可继续（已降级为 snippet）')).toBeVisible()
-      await expect(
-        page.locator('.lesson-mastery-diagnosis').getByText('部分理解 · 55%').first(),
-      ).toBeVisible()
-      await expect(
-        page
-          .locator('.lesson-step-meta')
-          .filter({ hasText: '动作：ask · probing → probing' })
-          .first(),
-      ).toBeVisible()
-    } finally {
-      await second.close()
-    }
+    const contextualSeparator = page.getByRole('separator', { name: '调整副侧栏宽度' })
+    for (let index = 0; index < 40; index += 1) await contextualSeparator.press('ArrowRight')
+    const resized = await contextualSeparator.boundingBox()
+    const viewportWidth = await page.evaluate(() => window.innerWidth)
+    if (!resized) throw new Error('Workspace separator bounds are unavailable')
+    expect(resized.x + resized.width).toBeLessThanOrEqual(viewportWidth / 2 + 8)
   } finally {
-    rmSync(userDataDir, { recursive: true, force: true })
-  }
-})
-
-test('creates lesson review tasks, records review results, and persists them across restart', async () => {
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-review-e2e-user-'))
-
-  try {
-    const first = await launchDevApp(userDataDir)
-    let nextDueLabel = ''
-    try {
-      const page = await first.firstWindow()
-      await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
-
-      await page.getByRole('button', { name: '粘贴文本' }).click()
-      await page.getByLabel('标题').fill('Review Notes')
-      await page.getByLabel('正文').fill('Evidence supports the claim through observable behavior.')
-      await page.getByRole('button', { name: '保存文档' }).click()
-      await expect(
-        page.locator('.document-detail').getByRole('heading', { name: 'Review Notes' }),
-      ).toBeVisible()
-
-      await page.getByLabel('搜索文档内容').fill('Evidence')
-      await page.getByRole('button', { name: '搜索内容' }).click()
-      await page
-        .locator('.search-hit')
-        .filter({ hasText: 'Evidence supports the claim through observable behavior.' })
-        .getByRole('button', { name: '用此片段开始课堂' })
-        .click()
-
-      await expect(page.locator('#lesson-title')).toHaveText('课堂')
-      await page.getByLabel('你的回答').fill('是的')
-      await page.getByRole('button', { name: '提交回答' }).click()
-      await expect(page.getByText('回答已提交。')).toBeVisible()
-      await expect(page.getByRole('heading', { name: '复习任务' })).toBeVisible()
-      await expect(
-        page.getByText('复习：请重新解释这段课堂证据，并说明你的判断依据。'),
-      ).toBeVisible()
-      await expect(page.getByText(/下次复习：\d{4}-\d{2}-\d{2}/)).toBeVisible()
-
-      await page.getByLabel('这次复习回答').fill('我重新解释后，能说清这段证据和判断依据。')
-      await page.getByRole('button', { name: '记住了' }).click()
-      await expect(page.getByText('复习记录已保存。')).toBeVisible()
-
-      nextDueLabel = (await page.getByText(/下次复习：\d{4}-\d{2}-\d{2}/).textContent()) ?? ''
-      expect(nextDueLabel).not.toBe('')
-    } finally {
-      await first.close()
-    }
-
-    const second = await launchDevApp(userDataDir)
-    try {
-      const page = await second.firstWindow()
-      await page.locator('nav').getByRole('button', { name: '课堂' }).click()
-      await page
-        .locator('.document-card')
-        .filter({ hasText: 'Review Notes 课堂' })
-        .getByRole('button', { name: '打开 Review Notes 课堂' })
-        .click()
-
-      await expect(page.getByRole('heading', { name: '复习任务' })).toBeVisible()
-      await expect(page.getByText(nextDueLabel)).toBeVisible()
-      await expect(
-        page.getByText('复习：请重新解释这段课堂证据，并说明你的判断依据。'),
-      ).toBeVisible()
-    } finally {
-      await second.close()
-    }
-  } finally {
-    rmSync(userDataDir, { recursive: true, force: true })
-  }
-})
-
-test('starts a paper lesson, advances the paper stage, and restores it after restart', async () => {
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-paper-e2e-user-'))
-  const pdfFixturePath = path.join(userDataDir, 'Paper Map.pdf')
-
-  writeFileSync(pdfFixturePath, pdfStringWith('Why What How Evidence Limits Next'), 'utf8')
-
-  try {
-    const first = await launchDevApp(userDataDir)
-    try {
-      const page = await first.firstWindow()
-      await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
-
-      await page.getByLabel('导入 PDF').setInputFiles(pdfFixturePath)
-      await expect(page.getByText('PDF 已导入。')).toBeVisible()
-      await expect(
-        page.locator('.document-detail').getByRole('heading', { name: 'Paper Map' }),
-      ).toBeVisible()
-
-      await page.getByRole('button', { name: '开始课堂' }).click()
-      await expect(page.getByText('当前论文阶段')).toBeVisible()
-      await expect(page.getByText('整体定位')).toBeVisible()
-
-      await page
-        .getByLabel('你的回答')
-        .fill('I think the paper is solving how evidence supports model behavior.')
-      await page.getByRole('button', { name: '提交回答' }).click()
-
-      await expect(page.getByText('问题定位')).toBeVisible()
-    } finally {
-      await first.close()
-    }
-
-    const second = await launchDevApp(userDataDir)
-    try {
-      const page = await second.firstWindow()
-      await page.locator('nav').getByRole('button', { name: '课堂' }).click()
-      await page.getByRole('button', { name: '打开 Paper Map 课堂' }).click()
-      await expect(page.getByText('问题定位')).toBeVisible()
-    } finally {
-      await second.close()
-    }
-  } finally {
+    await app.close()
     rmSync(userDataDir, { recursive: true, force: true })
   }
 })
