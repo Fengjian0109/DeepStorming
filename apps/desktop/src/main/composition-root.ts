@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import {
   CreateDocumentFromText,
   DeleteDocument,
+  ExtractDocumentFigures,
   GetDocument,
   GetDocumentPageBlocks,
   GetDocumentPages,
@@ -41,8 +42,10 @@ import {
 import {
   EncryptedFileSecretVault,
   LocalPdfFileStore,
+  LocalDocumentAssetStore,
   LocalAvatarStore,
   PdfParseTextExtractor,
+  PdfFigureExtractor,
   ProviderGatewayFactory,
   SecretCleanupReporter,
   Sha256DocumentTextHasher,
@@ -109,6 +112,8 @@ export const createCompositionRoot = async (
     const documentHasher = new Sha256DocumentTextHasher()
     const pdfFileStore = new LocalPdfFileStore(join(userData, 'document-files'))
     const pdfTextExtractor = new PdfParseTextExtractor()
+    const documentAssetStore = new LocalDocumentAssetStore(join(userData, 'managed-assets'))
+    const pdfFigureExtractor = new PdfFigureExtractor()
     const avatarStore = new LocalAvatarStore(join(userData, 'managed-assets'))
 
     await vault.reconcile(await repository.referencedSecretRefs())
@@ -120,6 +125,13 @@ export const createCompositionRoot = async (
     const rebuildDocumentChunks = new RebuildDocumentChunks(
       documentRepository,
       documentImportRepository,
+    )
+    const extractDocumentFigures = new ExtractDocumentFigures(
+      documentImportRepository,
+      pdfFigureExtractor,
+      documentAssetStore,
+      clock,
+      ids,
     )
     const assembleLessonContext = new AssembleLessonContext(
       documentRepository,
@@ -154,6 +166,7 @@ export const createCompositionRoot = async (
         clock,
         ids,
         rebuildDocumentChunks,
+        extractDocumentFigures,
       ),
       getDocumentPages: new GetDocumentPages(documentImportRepository),
       getDocumentPageBlocks: new GetDocumentPageBlocks(documentImportRepository),

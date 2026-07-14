@@ -1,4 +1,5 @@
 import {
+  normalizeDocumentFigure,
   countDocumentCharacters,
   documentHashInput,
   normalizeDocumentDraft,
@@ -9,15 +10,19 @@ import {
   type DocumentImportJob,
   type DocumentImportStatus,
   type LearningDocument,
+  type DocumentFigure,
 } from '@deepstorming/domain'
 import type {
   ClockPort,
+  DocumentAssetStorePort,
+  DocumentFigureRepositoryPort,
   DocumentImportRepositoryPort,
   DocumentRepositoryPort,
   DocumentTextHasherPort,
   ExtractedPdfPage,
   IdGeneratorPort,
   PdfFileStorePort,
+  PdfFigureExtractorPort,
   PdfTextExtractorPort,
   StoredDocument,
   StoredDocumentDetail,
@@ -25,6 +30,7 @@ import type {
   StoredDocumentChunk,
   StoredDocumentTextBlock,
 } from './document-ports'
+import type { CancellationToken } from './provider-ports'
 import { DuplicateDocumentError } from './document-ports'
 import {
   DEFAULT_CONTEXT_BUDGET,
@@ -46,6 +52,7 @@ export type DocumentUseCaseErrorCode =
   | 'DOCUMENT_PDF_TEXT_MISSING'
   | 'DOCUMENT_PDF_PARSE_FAILED'
   | 'DATABASE_UNAVAILABLE'
+  | 'OPERATION_CANCELLED'
   | 'INTERNAL_ERROR'
 
 export class DocumentUseCaseError extends Error {
@@ -73,6 +80,11 @@ export class PdfTextExtractionError extends DocumentUseCaseError {
 export type DocumentDetail = LearningDocument & Readonly<{ plainText: string }>
 export type DocumentSearchInput = Readonly<{ query: string }>
 export type ImportPdfDocumentInput = Readonly<{ filePath: string; originalName: string }>
+export type ExtractDocumentFiguresInput = Readonly<{
+  documentId: string
+  filePath: string
+  pages: readonly Readonly<{ pageNumber: number; text: string }>[]
+}>
 export type GetDocumentPageBlocksInput = Readonly<{ documentId: string; pageNumber: number }>
 export type RebuildDocumentChunksInput = Readonly<{ documentId: string }>
 export type SearchDocumentChunksInput = Readonly<{
@@ -361,6 +373,7 @@ export class ImportPdfDocument {
     private readonly clock: ClockPort,
     private readonly ids: IdGeneratorPort,
     private readonly rebuildDocumentChunks: RebuildDocumentChunks,
+    private readonly extractDocumentFigures?: Pick<ExtractDocumentFigures, 'execute'>,
   ) {}
 
   public async execute(input: ImportPdfDocumentInput): Promise<DocumentImportJob> {
@@ -462,6 +475,19 @@ export class ImportPdfDocument {
         this.toStoredBlocks(documentId, extracted.pages, pages, createdAt),
       )
       await this.rebuildDocumentChunks.execute({ documentId })
+      if (this.extractDocumentFigures !== undefined) {
+        await this.extractDocumentFigures.execute(
+          {
+            documentId,
+            filePath: storedFile.storedPath,
+            pages: extracted.pages.map((page) => ({
+              pageNumber: page.pageNumber,
+              text: page.text,
+            })),
+          },
+          { cancelled: false, onCancel: () => () => undefined },
+        )
+      }
       return await this.importRepository.updateJob({
         ...baseJob('ready'),
         documentId: document.id,
@@ -547,6 +573,99 @@ export class ImportPdfDocument {
         createdAt,
       }))
     })
+  }
+}
+
+export class ExtractDocumentFigures {
+  public constructor(
+    private readonly repository: DocumentFigureRepositoryPort,
+    private readonly extractor: PdfFigureExtractorPort,
+    private readonly assetStore: DocumentAssetStorePort,
+    private readonly clock: ClockPort,
+    private readonly ids: IdGeneratorPort,
+  ) {}
+
+  public async execute(
+    input: ExtractDocumentFiguresInput,
+    token: CancellationToken,
+  ): Promise<readonly DocumentFigure[]> {
+    if (token.cancelled) {
+      throw new DocumentUseCaseError(
+        'OPERATION_CANCELLED',
+        'Document figure extraction was cancelled.',
+        false,
+      )
+    }
+    try {
+      if (await this.repository.isFigureExtractionComplete(input.documentId)) {
+        return await this.repository.listFigures(input.documentId)
+      }
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+
+    let extracted: Awaited<ReturnType<PdfFigureExtractorPort['extract']>>
+    try {
+      extracted = await this.extractor.extract(
+        { filePath: input.filePath, pages: input.pages },
+        token,
+      )
+    } catch (error) {
+      if (token.cancelled || (error instanceof Error && /cancelled/iu.test(error.message))) {
+        throw new DocumentUseCaseError(
+          'OPERATION_CANCELLED',
+          'Document figure extraction was cancelled.',
+          false,
+        )
+      }
+      throw asImportFailure(error)
+    }
+
+    const written: Array<{ documentId: string; assetId: string }> = []
+    try {
+      const figures: DocumentFigure[] = []
+      for (const asset of extracted) {
+        if (token.cancelled) {
+          throw new DocumentUseCaseError(
+            'OPERATION_CANCELLED',
+            'Document figure extraction was cancelled.',
+            false,
+          )
+        }
+        const figureId = this.ids.generate()
+        const assetId = this.ids.generate()
+        await this.assetStore.writeFigure({
+          documentId: input.documentId,
+          assetId,
+          data: asset.data,
+        })
+        written.push({ documentId: input.documentId, assetId })
+        figures.push(
+          normalizeDocumentFigure({
+            id: figureId,
+            documentId: input.documentId,
+            pageNumber: asset.pageNumber,
+            label: asset.label,
+            caption: asset.caption,
+            assetId,
+            assetKind: asset.assetKind,
+            width: asset.width,
+            height: asset.height,
+            createdAt: this.clock.now(),
+          }),
+        )
+      }
+      await this.repository.completeFigureExtraction(input.documentId, figures)
+      return figures
+    } catch (error) {
+      await Promise.all(
+        written.map(({ documentId, assetId }) =>
+          this.assetStore.deleteFigure(documentId, assetId).catch(() => undefined),
+        ),
+      )
+      if (error instanceof DocumentUseCaseError) throw error
+      throw asImportFailure(error)
+    }
   }
 }
 

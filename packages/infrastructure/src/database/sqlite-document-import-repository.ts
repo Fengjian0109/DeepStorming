@@ -2,10 +2,12 @@ import type {
   DocumentImportRepositoryPort,
   StoredDocumentChunk,
   StoredDocumentFile,
+  StoredDocumentFigure,
   StoredDocumentPage,
   StoredDocumentTextBlock,
 } from '@deepstorming/application'
 import {
+  normalizeDocumentFigure,
   normalizeDocumentImportJob,
   type DocumentImportError,
   type DocumentImportJob,
@@ -72,6 +74,19 @@ type ChunkRow = {
   char_count: number
   source_version: string
   rebuild_token: string
+  created_at: string
+}
+
+type FigureRow = {
+  id: string
+  document_id: string
+  page_number: number
+  label: string
+  caption: string
+  asset_id: string
+  asset_kind: StoredDocumentFigure['assetKind']
+  width: number
+  height: number
   created_at: string
 }
 
@@ -181,6 +196,20 @@ const mapChunk = (row: ChunkRow): StoredDocumentChunk => ({
   createdAt: row.created_at,
 })
 
+const mapFigure = (row: FigureRow): StoredDocumentFigure =>
+  normalizeDocumentFigure({
+    id: row.id,
+    documentId: row.document_id,
+    pageNumber: row.page_number,
+    label: row.label,
+    caption: row.caption,
+    assetId: row.asset_id,
+    assetKind: row.asset_kind,
+    width: row.width,
+    height: row.height,
+    createdAt: row.created_at,
+  })
+
 const validateChunkDocumentIds = (
   documentId: string,
   chunks: readonly StoredDocumentChunk[],
@@ -285,7 +314,8 @@ export class SqliteDocumentImportRepository implements DocumentImportRepositoryP
              stored_path=excluded.stored_path,
              content_hash=excluded.content_hash,
              file_size_bytes=excluded.file_size_bytes,
-             created_at=excluded.created_at`,
+             created_at=excluded.created_at,
+             figure_extraction_status='pending'`,
         )
         .run(
           file.documentId,
@@ -305,6 +335,68 @@ export class SqliteDocumentImportRepository implements DocumentImportRepositoryP
         .get(file.documentId) as FileRow
       return mapFile(row)
     })
+  }
+
+  public async isFigureExtractionComplete(documentId: string): Promise<boolean> {
+    return this.safe(() => {
+      const row = this.db
+        .prepare('SELECT figure_extraction_status status FROM document_files WHERE document_id=?')
+        .get(documentId) as { status: 'pending' | 'ready' } | undefined
+      return row?.status === 'ready'
+    })
+  }
+
+  public async completeFigureExtraction(
+    documentId: string,
+    figures: readonly StoredDocumentFigure[],
+  ): Promise<void> {
+    const normalized = figures.map((figure) => normalizeDocumentFigure(figure))
+    if (normalized.some((figure) => figure.documentId !== documentId)) {
+      throw databaseError('DATABASE_UNAVAILABLE')
+    }
+    return this.safe(() =>
+      this.db.transaction(() => {
+        this.db.prepare('DELETE FROM document_figures WHERE document_id=?').run(documentId)
+        const insert = this.db.prepare(
+          `INSERT INTO document_figures
+           (id,document_id,page_number,label,caption,asset_id,asset_kind,width,height,created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        )
+        for (const figure of normalized) {
+          insert.run(
+            figure.id,
+            figure.documentId,
+            figure.pageNumber,
+            figure.label,
+            figure.caption,
+            figure.assetId,
+            figure.assetKind,
+            figure.width,
+            figure.height,
+            figure.createdAt,
+          )
+        }
+        const updated = this.db
+          .prepare("UPDATE document_files SET figure_extraction_status='ready' WHERE document_id=?")
+          .run(documentId)
+        if (updated.changes !== 1) throw new Error('document file not found')
+      })(),
+    )
+  }
+
+  public async listFigures(documentId: string): Promise<readonly StoredDocumentFigure[]> {
+    return this.safe(() =>
+      (
+        this.db
+          .prepare(
+            `SELECT id,document_id,page_number,label,caption,asset_id,asset_kind,width,height,created_at
+             FROM document_figures
+             WHERE document_id=?
+             ORDER BY page_number,id`,
+          )
+          .all(documentId) as FigureRow[]
+      ).map(mapFigure),
+    )
   }
 
   public async replacePagesAndBlocks(

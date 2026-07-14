@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { StoredDocumentChunk, StoredDocumentDetail } from '@deepstorming/application'
+import type {
+  StoredDocumentChunk,
+  StoredDocumentDetail,
+  StoredDocumentFigure,
+} from '@deepstorming/application'
 import type { DocumentImportJob } from '@deepstorming/domain'
 import { openDatabase, type SqliteDatabase } from './database'
 import { migrateDatabase } from './migrations'
@@ -20,6 +24,7 @@ const pageId = '00000000-0000-4000-8000-000000000301'
 const chunkId1 = '00000000-0000-4000-8000-000000000501'
 const chunkId2 = '00000000-0000-4000-8000-000000000502'
 const chunkId3 = '00000000-0000-4000-8000-000000000503'
+const figureId = '00000000-0000-4000-8000-000000000601'
 
 const document = (overrides: Partial<StoredDocumentDetail> = {}): StoredDocumentDetail => ({
   id: documentId,
@@ -156,6 +161,41 @@ describe('SqliteDocumentImportRepository', () => {
     await expect(repo.listPageBlocks(documentId, 1)).resolves.toEqual([
       expect.objectContaining({ pageId, blockIndex: 0, text: 'Paper text.' }),
     ])
+  })
+
+  it('atomically completes empty or populated figure extraction and replays replacement', async () => {
+    await documentRepo.create(document())
+    await repo.saveJob(importJob())
+    await repo.saveFile({
+      documentId,
+      importJobId: jobId,
+      originalName: 'paper.pdf',
+      storedPath: 'documents/00/paper.pdf',
+      contentHash: 'a'.repeat(64),
+      fileSizeBytes: 4096,
+      createdAt: '2026-07-12T00:02:00.000Z',
+    })
+    await expect(repo.isFigureExtractionComplete(documentId)).resolves.toBe(false)
+    const figure: StoredDocumentFigure = {
+      id: figureId,
+      documentId,
+      pageNumber: 2,
+      label: 'Figure 2',
+      caption: 'Attention architecture',
+      assetId: '00000000-0000-4000-8000-000000000602',
+      assetKind: 'embedded_image',
+      width: 320,
+      height: 200,
+      createdAt: '2026-07-12T00:02:00.000Z',
+    }
+
+    await repo.completeFigureExtraction(documentId, [figure])
+    await expect(repo.isFigureExtractionComplete(documentId)).resolves.toBe(true)
+    await expect(repo.listFigures(documentId)).resolves.toEqual([figure])
+
+    await repo.completeFigureExtraction(documentId, [])
+    await expect(repo.listFigures(documentId)).resolves.toEqual([])
+    await expect(repo.isFigureExtractionComplete(documentId)).resolves.toBe(true)
   })
 
   it('persists failed jobs with safe error summaries', async () => {

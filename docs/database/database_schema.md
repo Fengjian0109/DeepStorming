@@ -411,7 +411,9 @@ Migration 14 (`lesson_review_scheduler`) 把 `suggested_review = 1` 的课堂诊
 
 Migration 8 (`pdf_document_foundation`) 在现有 `learning_documents` 上追加 PDF 导入状态、文件、页面和文本块持久化。该切片仍复用 Phase 3 的 `learning_documents` 聚合根，不启用下述 5.1 的完整 `documents` 蓝图表。
 
-当前实现使用 `pdf-parse@2.4.5` 提取文本层 PDF：导入成功后会把全文写入 `learning_documents` / `document_text_versions`，并把每页文本与页面内文本块写入下列表。D4 已在此事实层之上补充 `document_chunks` / `document_chunks_fts` 派生索引，用于课堂上下文检索；扫描 PDF/OCR、页面渲染资产和精确 bbox 高亮仍属于后续扩展。
+当前实现使用 `pdf-parse@2.4.5` 提取文本层 PDF：导入成功后会把全文写入 `learning_documents` / `document_text_versions`，并把每页文本与页面内文本块写入下列表。D4 已在此事实层之上补充 `document_chunks` / `document_chunks_fts` 派生索引，用于课堂上下文检索；扫描 PDF/OCR 和精确 bbox 高亮仍属于后续扩展。
+
+Migration 19 (`document_figure_assets`) 在 `document_files` 增加 `figure_extraction_status = pending | ready`，并创建 `document_figures`。图注匹配支持 `Figure`、`Fig.` 和 `图`；每条记录只保存受控 `asset_id`、页码、图注、尺寸及 `embedded_image | page_render` 类型，不保存 Renderer 可见的任意文件路径。`UNIQUE(document_id, asset_id)` 与 `(document_id, page_number, id)` 索引分别保证资产归属唯一和按页稳定读取。即使 PDF 没有匹配图片，也将状态原子更新为 `ready`，从而避免恢复时重复抽取。
 
 #### `document_import_jobs`
 

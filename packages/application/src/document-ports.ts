@@ -1,4 +1,11 @@
-import type { DocumentImportJob, DocumentSourceKind, DocumentType } from '@deepstorming/domain'
+import type {
+  DocumentFigure,
+  DocumentFigureAssetKind,
+  DocumentImportJob,
+  DocumentSourceKind,
+  DocumentType,
+} from '@deepstorming/domain'
+import type { CancellationToken } from './provider-ports'
 
 export type StoredDocument = Readonly<{
   id: string
@@ -80,7 +87,16 @@ export type StoredDocumentChunk = Readonly<{
   createdAt: string
 }>
 
-export interface DocumentImportRepositoryPort {
+export interface DocumentFigureRepositoryPort {
+  isFigureExtractionComplete(documentId: string): Promise<boolean>
+  completeFigureExtraction(
+    documentId: string,
+    figures: readonly StoredDocumentFigure[],
+  ): Promise<void>
+  listFigures(documentId: string): Promise<readonly StoredDocumentFigure[]>
+}
+
+export interface DocumentImportRepositoryPort extends DocumentFigureRepositoryPort {
   saveJob(job: DocumentImportJob): Promise<DocumentImportJob>
   updateJob(job: DocumentImportJob): Promise<DocumentImportJob>
   listJobsForDocument(documentId: string): Promise<readonly DocumentImportJob[]>
@@ -141,6 +157,39 @@ export type ExtractedPdfPage = Readonly<{
 
 export interface PdfTextExtractorPort {
   extract(filePath: string): Promise<Readonly<{ pages: readonly ExtractedPdfPage[] }>>
+}
+
+export type ExtractedDocumentFigureAsset = Readonly<{
+  pageNumber: number
+  label: string
+  caption: string
+  assetKind: DocumentFigureAssetKind
+  width: number
+  height: number
+  data: Uint8Array
+}>
+
+export interface PdfFigureExtractorPort {
+  extract(
+    input: Readonly<{
+      filePath: string
+      pages: readonly Readonly<{ pageNumber: number; text: string }>[]
+    }>,
+    token: CancellationToken,
+  ): Promise<readonly ExtractedDocumentFigureAsset[]>
+}
+
+export type StoredDocumentFigure = DocumentFigure
+
+export interface DocumentAssetStorePort {
+  writeFigure(
+    input: Readonly<{
+      documentId: string
+      assetId: string
+      data: Uint8Array
+    }>,
+  ): Promise<Readonly<{ assetId: string; storedPath: string }>>
+  deleteFigure(documentId: string, assetId: string): Promise<void>
 }
 
 export interface DocumentTextHasherPort {

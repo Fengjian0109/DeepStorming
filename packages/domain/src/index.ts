@@ -1,5 +1,6 @@
 export * from './application-info'
 export * from './document'
+export * from './document-figure'
 export * from './lesson'
 export * from './learning-settings'
 export * from './tutor-turn'

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   DocumentImportRepositoryPort,
   DocumentRepositoryPort,
@@ -11,6 +11,7 @@ import type {
   StoredDocumentTextBlock,
   StoredDocument,
   StoredDocumentDetail,
+  StoredDocumentFigure,
 } from './document-ports'
 import {
   AssembleLessonContext,
@@ -109,6 +110,8 @@ class FakeDocumentImportRepository implements DocumentImportRepositoryPort {
   public blocks = new Map<string, StoredDocumentTextBlock[]>()
   public chunks = new Map<string, StoredDocumentChunk[]>()
   public statusHistory: DocumentImportJob['status'][] = []
+  public figures = new Map<string, StoredDocumentFigure[]>()
+  public completedFigureExtractions = new Set<string>()
 
   async saveJob(job: DocumentImportJob): Promise<DocumentImportJob> {
     this.jobs.set(job.id, job)
@@ -129,6 +132,22 @@ class FakeDocumentImportRepository implements DocumentImportRepositoryPort {
   async saveFile(file: StoredDocumentFile): Promise<StoredDocumentFile> {
     this.files.set(file.documentId, file)
     return file
+  }
+
+  async isFigureExtractionComplete(documentId: string): Promise<boolean> {
+    return this.completedFigureExtractions.has(documentId)
+  }
+
+  async completeFigureExtraction(
+    documentId: string,
+    figures: readonly StoredDocumentFigure[],
+  ): Promise<void> {
+    this.figures.set(documentId, [...figures])
+    this.completedFigureExtractions.add(documentId)
+  }
+
+  async listFigures(documentId: string): Promise<readonly StoredDocumentFigure[]> {
+    return this.figures.get(documentId) ?? []
   }
 
   async replacePagesAndBlocks(
@@ -219,6 +238,8 @@ describe('document use cases', () => {
       importRepo.pages.delete(documentId)
       importRepo.blocks.delete(documentId)
       importRepo.chunks.delete(documentId)
+      importRepo.figures.delete(documentId)
+      importRepo.completedFigureExtractions.delete(documentId)
     }
     extractor = {
       extract: async () => ({
@@ -457,6 +478,31 @@ describe('document use cases', () => {
       sourceKind: 'text_file',
       originalFileName: 'paper.pdf',
     })
+  })
+
+  it('runs resumable figure extraction from the managed PDF after text indexing', async () => {
+    const figurePipeline = { execute: vi.fn().mockResolvedValue([]) }
+    const result = await new ImportPdfDocument(
+      repo,
+      importRepo,
+      fileStore,
+      extractor,
+      hasher,
+      clock,
+      idGenerator,
+      new RebuildDocumentChunks(repo, importRepo),
+      figurePipeline,
+    ).execute({ filePath: '/tmp/paper.pdf', originalName: 'paper.pdf' })
+
+    expect(result.status).toBe('ready')
+    expect(figurePipeline.execute).toHaveBeenCalledWith(
+      {
+        documentId: result.documentId,
+        filePath: 'documents/00/paper.pdf',
+        pages: [{ pageNumber: 1, text: 'Paper text.' }],
+      },
+      expect.objectContaining({ cancelled: false }),
+    )
   })
 
   it('fails PDF import when the PDF is password protected', async () => {

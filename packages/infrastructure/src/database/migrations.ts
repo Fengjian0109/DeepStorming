@@ -360,6 +360,24 @@ ALTER TABLE lesson_sessions ADD COLUMN tutor_snapshot_json TEXT;`
 const STRUCTURED_TUTOR_TURN_SQL = `
 ALTER TABLE lesson_messages ADD COLUMN tutor_turn_json TEXT;`
 
+const DOCUMENT_FIGURE_ASSETS_SQL = `
+ALTER TABLE document_files ADD COLUMN figure_extraction_status TEXT NOT NULL DEFAULT 'pending'
+ CHECK (figure_extraction_status IN ('pending','ready'));
+CREATE TABLE document_figures (
+ id TEXT PRIMARY KEY,
+ document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE CASCADE,
+ page_number INTEGER NOT NULL CHECK (page_number > 0),
+ label TEXT NOT NULL,
+ caption TEXT NOT NULL,
+ asset_id TEXT NOT NULL,
+ asset_kind TEXT NOT NULL CHECK (asset_kind IN ('embedded_image','page_render')),
+ width REAL NOT NULL CHECK (width > 0),
+ height REAL NOT NULL CHECK (height > 0),
+ created_at TEXT NOT NULL,
+ UNIQUE(document_id, asset_id)
+);
+CREATE INDEX document_figures_document_page ON document_figures(document_id, page_number, id);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -379,6 +397,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 16, name: 'learning_settings', sql: LEARNING_SETTINGS_SQL },
   { version: 17, name: 'lesson_tutor_configuration', sql: LESSON_TUTOR_CONFIGURATION_SQL },
   { version: 18, name: 'structured_tutor_turn', sql: STRUCTURED_TUTOR_TURN_SQL },
+  { version: 19, name: 'document_figure_assets', sql: DOCUMENT_FIGURE_ASSETS_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')
