@@ -29,6 +29,7 @@
 ## Task 1: Reconfirm baseline and release inputs
 
 **Files:**
+
 - Modify: none
 - Reference: `docs/superpowers/specs/2026-07-14-d1-d8-self-use-release-design.md`
 - Reference: `docs/planning/provider-cloud-release-acceptance.md`
@@ -107,6 +108,7 @@ git commit -m "chore: refresh d1 baseline prerequisites"
 ## Task 2: Execute sanitized DeepSeek manual acceptance
 
 **Files:**
+
 - Modify: `docs/planning/provider-cloud-release-acceptance.md`
 - Test: manual desktop acceptance only
 - Reference: `/Users/hezhendong/Desktop/deepseek_api.txt`
@@ -262,6 +264,7 @@ git commit -m "docs: record deepseek acceptance"
 ## Task 3: Document the self-use release candidate posture
 
 **Files:**
+
 - Create: `docs/planning/self-use-release-candidate.md`
 - Modify: `docs/planning/current-status.md`
 - Modify: `docs/planning/software-design-completion-roadmap.md`
@@ -392,6 +395,7 @@ git commit -m "docs: capture self-use release candidate"
 ## Task 4: Verify packaging and packaged persistence for self-use
 
 **Files:**
+
 - Modify: none unless verification reveals a real issue
 - Test: `tests/e2e/packaged-provider.spec.ts`
 
@@ -450,6 +454,7 @@ git commit -m "fix: unblock self-use package verification"
 ## Task 5: Run sensitive-info scan and close out
 
 **Files:**
+
 - Modify: `docs/planning/provider-cloud-release-acceptance.md` if scan status needs to be updated
 
 - [ ] **Step 1: Run the documented sensitive-info scan**

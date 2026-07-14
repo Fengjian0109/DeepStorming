@@ -2,7 +2,7 @@
 
 - 日期：2026-07-14
 - 目标：把当前已完成的 Provider / 文本文档 / LessonSession 基线，收敛到可发布 MVP 所需的剩余软件设计与实施顺序。
-- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位、D4 检索上下文、D5 TutorAction / LessonState 状态机、D6 Review Scheduler MVP，以及 D7 Paper Lesson Mode MVP 已完成；下一阶段进入 D1 真实云 Provider 手动验收与 D8 发布候选准备，并保留更完整的论文工作流扩展。
+- 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位、D4 检索上下文、D5 TutorAction / LessonState 状态机、D6 Review Scheduler MVP、D7 Paper Lesson Mode MVP，以及 D1 DeepSeek 真实云 Provider 手动验收已完成；D8 已推进到自用版发布候选阶段，并保留更完整的论文工作流扩展与公开发布工作。
 
 ## 1. 当前设计基线
 
@@ -48,6 +48,11 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 
 - 至少一个 DeepSeek 模型和一个 OpenAI-compatible endpoint 通过手动验收，或明确记录阻塞原因。
 - 手动验收不把 API Key、Authorization header、原始响应正文写入仓库、日志、SQLite、fixtures、screenshots 或报告。
+
+当前状态：
+
+- DeepSeek 手动验收已完成并记录，使用 `deepseek-v4-flash` 成功通过创建、启用、连接测试、一次真实课堂生成与重启恢复验证。
+- OpenAI-compatible 真实端点验收仍可在后续有明确需求时补做。
 
 ### D2. PDF 文档底座
 
@@ -185,10 +190,16 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 - DMG 或 zip 分发。
 - 隐私说明、诊断导出、备份恢复、升级演练。
 
+当前状态：
+
+- 自用版发布候选已推进到可本地打包、可重装、可备份的阶段。
+- 已明确未签名自用版的隐私边界、备份/恢复建议与 Gatekeeper 限制。
+- 签名、公证和公开分发仍待后续完成。
+
 ## 3. 推荐实施顺序
 
 ```text
-D1 真实云 Provider 手动验收与发布前收尾
+D1 真实云 Provider 手动验收与发布前收尾（DeepSeek 已完成）
   ↓
 D2 PDF 文档底座（已完成）
   ↓
@@ -202,10 +213,10 @@ D6 Mastery Evidence / Misconception + Review Scheduler（已完成）
   ↓
 D7 Paper Lesson Mode MVP（已完成）→ D7 论文工作流扩展
   ↓
-D8 发布候选
+D8 发布候选（当前已推进到自用版发布候选）
 ```
 
-这个顺序的核心理由是：先完成真实 Provider 验收与发布前风险收敛，再基于已完成的 PDF / lesson / review 基线推进发布候选；论文工作流已经有 MVP 级课堂模式，后续扩展应围绕结构化论文地图与跨论文体验，而不是回退基础课堂闭环。
+这个顺序的核心理由是：先完成真实 Provider 验收与发布前风险收敛，再基于已完成的 PDF / lesson / review 基线推进发布候选；当前已经先把 DeepSeek 和自用版发布候选打通，后续若继续推进，应围绕 OpenAI-compatible 真实验收、公开发布能力和更完整的论文工作流扩展，而不是回退基础课堂闭环。
 
 ## 4. 设计完成定义
 

@@ -2,8 +2,8 @@
 
 - 更新时间：2026-07-14
 - 当前分支：`codex/review-scheduler-mvp`
-- 当前阶段：Phase 6 D7 Paper Lesson Mode MVP
-- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环、D5 课堂状态机审计链路、D6-MVP 学习诊断证据闭环、D6 Review Scheduler MVP，以及 D7 Paper Lesson Mode MVP 已完成
+- 当前阶段：Phase 6 D1 Real DeepSeek Acceptance + D8 Self-Use Release Candidate
+- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环、D5 课堂状态机审计链路、D6-MVP 学习诊断证据闭环、D6 Review Scheduler MVP、D7 Paper Lesson Mode MVP，以及 D1 真实 DeepSeek 验收 / D8 自用版发布候选推进中
 
 ## 已完成
 
@@ -135,6 +135,12 @@
   - Infrastructure：Migration 15 为 `lesson_sessions` 增加 `lesson_mode` 与 `paper_profile_json`，课堂持久化与重启恢复保留论文阶段。
   - Desktop：PDF 导入文档默认标记为 `documentType='paper'`；课堂详情新增“当前论文阶段”卡片，展示阶段标签与摘要。
   - E2E：新增 paper lesson 启动、阶段推进与重启恢复覆盖，并同步修正 PDF 导入课堂默认进入 paper mode 后的既有断言。
+- D1 真实 DeepSeek Provider 手动验收：
+  - 真实 key 通过本地安全方式输入，完成创建、启用、连接测试、一次真实课堂生成与重启恢复验证。
+  - 本轮通过 `deepseek-v4-flash` 完成真实云 Provider 验收；验收记录已做脱敏，不包含 API Key、Authorization header、原始响应正文或完整 prompt。
+- D8 自用版发布候选推进：
+  - 补充未签名自用版发布说明、隐私/备份/恢复边界。
+  - 保留签名、公证和公开分发为后续工作，不把它们作为当前自用版门禁。
 
 ## 当前范围与非目标
 
@@ -164,4 +170,4 @@ pnpm package:dir
 
 ## 下一步
 
-D7 Paper Lesson Mode MVP 已完成：PDF 导入证据现在默认进入论文课堂模式，能展示当前论文阶段、在回答后推进阶段，并在重启后恢复。下一步的软件设计重点转向 D1 真实云 Provider 手动验收与发布前收尾，以及 D8 发布候选（签名、图标、公证、分发）；D7 后续增强则保留给更完整的论文工作流、结构化 claim/evidence/limitation 地图与跨论文工作区。
+D1 的 DeepSeek 真实验收已经打通，D8 也已推进到“自用版发布候选”这一层。接下来优先完成打包产物复核、packaged persistence 复测、敏感信息扫描与最终文档收尾；若未来要走公开发布，再继续补齐品牌图标、Developer ID 签名、公证和对外分发策略。
