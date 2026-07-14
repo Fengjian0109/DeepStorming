@@ -19,6 +19,10 @@ export const appErrorCodeSchema = z.enum([
   'SECRET_WRITE_FAILED',
   'SECRET_DELETE_FAILED',
   'OPERATION_CANCELLED',
+  'LEARNING_SETTINGS_INVALID',
+  'LEARNING_SETTINGS_NOT_FOUND',
+  'SETTINGS_REVISION_CONFLICT',
+  'LAST_TUTOR_REQUIRED',
 ])
 
 export type AppErrorCode = z.infer<typeof appErrorCodeSchema>
