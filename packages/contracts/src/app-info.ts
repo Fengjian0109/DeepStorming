@@ -29,6 +29,16 @@ import type {
   LessonSessionsResult,
   LessonStartDraftDto,
 } from './lesson'
+import type {
+  AvatarAssetResult,
+  ClassroomPreferencesDto,
+  ClassroomPreferencesResult,
+  LearningSettingsResult,
+  TutorProfileDraftDto,
+  TutorProfileResult,
+  UserProfileDraftDto,
+  UserProfileResult,
+} from './learning-settings'
 
 export const APP_CHANNELS = {
   getInfo: 'app:get-info',
@@ -88,6 +98,24 @@ export type DeepStormingApi = {
     activate: (id: string) => Promise<ProviderResult>
     testConnection: (id: string, operationId: string) => Promise<ProviderResult>
     cancelTest: (operationId: string) => Promise<CancelProviderTestResult>
+  }
+  learningSettings: {
+    get: () => Promise<LearningSettingsResult>
+    saveUserProfile: (
+      expectedRevision: number,
+      profile: UserProfileDraftDto,
+    ) => Promise<UserProfileResult>
+    createTutor: (profile: TutorProfileDraftDto) => Promise<TutorProfileResult>
+    updateTutor: (
+      id: string,
+      expectedRevision: number,
+      profile: TutorProfileDraftDto,
+    ) => Promise<TutorProfileResult>
+    archiveTutor: (id: string, expectedRevision: number) => Promise<TutorProfileResult>
+    saveClassroomPreferences: (
+      preferences: ClassroomPreferencesDto,
+    ) => Promise<ClassroomPreferencesResult>
+    importAvatar: (file: File) => Promise<AvatarAssetResult>
   }
 }
 

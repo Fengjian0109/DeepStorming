@@ -727,6 +727,98 @@ describe('provider error and API contracts', () => {
           requestId,
         }),
       },
+      learningSettings: {
+        get: async () => ({
+          ok: true as const,
+          data: {
+            userProfile: {
+              displayName: '学习者',
+              revision: 1,
+              updatedAt: '2026-07-14T00:00:00.000Z',
+            },
+            tutorProfiles: [
+              {
+                id: providerId,
+                revision: 1,
+                status: 'active' as const,
+                name: '苏格拉底导师',
+                personality: '耐心',
+                tone: '清晰',
+                expertiseTags: ['通识'],
+                strictness: 3,
+                socraticIntensity: 4,
+                guidanceStyle: 'question_first' as const,
+                bookStrategy: '逐步提示',
+                paperStrategy: '检查证据',
+                customInstructions: '',
+                promptVersion: 'tutor-profile-v1',
+                createdAt: '2026-07-14T00:00:00.000Z',
+                updatedAt: '2026-07-14T00:00:00.000Z',
+              },
+            ],
+            classroomPreferences: {
+              defaultBookTutorId: providerId,
+              defaultPaperTutorId: providerId,
+              defaultPace: 'standard' as const,
+              sendShortcut: 'enter' as const,
+              autoScroll: true,
+              contextCompressionRemainingPercent: 30,
+              recentTurnCount: 8,
+            },
+          },
+          requestId,
+        }),
+        saveUserProfile: async (_expectedRevision, profile) => ({
+          ok: true as const,
+          data: { ...profile, revision: 2, updatedAt: '2026-07-14T00:00:00.000Z' },
+          requestId,
+        }),
+        createTutor: async (profile) => ({
+          ok: true as const,
+          data: {
+            ...profile,
+            id: providerId,
+            revision: 1,
+            status: 'active' as const,
+            promptVersion: 'tutor-profile-v1',
+            createdAt: '2026-07-14T00:00:00.000Z',
+            updatedAt: '2026-07-14T00:00:00.000Z',
+          },
+          requestId,
+        }),
+        updateTutor: async (_id, _expectedRevision, profile) => ({
+          ok: true as const,
+          data: {
+            ...profile,
+            id: providerId,
+            revision: 2,
+            status: 'active' as const,
+            promptVersion: 'tutor-profile-v2',
+            createdAt: '2026-07-14T00:00:00.000Z',
+            updatedAt: '2026-07-14T00:00:00.000Z',
+          },
+          requestId,
+        }),
+        archiveTutor: async (_id, _expectedRevision) => ({
+          ok: false as const,
+          error: {
+            code: 'LAST_TUTOR_REQUIRED' as const,
+            message: 'At least one active tutor is required.',
+            retryable: false,
+          },
+          requestId,
+        }),
+        saveClassroomPreferences: async (preferences) => ({
+          ok: true as const,
+          data: preferences,
+          requestId,
+        }),
+        importAvatar: async (_file) => ({
+          ok: true as const,
+          data: { assetId: `${'a'.repeat(64)}.png` },
+          requestId,
+        }),
+      },
     } satisfies DeepStormingApi
 
     expect(api.provider.list).toBeTypeOf('function')

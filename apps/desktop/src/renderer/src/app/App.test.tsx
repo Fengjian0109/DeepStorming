@@ -35,10 +35,10 @@ vi.mock('../lesson/LessonWorkspace', async () => {
   }
 })
 
-vi.mock('../provider/ProviderManager', async () => {
+vi.mock('../settings/SettingsCenter', async () => {
   const ReactModule = await import('react')
   return {
-    ProviderManager: () => ReactModule.createElement('section', null, '模型与 Provider 设置'),
+    SettingsCenter: () => ReactModule.createElement('section', null, '模型与 Provider 设置'),
   }
 })
 

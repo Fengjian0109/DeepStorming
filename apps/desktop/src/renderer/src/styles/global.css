@@ -588,6 +588,74 @@ h2 {
   font-size: 0.82rem;
 }
 
+.settings-contextual-navigation {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+}
+
+.settings-contextual-navigation button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+}
+
+.settings-contextual-navigation button[aria-current='page'] {
+  background: rgb(255 255 255 / 12%);
+}
+
+.settings-panel {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.settings-title-row,
+.inline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tutor-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(320px, 1.3fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.tutor-profile-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tutor-profile-card {
+  display: grid;
+  gap: 0.55rem;
+  padding: 1rem;
+  border: 1px solid rgb(32 52 43 / 16%);
+  border-radius: 1rem;
+  background: #fffdf7;
+}
+
+.settings-checkbox {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+}
+
+.settings-feedback {
+  margin-top: 1rem;
+}
+
+@media (max-width: 820px) {
+  .tutor-profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .field-help,
 .muted-state,
 .empty-state p,

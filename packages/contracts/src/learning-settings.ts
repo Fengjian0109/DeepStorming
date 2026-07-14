@@ -113,11 +113,19 @@ export const archiveTutorProfileRequestSchema = z
 export const saveClassroomPreferencesRequestSchema = z
   .object({ requestId: requestIdSchema, preferences: classroomPreferencesSchema })
   .strict()
+export const importAvatarRequestSchema = z
+  .object({ requestId: requestIdSchema, sourcePath: requiredTextSchema })
+  .strict()
+
+export const avatarAssetSchema = z
+  .object({ assetId: z.string().regex(/^[a-f\d]{64}\.(?:png|jpg|jpeg|webp)$/u) })
+  .strict()
 
 export const learningSettingsResultSchema = createAppResultSchema(learningSettingsSchema)
 export const tutorProfileResultSchema = createAppResultSchema(tutorProfileSchema)
 export const userProfileResultSchema = createAppResultSchema(userProfileSchema)
 export const classroomPreferencesResultSchema = createAppResultSchema(classroomPreferencesSchema)
+export const avatarAssetResultSchema = createAppResultSchema(avatarAssetSchema)
 
 export type TutorProfileDraftDto = z.infer<typeof tutorProfileDraftSchema>
 export type TutorProfileDto = z.infer<typeof tutorProfileSchema>
@@ -129,3 +137,11 @@ export type LearningSettingsResult = z.infer<typeof learningSettingsResultSchema
 export type TutorProfileResult = z.infer<typeof tutorProfileResultSchema>
 export type UserProfileResult = z.infer<typeof userProfileResultSchema>
 export type ClassroomPreferencesResult = z.infer<typeof classroomPreferencesResultSchema>
+export type AvatarAssetResult = z.infer<typeof avatarAssetResultSchema>
+export type GetLearningSettingsRequest = z.infer<typeof getLearningSettingsRequestSchema>
+export type SaveUserProfileRequest = z.infer<typeof saveUserProfileRequestSchema>
+export type CreateTutorProfileRequest = z.infer<typeof createTutorProfileRequestSchema>
+export type UpdateTutorProfileRequest = z.infer<typeof updateTutorProfileRequestSchema>
+export type ArchiveTutorProfileRequest = z.infer<typeof archiveTutorProfileRequestSchema>
+export type SaveClassroomPreferencesRequest = z.infer<typeof saveClassroomPreferencesRequestSchema>
+export type ImportAvatarRequest = z.infer<typeof importAvatarRequestSchema>

@@ -15,8 +15,15 @@ import {
   GetApplicationInfo,
   GetLessonSession,
   ImportPdfDocument,
+  ImportAvatar,
   ListDocuments,
   ListLessonSessions,
+  GetLearningSettings,
+  SaveUserProfile,
+  CreateTutorProfile,
+  UpdateTutorProfile,
+  ArchiveTutorProfile,
+  SaveClassroomPreferences,
   DeleteProvider,
   ListProviders,
   LessonRunOperations,
@@ -34,6 +41,7 @@ import {
 import {
   EncryptedFileSecretVault,
   LocalPdfFileStore,
+  LocalAvatarStore,
   PdfParseTextExtractor,
   ProviderGatewayFactory,
   SecretCleanupReporter,
@@ -41,6 +49,7 @@ import {
   SqliteDocumentImportRepository,
   SqliteDocumentRepository,
   SqliteLessonRepository,
+  SqliteLearningSettingsRepository,
   SqliteProviderRepository,
   migrateDatabase,
   openDatabase,
@@ -51,6 +60,7 @@ import type { App } from 'electron'
 import { ElectronAppInfoAdapter } from './app-info-adapter'
 import type { DocumentIpcDependencies } from './ipc/document-handlers'
 import type { LessonIpcDependencies } from './ipc/lesson-handlers'
+import type { LearningSettingsIpcDependencies } from './ipc/learning-settings-handlers'
 import type { ProviderIpcDependencies } from './ipc/provider-handlers'
 import { ElectronSafeStorageCipher } from './secrets/electron-safe-storage-cipher'
 
@@ -67,6 +77,7 @@ type LoggerLike = Readonly<{
 export type DesktopCompositionRoot = ProviderIpcDependencies &
   DocumentIpcDependencies &
   LessonIpcDependencies &
+  LearningSettingsIpcDependencies &
   Readonly<{
     getApplicationInfo: GetApplicationInfo
     databasePath: string
@@ -91,12 +102,14 @@ export const createCompositionRoot = async (
     const documentRepository = new SqliteDocumentRepository(db)
     const documentImportRepository = new SqliteDocumentImportRepository(db)
     const lessonRepository = new SqliteLessonRepository(db)
+    const learningSettingsRepository = new SqliteLearningSettingsRepository(db)
     const ids = { generate: randomUUID }
     const clock = { now: () => new Date().toISOString() }
     const vault = new EncryptedFileSecretVault(secretsDir, new ElectronSafeStorageCipher(), ids)
     const documentHasher = new Sha256DocumentTextHasher()
     const pdfFileStore = new LocalPdfFileStore(join(userData, 'document-files'))
     const pdfTextExtractor = new PdfParseTextExtractor()
+    const avatarStore = new LocalAvatarStore(join(userData, 'managed-assets'))
 
     await vault.reconcile(await repository.referencedSecretRefs())
 
@@ -186,6 +199,13 @@ export const createCompositionRoot = async (
         operations,
       ),
       cancelProviderTest: new CancelProviderTest(operations),
+      getLearningSettings: new GetLearningSettings(learningSettingsRepository, clock, ids),
+      saveUserProfile: new SaveUserProfile(learningSettingsRepository, clock),
+      createTutorProfile: new CreateTutorProfile(learningSettingsRepository, clock, ids),
+      updateTutorProfile: new UpdateTutorProfile(learningSettingsRepository, clock),
+      archiveTutorProfile: new ArchiveTutorProfile(learningSettingsRepository, clock),
+      saveClassroomPreferences: new SaveClassroomPreferences(learningSettingsRepository),
+      importAvatar: new ImportAvatar(avatarStore),
       databasePath,
       secretsDir,
       dispose: () => {

@@ -3,6 +3,7 @@ import {
   APP_CHANNELS,
   DOCUMENT_CHANNELS,
   LESSON_CHANNELS,
+  LEARNING_SETTINGS_CHANNELS,
   PROVIDER_CHANNELS,
 } from '@deepstorming/contracts'
 import { ipcMain } from 'electron'
@@ -10,12 +11,17 @@ import { ipcMain } from 'electron'
 import { createAppInfoHandler } from './app-info-handler'
 import { createDocumentIpcHandlers, type DocumentIpcDependencies } from './document-handlers'
 import { createLessonIpcHandlers, type LessonIpcDependencies } from './lesson-handlers'
+import {
+  createLearningSettingsIpcHandlers,
+  type LearningSettingsIpcDependencies,
+} from './learning-settings-handlers'
 import { createProviderIpcHandlers, type ProviderIpcDependencies } from './provider-handlers'
 
 export const registerIpc = (
   dependencies: { getApplicationInfo: GetApplicationInfo } & ProviderIpcDependencies &
     DocumentIpcDependencies &
-    LessonIpcDependencies,
+    LessonIpcDependencies &
+    LearningSettingsIpcDependencies,
 ): void => {
   ipcMain.removeHandler(APP_CHANNELS.getInfo)
   for (const channel of Object.values(DOCUMENT_CHANNELS)) {
@@ -27,11 +33,15 @@ export const registerIpc = (
   for (const channel of Object.values(LESSON_CHANNELS)) {
     ipcMain.removeHandler(channel)
   }
+  for (const channel of Object.values(LEARNING_SETTINGS_CHANNELS)) {
+    ipcMain.removeHandler(channel)
+  }
 
   const handleAppInfo = createAppInfoHandler(dependencies.getApplicationInfo)
   const documentHandlers = createDocumentIpcHandlers(dependencies)
   const lessonHandlers = createLessonIpcHandlers(dependencies)
   const providerHandlers = createProviderIpcHandlers(dependencies)
+  const learningSettingsHandlers = createLearningSettingsIpcHandlers(dependencies)
 
   ipcMain.handle(APP_CHANNELS.getInfo, (_event, input: unknown) => handleAppInfo(input))
   ipcMain.handle(DOCUMENT_CHANNELS.list, (_event, input: unknown) => documentHandlers.list(input))
@@ -87,5 +97,26 @@ export const registerIpc = (
   )
   ipcMain.handle(PROVIDER_CHANNELS.cancelTest, (_event, input: unknown) =>
     providerHandlers.cancelTest(input),
+  )
+  ipcMain.handle(LEARNING_SETTINGS_CHANNELS.get, (_event, input: unknown) =>
+    learningSettingsHandlers.get(input),
+  )
+  ipcMain.handle(LEARNING_SETTINGS_CHANNELS.saveUserProfile, (_event, input: unknown) =>
+    learningSettingsHandlers.saveUser(input),
+  )
+  ipcMain.handle(LEARNING_SETTINGS_CHANNELS.createTutor, (_event, input: unknown) =>
+    learningSettingsHandlers.createTutor(input),
+  )
+  ipcMain.handle(LEARNING_SETTINGS_CHANNELS.updateTutor, (_event, input: unknown) =>
+    learningSettingsHandlers.updateTutor(input),
+  )
+  ipcMain.handle(LEARNING_SETTINGS_CHANNELS.archiveTutor, (_event, input: unknown) =>
+    learningSettingsHandlers.archiveTutor(input),
+  )
+  ipcMain.handle(LEARNING_SETTINGS_CHANNELS.saveClassroomPreferences, (_event, input: unknown) =>
+    learningSettingsHandlers.savePreferences(input),
+  )
+  ipcMain.handle(LEARNING_SETTINGS_CHANNELS.importAvatar, (_event, input: unknown) =>
+    learningSettingsHandlers.importAvatar(input),
   )
 }

@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react'
 
 import { DocumentLibrary, type DocumentEvidenceFocus } from '../document/DocumentLibrary'
 import { LessonWorkspace } from '../lesson/LessonWorkspace'
-import { ProviderManager } from '../provider/ProviderManager'
-import { WorkspaceContextual, WorkspaceShell, type WorkspacePage } from './WorkspaceShell'
+import { SettingsCenter } from '../settings/SettingsCenter'
+import { WorkspaceShell, type WorkspacePage } from './WorkspaceShell'
 
 type RuntimeState =
   | { status: 'loading' }
@@ -89,16 +89,7 @@ export const App = (): React.JSX.Element => {
           }}
         />
       )}
-      {page === 'settings' && (
-        <>
-          <WorkspaceContextual>
-            <nav aria-label="设置分类" className="settings-contextual-navigation">
-              <span aria-current="page">模型与 Provider</span>
-            </nav>
-          </WorkspaceContextual>
-          <ProviderManager />
-        </>
-      )}
+      {page === 'settings' && <SettingsCenter />}
     </WorkspaceShell>
   )
 }

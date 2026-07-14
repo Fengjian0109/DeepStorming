@@ -2,6 +2,7 @@ import {
   APP_CHANNELS,
   DOCUMENT_CHANNELS,
   LESSON_CHANNELS,
+  LEARNING_SETTINGS_CHANNELS,
   PROVIDER_CHANNELS,
   documentDetailResultSchema,
   documentImportJobResultSchema,
@@ -20,6 +21,11 @@ import {
   listProvidersResultSchema,
   providerResultSchema,
   voidResultSchema,
+  learningSettingsResultSchema,
+  tutorProfileResultSchema,
+  userProfileResultSchema,
+  classroomPreferencesResultSchema,
+  avatarAssetResultSchema,
   type CancelProviderTestResult,
   type DocumentDraftDto,
   type DocumentDetailResult,
@@ -41,6 +47,14 @@ import {
   type ProviderDraftDto,
   type ProviderResult,
   type VoidResult,
+  type LearningSettingsResult,
+  type TutorProfileDraftDto,
+  type TutorProfileResult,
+  type UserProfileDraftDto,
+  type UserProfileResult,
+  type ClassroomPreferencesDto,
+  type ClassroomPreferencesResult,
+  type AvatarAssetResult,
 } from '@deepstorming/contracts'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
@@ -264,6 +278,85 @@ const api: DeepStormingBootstrapApi = {
         PROVIDER_CHANNELS.cancelTest,
         { requestId, operationId },
         cancelProviderTestResultSchema,
+      )
+    },
+  },
+  learningSettings: {
+    get: async (): Promise<LearningSettingsResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LEARNING_SETTINGS_CHANNELS.get,
+        { requestId },
+        learningSettingsResultSchema,
+      )
+    },
+    saveUserProfile: async (
+      expectedRevision: number,
+      profile: UserProfileDraftDto,
+    ): Promise<UserProfileResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LEARNING_SETTINGS_CHANNELS.saveUserProfile,
+        { requestId, expectedRevision, profile },
+        userProfileResultSchema,
+      )
+    },
+    createTutor: async (profile: TutorProfileDraftDto): Promise<TutorProfileResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LEARNING_SETTINGS_CHANNELS.createTutor,
+        { requestId, profile },
+        tutorProfileResultSchema,
+      )
+    },
+    updateTutor: async (
+      id: string,
+      expectedRevision: number,
+      profile: TutorProfileDraftDto,
+    ): Promise<TutorProfileResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LEARNING_SETTINGS_CHANNELS.updateTutor,
+        { requestId, id, expectedRevision, profile },
+        tutorProfileResultSchema,
+      )
+    },
+    archiveTutor: async (id: string, expectedRevision: number): Promise<TutorProfileResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LEARNING_SETTINGS_CHANNELS.archiveTutor,
+        { requestId, id, expectedRevision },
+        tutorProfileResultSchema,
+      )
+    },
+    saveClassroomPreferences: async (
+      preferences: ClassroomPreferencesDto,
+    ): Promise<ClassroomPreferencesResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LEARNING_SETTINGS_CHANNELS.saveClassroomPreferences,
+        { requestId, preferences },
+        classroomPreferencesResultSchema,
+      )
+    },
+    importAvatar: async (file: File): Promise<AvatarAssetResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      const sourcePath = webUtils.getPathForFile(file).trim()
+      if (sourcePath.length === 0) {
+        return {
+          ok: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'The selected avatar file is unavailable.',
+            retryable: false,
+          },
+          requestId,
+        }
+      }
+      return invokeValidated(
+        LEARNING_SETTINGS_CHANNELS.importAvatar,
+        { requestId, sourcePath },
+        avatarAssetResultSchema,
       )
     },
   },

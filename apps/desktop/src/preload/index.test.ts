@@ -2,6 +2,7 @@ import {
   APP_CHANNELS,
   DOCUMENT_CHANNELS,
   LESSON_CHANNELS,
+  LEARNING_SETTINGS_CHANNELS,
   PROVIDER_CHANNELS,
   type DocumentDetailDto,
   type DocumentDraftDto,
@@ -15,6 +16,9 @@ import {
   type LessonStartDraftDto,
   type ProviderDraftDto,
   type ProviderProfileDto,
+  type TutorProfileDraftDto,
+  type TutorProfileDto,
+  type ClassroomPreferencesDto,
 } from '@deepstorming/contracts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -58,6 +62,37 @@ const providerProfile: ProviderProfileDto = {
   isActive: false,
   createdAt: '2026-07-11T00:00:00.000Z',
   updatedAt: '2026-07-11T00:00:00.000Z',
+}
+
+const tutorDraft: TutorProfileDraftDto = {
+  name: '苏格拉底导师',
+  personality: '耐心',
+  tone: '清晰',
+  expertiseTags: ['通识'],
+  strictness: 3,
+  socraticIntensity: 4,
+  guidanceStyle: 'question_first',
+  bookStrategy: '逐步提示',
+  paperStrategy: '检查证据',
+  customInstructions: '',
+}
+const tutorProfile: TutorProfileDto = {
+  ...tutorDraft,
+  id: PROVIDER_ID,
+  revision: 1,
+  status: 'active',
+  promptVersion: 'tutor-profile-v1',
+  createdAt: '2026-07-14T00:00:00.000Z',
+  updatedAt: '2026-07-14T00:00:00.000Z',
+}
+const classroomPreferences: ClassroomPreferencesDto = {
+  defaultBookTutorId: PROVIDER_ID,
+  defaultPaperTutorId: PROVIDER_ID,
+  defaultPace: 'standard',
+  sendShortcut: 'enter',
+  autoScroll: true,
+  contextCompressionRemainingPercent: 30,
+  recentTurnCount: 8,
 }
 
 const documentDraft: DocumentDraftDto = {
@@ -249,7 +284,13 @@ describe('preload API', () => {
     const api = await loadApi()
 
     expect(mocks.exposeInMainWorld).toHaveBeenCalledWith('deepstorming', expect.any(Object))
-    expect(Object.keys(api)).toEqual(['app', 'documents', 'lessons', 'provider'])
+    expect(Object.keys(api)).toEqual([
+      'app',
+      'documents',
+      'lessons',
+      'provider',
+      'learningSettings',
+    ])
     expect(api).not.toHaveProperty('invoke')
     expect(api.documents).toEqual({
       list: expect.any(Function),
@@ -271,6 +312,15 @@ describe('preload API', () => {
       cancelRun: expect.any(Function),
       recordReview: expect.any(Function),
     })
+    expect(api.learningSettings).toEqual({
+      get: expect.any(Function),
+      saveUserProfile: expect.any(Function),
+      createTutor: expect.any(Function),
+      updateTutor: expect.any(Function),
+      archiveTutor: expect.any(Function),
+      saveClassroomPreferences: expect.any(Function),
+      importAvatar: expect.any(Function),
+    })
   })
 
   it.each([
@@ -291,6 +341,40 @@ describe('preload API', () => {
       channel: PROVIDER_CHANNELS.list,
       payload: { requestId: REQUEST_ID },
       response: { ok: true, data: [providerProfile], requestId: REQUEST_ID },
+    },
+    {
+      name: 'learningSettings.get',
+      call: (api: DeepStormingApi) => api.learningSettings.get(),
+      channel: LEARNING_SETTINGS_CHANNELS.get,
+      payload: { requestId: REQUEST_ID },
+      response: {
+        ok: true,
+        data: {
+          userProfile: {
+            displayName: '学习者',
+            revision: 1,
+            updatedAt: '2026-07-14T00:00:00.000Z',
+          },
+          tutorProfiles: [tutorProfile],
+          classroomPreferences,
+        },
+        requestId: REQUEST_ID,
+      },
+    },
+    {
+      name: 'learningSettings.createTutor',
+      call: (api: DeepStormingApi) => api.learningSettings.createTutor(tutorDraft),
+      channel: LEARNING_SETTINGS_CHANNELS.createTutor,
+      payload: { requestId: REQUEST_ID, profile: tutorDraft },
+      response: { ok: true, data: tutorProfile, requestId: REQUEST_ID },
+    },
+    {
+      name: 'learningSettings.saveClassroomPreferences',
+      call: (api: DeepStormingApi) =>
+        api.learningSettings.saveClassroomPreferences(classroomPreferences),
+      channel: LEARNING_SETTINGS_CHANNELS.saveClassroomPreferences,
+      payload: { requestId: REQUEST_ID, preferences: classroomPreferences },
+      response: { ok: true, data: classroomPreferences, requestId: REQUEST_ID },
     },
     {
       name: 'provider.create',
@@ -522,5 +606,22 @@ describe('preload API', () => {
     mocks.getPathForFile.mockReturnValueOnce('   ')
 
     expect(api.documents.getPathForFile(new File([], 'paper.pdf'))).toBeUndefined()
+  })
+
+  it('imports avatars through one dedicated IPC channel without exposing the path', async () => {
+    const api = await loadApi()
+    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
+    mocks.getPathForFile.mockReturnValueOnce('/tmp/avatar.png')
+    mocks.invoke.mockResolvedValueOnce({
+      ok: true,
+      data: { assetId: `${'a'.repeat(64)}.png` },
+      requestId: REQUEST_ID,
+    })
+
+    await expect(api.learningSettings.importAvatar(file)).resolves.toMatchObject({ ok: true })
+    expect(mocks.invoke).toHaveBeenCalledWith(LEARNING_SETTINGS_CHANNELS.importAvatar, {
+      requestId: REQUEST_ID,
+      sourcePath: '/tmp/avatar.png',
+    })
   })
 })

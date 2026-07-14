@@ -149,6 +149,16 @@ const installApi = (overrides: Partial<DeepStormingBootstrapApi['provider']> = {
         .mockResolvedValue(okCancel(true)),
       ...overrides,
     },
+    learningSettings: {
+      get: vi.fn<DeepStormingBootstrapApi['learningSettings']['get']>(),
+      saveUserProfile: vi.fn<DeepStormingBootstrapApi['learningSettings']['saveUserProfile']>(),
+      createTutor: vi.fn<DeepStormingBootstrapApi['learningSettings']['createTutor']>(),
+      updateTutor: vi.fn<DeepStormingBootstrapApi['learningSettings']['updateTutor']>(),
+      archiveTutor: vi.fn<DeepStormingBootstrapApi['learningSettings']['archiveTutor']>(),
+      saveClassroomPreferences:
+        vi.fn<DeepStormingBootstrapApi['learningSettings']['saveClassroomPreferences']>(),
+      importAvatar: vi.fn<DeepStormingBootstrapApi['learningSettings']['importAvatar']>(),
+    },
   }
 
   vi.stubGlobal('deepstorming', api)

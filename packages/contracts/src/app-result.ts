@@ -23,6 +23,7 @@ export const appErrorCodeSchema = z.enum([
   'LEARNING_SETTINGS_NOT_FOUND',
   'SETTINGS_REVISION_CONFLICT',
   'LAST_TUTOR_REQUIRED',
+  'AVATAR_IMPORT_FAILED',
 ])
 
 export type AppErrorCode = z.infer<typeof appErrorCodeSchema>

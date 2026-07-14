@@ -13,6 +13,7 @@ import {
 
 import type { ClockPort, IdGeneratorPort } from './document-ports'
 import type {
+  AvatarAssetStorePort,
   LearningSettingsRepositoryPort,
   LearningSettingsSnapshot,
   SettingsWriteResult,
@@ -25,6 +26,7 @@ export type LearningSettingsErrorCode =
   | 'LAST_TUTOR_REQUIRED'
   | 'DATABASE_UNAVAILABLE'
   | 'INTERNAL_ERROR'
+  | 'AVATAR_IMPORT_FAILED'
 
 export class LearningSettingsUseCaseError extends Error {
   public override readonly name = 'LearningSettingsUseCaseError'
@@ -321,6 +323,23 @@ export class SaveClassroomPreferences {
       return await this.repository.saveClassroomPreferences(preferences)
     } catch {
       throw databaseError()
+    }
+  }
+}
+
+export class ImportAvatar {
+  public constructor(private readonly store: AvatarAssetStorePort) {}
+
+  public async execute(sourcePath: string): Promise<Readonly<{ assetId: string }>> {
+    if (sourcePath.trim().length === 0) throw invalidError()
+    try {
+      return await this.store.importAvatar(sourcePath)
+    } catch {
+      throw new LearningSettingsUseCaseError(
+        'AVATAR_IMPORT_FAILED',
+        'The avatar could not be imported. Choose a PNG, JPEG, or WebP image under 5 MB.',
+        false,
+      )
     }
   }
 }
