@@ -540,13 +540,6 @@ h2 {
   box-shadow: 0 24px 72px rgb(21 43 32 / 24%);
 }
 
-.lesson-layout {
-  display: grid;
-  grid-template-columns: minmax(300px, 420px) minmax(320px, 1fr);
-  gap: 18px;
-  align-items: start;
-}
-
 .panel {
   padding: 20px;
   border: 1px solid rgb(32 52 43 / 12%);
@@ -826,10 +819,57 @@ h2 {
 }
 
 .lesson-chat {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
+  background: #f4f0e7;
+}
+
+.lesson-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px clamp(18px, 4vw, 48px);
+  border-bottom: 1px solid rgb(32 52 43 / 10%);
+  background: rgb(255 255 255 / 52%);
+}
+
+.lesson-chat-header p,
+.lesson-chat-header h1 {
+  margin: 0;
+}
+
+.lesson-chat-header p,
+.lesson-chat-header span {
+  color: #65766d;
+  font-size: 0.78rem;
+}
+
+.lesson-chat-header h1 {
+  margin-block: 3px;
+  font-size: 1.25rem;
+}
+
+.lesson-chat-empty {
+  display: grid;
+  height: 100%;
+  padding: 48px;
+  place-content: center;
+  text-align: center;
+  background: #f4f0e7;
+}
+
+.lesson-chat-operation {
+  position: absolute;
+  z-index: 5;
+  top: 82px;
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  box-shadow: 0 8px 28px rgb(32 52 43 / 14%);
 }
 
 .lesson-conversation-wrap {
@@ -902,6 +942,43 @@ h2 {
   right: 24px;
   bottom: 18px;
   box-shadow: 0 8px 24px rgb(32 52 43 / 18%);
+}
+
+.lesson-composer {
+  display: grid;
+  gap: 8px;
+  padding: 14px clamp(18px, 4vw, 48px) 18px;
+  border-top: 1px solid rgb(32 52 43 / 10%);
+  background: rgb(255 253 247 / 92%);
+}
+
+.lesson-composer > label {
+  color: #52675d;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.lesson-composer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.lesson-composer textarea {
+  min-height: 76px;
+  max-height: 180px;
+  resize: vertical;
+}
+
+.lesson-composer-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.lesson-composer .error-state,
+.lesson-composer .success-state {
+  margin: 0;
 }
 
 .lesson-info-drawer {
@@ -1009,16 +1086,6 @@ h2 {
   font-size: 0.8rem;
 }
 
-.lesson-message-list {
-  display: grid;
-  gap: 12px;
-  margin-top: 22px;
-}
-
-.lesson-message-list h3 {
-  margin: 0;
-}
-
 .lesson-message {
   padding: 14px;
   border: 1px solid rgb(74 139 104 / 24%);
@@ -1042,16 +1109,6 @@ h2 {
   color: #375346;
   font-size: 0.84rem;
   font-weight: 600;
-}
-
-.lesson-run-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 22px;
-}
-
-.lesson-run-list h3 {
-  margin: 0;
 }
 
 .lesson-run {
@@ -1078,16 +1135,6 @@ h2 {
   margin-top: 8px;
   color: #65766d;
   font-size: 0.8rem;
-}
-
-.lesson-mastery-diagnosis {
-  display: grid;
-  gap: 10px;
-  margin-top: 22px;
-}
-
-.lesson-mastery-diagnosis h3 {
-  margin: 0;
 }
 
 .lesson-mastery-card {
@@ -1124,21 +1171,6 @@ h2 {
 
 .lesson-misconception-rationale {
   margin-top: 4px;
-}
-
-.lesson-reply-form {
-  display: grid;
-  gap: 10px;
-  margin-top: 24px;
-}
-
-.lesson-reply-form label {
-  font-weight: 700;
-}
-
-.lesson-reply-form textarea {
-  min-height: 110px;
-  resize: vertical;
 }
 
 .provider-card-header {
@@ -1255,7 +1287,6 @@ h2 {
 
   .workspace-grid,
   .document-layout,
-  .lesson-layout,
   .document-search,
   .search-hit,
   .capability-list {

@@ -84,6 +84,8 @@ export const LessonInfoDrawer = ({
   const [activeTab, setActiveTab] = useState<DrawerTab>('evidence')
   const headingRef = useRef<HTMLHeadingElement>(null)
   const restoreFocusRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (!open) return
@@ -93,14 +95,14 @@ export const LessonInfoDrawer = ({
         : null
     headingRef.current?.focus()
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') onCloseRef.current()
     }
     globalThis.window.addEventListener('keydown', handleKeyDown)
     return () => {
       globalThis.window.removeEventListener('keydown', handleKeyDown)
       restoreFocusRef.current?.focus()
     }
-  }, [onClose, open])
+  }, [open])
 
   if (!open) return null
 
@@ -277,6 +279,9 @@ export const LessonInfoDrawer = ({
                       <li key={chunk.chunkId}>{formatContextChunkLabel(chunk)}</li>
                     ))}
                   </ul>
+                  {run.inputSummary.contextChunks.length === 0 && (
+                    <p className="lesson-context-fallback">课堂仍可继续（已降级为 snippet）</p>
+                  )}
                 </article>
               )
             })}
