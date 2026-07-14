@@ -63,6 +63,27 @@ const paperStageLabels: Record<
   synthesis: '复盘整合',
 }
 
+const paperReadingMapSlotLabels: Record<
+  NonNullable<LessonSessionDto['paperProfile']>['readingMap']['slots'][number]['kind'],
+  string
+> = {
+  why: 'Why',
+  what: 'What',
+  how: 'How',
+  evidence: 'Evidence',
+  limits: 'Limits',
+  next: 'Next',
+}
+
+const paperReadingMapStatusLabels: Record<
+  NonNullable<LessonSessionDto['paperProfile']>['readingMap']['slots'][number]['status'],
+  string
+> = {
+  empty: '待补全',
+  seeded: '已建立',
+  updated: '已更新',
+}
+
 const masteryJudgementLabels: Record<LessonMasteryEvidenceDto['judgement'], string> = {
   insufficient: '证据不足',
   partial_understanding: '部分理解',
@@ -373,13 +394,30 @@ export const LessonWorkspace = ({
               </p>
               {detailState.session.lessonMode === 'paper' &&
               detailState.session.paperProfile !== null ? (
-                <section className="lesson-paper-stage">
-                  <h3>当前论文阶段</h3>
-                  <p>{paperStageLabels[detailState.session.paperProfile.currentStage]}</p>
-                  {detailState.session.paperProfile.stageSummary !== null ? (
-                    <p>{detailState.session.paperProfile.stageSummary}</p>
-                  ) : null}
-                </section>
+                <>
+                  <section className="lesson-paper-stage">
+                    <h3>当前论文阶段</h3>
+                    <p>{paperStageLabels[detailState.session.paperProfile.currentStage]}</p>
+                    {detailState.session.paperProfile.stageSummary !== null ? (
+                      <p>{detailState.session.paperProfile.stageSummary}</p>
+                    ) : null}
+                  </section>
+                  <section className="lesson-paper-map">
+                    <h3>论文阅读地图</h3>
+                    <div className="lesson-paper-map-grid">
+                      {detailState.session.paperProfile.readingMap.slots.map((slot) => (
+                        <article key={slot.kind} className="lesson-paper-map-slot">
+                          <div className="lesson-paper-map-slot-header">
+                            <strong>{paperReadingMapSlotLabels[slot.kind]}</strong>
+                            <span>{paperReadingMapStatusLabels[slot.status]}</span>
+                          </div>
+                          <p>{slot.summary ?? '等待课堂继续补全'}</p>
+                          {slot.citedAnchorIds.length > 0 ? <footer>已关联证据</footer> : null}
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                </>
               ) : null}
               <div className="lesson-anchor-list">
                 {detailState.session.sourceAnchors.map((anchor) => (

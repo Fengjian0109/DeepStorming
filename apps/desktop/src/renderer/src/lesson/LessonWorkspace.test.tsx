@@ -106,6 +106,54 @@ const paperSession = {
   paperProfile: {
     currentStage: 'problem_framing' as const,
     stageSummary: 'The learner is still orienting around the paper.',
+    termsIntroduced: [],
+    citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+    readingMap: {
+      slots: [
+        {
+          kind: 'why' as const,
+          summary: 'The paper asks why evidence supports model behavior.',
+          status: 'seeded' as const,
+          citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+          updatedAt: '2026-07-14T00:00:00.000Z',
+        },
+        {
+          kind: 'what' as const,
+          summary: null,
+          status: 'empty' as const,
+          citedAnchorIds: [],
+          updatedAt: null,
+        },
+        {
+          kind: 'how' as const,
+          summary: null,
+          status: 'empty' as const,
+          citedAnchorIds: [],
+          updatedAt: null,
+        },
+        {
+          kind: 'evidence' as const,
+          summary: 'The opening anchor is the current evidence entry.',
+          status: 'seeded' as const,
+          citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+          updatedAt: '2026-07-14T00:00:00.000Z',
+        },
+        {
+          kind: 'limits' as const,
+          summary: null,
+          status: 'empty' as const,
+          citedAnchorIds: [],
+          updatedAt: null,
+        },
+        {
+          kind: 'next' as const,
+          summary: null,
+          status: 'empty' as const,
+          citedAnchorIds: [],
+          updatedAt: null,
+        },
+      ],
+    },
   },
 }
 
@@ -409,8 +457,13 @@ describe('LessonWorkspace', () => {
     render(<LessonWorkspace selectedLessonId={paperSession.id} />)
 
     expect(await screen.findByText('当前论文阶段')).toBeTruthy()
+    expect(screen.getByText('论文阅读地图')).toBeTruthy()
+    expect(screen.getByText('Why')).toBeTruthy()
     expect(screen.getByText('问题定位')).toBeTruthy()
     expect(screen.getByText('The learner is still orienting around the paper.')).toBeTruthy()
+    expect(screen.getByText('The paper asks why evidence supports model behavior.')).toBeTruthy()
+    expect(screen.getAllByText('等待课堂继续补全').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('已关联证据').length).toBeGreaterThan(0)
   })
 
   it('does not render paper metadata for standard lessons', async () => {
@@ -418,6 +471,7 @@ describe('LessonWorkspace', () => {
 
     expect(await screen.findByRole('heading', { name: '课堂' })).toBeTruthy()
     expect(screen.queryByText('当前论文阶段')).toBeNull()
+    expect(screen.queryByText('论文阅读地图')).toBeNull()
   })
 
   it('lists lesson sessions and opens a selected session', async () => {

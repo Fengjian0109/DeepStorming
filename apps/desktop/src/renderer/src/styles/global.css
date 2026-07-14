@@ -515,6 +515,58 @@ h2 {
   font-size: 0.8rem;
 }
 
+.lesson-paper-map {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid rgb(74 139 104 / 24%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 72%);
+}
+
+.lesson-paper-map h3 {
+  margin: 0;
+}
+
+.lesson-paper-map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.lesson-paper-map-slot {
+  min-height: 132px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgb(74 139 104 / 20%);
+  background: rgb(32 52 43 / 5%);
+}
+
+.lesson-paper-map-slot p,
+.lesson-paper-map-slot footer {
+  margin: 0;
+}
+
+.lesson-paper-map-slot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.lesson-paper-map-slot-header span,
+.lesson-paper-map-slot footer {
+  color: #65766d;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.lesson-paper-map-slot footer {
+  margin-top: 10px;
+}
+
 .lesson-mastery-diagnosis {
   display: grid;
   gap: 10px;
