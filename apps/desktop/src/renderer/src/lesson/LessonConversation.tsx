@@ -26,9 +26,9 @@ export const LessonConversation = ({
   const previousMessageCount = useRef<number | undefined>(undefined)
   const nearBottom = useRef(true)
   const [hasNewMessages, setHasNewMessages] = useState(false)
-  const recoveryRun = [...session.modelRuns]
-    .reverse()
-    .find((run) => run.status === 'failed' || run.status === 'cancelled')
+  const latestRun = session.modelRuns.at(-1)
+  const recoveryRun =
+    latestRun?.status === 'failed' || latestRun?.status === 'cancelled' ? latestRun : undefined
 
   const scrollToBottom = () => {
     const scroller = scrollerRef.current

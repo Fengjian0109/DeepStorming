@@ -71,6 +71,8 @@ test('boots securely and covers the mock provider lifecycle from Settings', asyn
     const page = await app.firstWindow()
     await expect(page.getByRole('heading', { name: '文档库' })).toBeVisible()
     await expect(page.getByTestId('app-version')).toContainText('v0.0.0')
+    await page.setViewportSize({ width: 800, height: 720 })
+    await expect(page.getByRole('navigation', { name: '主导航' })).toBeVisible()
     await openSettings(page)
     await expect(page.getByText('还没有 Provider')).toBeVisible()
 

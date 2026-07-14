@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LessonWorkspace } from './LessonWorkspace'
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
 
 const session = {
   id: '00000000-0000-4000-8000-000000000101',
@@ -579,6 +587,50 @@ describe('LessonWorkspace', () => {
       }),
     )
     expect(await screen.findByText('复习记录已保存。')).toBeTruthy()
+  })
+
+  it('ignores a review result after the user opens another lesson', async () => {
+    const user = userEvent.setup()
+    const otherSession = {
+      ...session,
+      id: '00000000-0000-4000-8000-000000000112',
+      title: '第二节课堂',
+      updatedAt: '2026-07-12T00:00:00.000Z',
+    }
+    const reviewRequest =
+      deferred<Awaited<ReturnType<typeof window.deepstorming.lessons.recordReview>>>()
+    window.deepstorming.lessons.list = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [stuckSession, otherSession],
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.lessons.get = vi.fn().mockImplementation(async (lessonId: string) => ({
+      ok: true,
+      data: lessonId === otherSession.id ? otherSession : stuckSession,
+      requestId: crypto.randomUUID(),
+    }))
+    window.deepstorming.lessons.recordReview = vi.fn().mockReturnValue(reviewRequest.promise)
+    render(<LessonWorkspace selectedLessonId={stuckSession.id} />)
+
+    await screen.findByRole('heading', { name: 'Paper Map 课堂' })
+    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    await user.click(screen.getByRole('tab', { name: '复习' }))
+    await user.type(screen.getByLabelText('这次复习回答'), '我已经理解。')
+    await user.click(screen.getByRole('button', { name: '记住了' }))
+    await user.click(screen.getByRole('button', { name: '第二节课堂 · 进行中' }))
+    expect(await screen.findByRole('heading', { name: '第二节课堂' })).toBeTruthy()
+
+    await act(async () => {
+      reviewRequest.resolve({
+        ok: true,
+        data: stuckSession,
+        requestId: crypto.randomUUID(),
+      })
+      await reviewRequest.promise
+    })
+
+    expect(screen.getByRole('heading', { name: '第二节课堂' })).toBeTruthy()
+    expect(screen.queryByText('复习记录已保存。')).toBeNull()
   })
 
   it('shows snippet fallback when a lesson run has no retrieval chunks', async () => {

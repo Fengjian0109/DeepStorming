@@ -70,6 +70,7 @@ export const LessonWorkspace = ({
   const detailRequestSequence = useRef(0)
   const replyRequestSequence = useRef(0)
   const retryRequestSequence = useRef(0)
+  const reviewRequestSequence = useRef(0)
 
   const updateSession = useCallback((session: LessonSessionDto) => {
     setDetailState({ status: 'ready', session })
@@ -85,7 +86,9 @@ export const LessonWorkspace = ({
     detailRequestSequence.current = requestSequence
     replyRequestSequence.current += 1
     retryRequestSequence.current += 1
+    reviewRequestSequence.current += 1
     setInfoDrawerOpen(false)
+    setReviewSavingId(null)
     setDetailState({ status: 'loading', lessonId })
     const result = await window.deepstorming.lessons.get(lessonId)
     if (detailRequestSequence.current !== requestSequence) return
@@ -211,6 +214,8 @@ export const LessonWorkspace = ({
   const recordReview = useCallback(
     async (reviewItemId: string, rating: 'remembered' | 'forgot') => {
       if (detailState.status !== 'ready') return
+      const requestSequence = reviewRequestSequence.current + 1
+      reviewRequestSequence.current = requestSequence
       const response = (reviewResponses[reviewItemId] ?? '').trim()
       if (response.length === 0) {
         setReviewError('请输入复习回答。')
@@ -225,6 +230,7 @@ export const LessonWorkspace = ({
         rating,
         response,
       })
+      if (reviewRequestSequence.current !== requestSequence) return
       if (result.ok) {
         updateSession(result.data)
         setReviewResponses((current) => ({ ...current, [reviewItemId]: '' }))
@@ -244,6 +250,7 @@ export const LessonWorkspace = ({
       detailRequestSequence.current += 1
       replyRequestSequence.current += 1
       retryRequestSequence.current += 1
+      reviewRequestSequence.current += 1
     }
   }, [loadLessons])
 

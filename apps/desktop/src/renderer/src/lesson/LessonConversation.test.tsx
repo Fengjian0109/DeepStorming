@@ -108,6 +108,32 @@ describe('LessonConversation', () => {
     expect(cancel).toHaveBeenCalledOnce()
   })
 
+  it('hides a historical failed run after a newer retry succeeds', () => {
+    const failedRun = {
+      id: 'run-1',
+      status: 'failed',
+      promptManifest: { key: 'lesson.tutor.followUp', version: 2 },
+      errorSummary: { message: '模型暂时不可用。' },
+    }
+    const succeededRetry = {
+      ...failedRun,
+      id: 'run-2',
+      status: 'succeeded',
+      errorSummary: null,
+    }
+
+    render(
+      <LessonConversation
+        session={{ ...baseSession, modelRuns: [failedRun, succeededRetry] } as LessonSessionDto}
+        onRetryRun={vi.fn()}
+        onCancelRetry={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('article', { name: '生成失败' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /重试生成/ })).toBeNull()
+  })
+
   it('auto-scrolls only near the bottom and otherwise offers a new-message action', async () => {
     const user = userEvent.setup()
     const { rerender } = render(

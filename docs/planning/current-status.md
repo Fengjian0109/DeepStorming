@@ -18,7 +18,7 @@ Stage 1 将桌面端从功能卡片堆叠页重构为“分层侧栏 + 对话主
 - 课堂主区只展示导师与学习者的连续对话；生成记录、证据、学习诊断、论文进度和复习任务移入信息抽屉。
 - 固定底部输入框支持 Enter 发送、Shift+Enter 换行、输入法合成保护、取消生成、草稿保留、失败重试和智能自动滚动。
 - 响应式和无障碍加固，包括窄屏默认收起副侧栏、键盘焦点、焦点恢复、滚动隔离与 reduced-motion。
-- Electron E2E 覆盖设置中的 Mock Provider 生命周期，以及文档导入、紧凑详情、延迟阅读器、从文档开课、对话回复、抽屉查看、侧栏调整/收起与重启恢复的完整旅程。
+- Electron E2E 覆盖设置中的 Mock Provider 生命周期，以及粘贴长文本、可选择文本 PDF 导入、紧凑详情、延迟阅读器、从文档开课、对话回复、抽屉查看和侧栏调整/收起的完整旅程。
 
 本阶段没有修改 Domain、Application、Infrastructure、IPC contract 或数据库 schema；它是现有能力的 Renderer 信息架构与交互重构。
 
@@ -178,7 +178,7 @@ Stage 1 将桌面端从功能卡片堆叠页重构为“分层侧栏 + 对话主
 ## 当前门禁
 
 1. `pnpm check`：通过；Prettier、全 workspace typecheck、测试与桌面端构建全部通过。
-2. `pnpm test:e2e`：通过；当前 Stage 1 套件有 2 个开发版 Electron E2E 通过，分别覆盖设置中的 Mock Provider lifecycle，以及 chat-first 文档/课堂完整旅程。主旅程包含 `.md` 与可选择文本 PDF 导入、紧凑详情、显式打开阅读器、从文档开课、对话回复、信息抽屉、侧栏调宽/收起与重启恢复；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
+2. `pnpm test:e2e`：通过；当前 Stage 1 套件有 2 个开发版 Electron E2E 通过，分别覆盖设置中的 Mock Provider lifecycle，以及 chat-first 文档/课堂完整旅程。主旅程包含粘贴长文本、可选择文本 PDF 导入、紧凑详情、显式打开阅读器、从文档开课、对话回复、信息抽屉和侧栏调宽/收起；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
 5. 原生模块证据：`Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node` 为 Mach-O 64-bit arm64 bundle；使用该目录包的 Electron runtime 从 `app.asar` 加载模块并完成临时 SQLite 的 create/insert/select，输出 `{"value":"ok"}`。
