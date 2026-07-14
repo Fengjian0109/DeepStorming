@@ -767,6 +767,143 @@ h2 {
   margin-top: 14px;
 }
 
+.lesson-contextual-navigation,
+.lesson-session-tree,
+.lesson-session-children {
+  display: grid;
+  gap: 10px;
+}
+
+.lesson-session-group {
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+}
+
+.lesson-session-group summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 6px;
+  cursor: pointer;
+}
+
+.lesson-session-group summary h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lesson-session-group summary span {
+  color: rgb(237 242 236 / 54%);
+  font-size: 0.72rem;
+}
+
+.lesson-session-children {
+  padding: 0 0 10px 10px;
+}
+
+.lesson-session-children button {
+  display: grid;
+  height: auto;
+  min-height: 52px;
+  gap: 3px;
+  padding: 10px 12px;
+  color: rgb(237 242 236 / 76%);
+  background: rgb(255 255 255 / 5%);
+  text-align: left;
+}
+
+.lesson-session-children button[aria-current='page'] {
+  color: #fff;
+  background: rgb(255 255 255 / 14%);
+}
+
+.lesson-session-children small {
+  color: rgb(237 242 236 / 48%);
+}
+
+.lesson-chat {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.lesson-conversation-wrap {
+  position: relative;
+  min-height: 0;
+}
+
+.lesson-conversation {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  padding: 24px clamp(18px, 5vw, 72px);
+  overflow: auto;
+  flex-direction: column;
+  gap: 16px;
+  overscroll-behavior: contain;
+  scroll-padding-block: 24px;
+}
+
+.lesson-message-bubble,
+.lesson-run-recovery {
+  width: fit-content;
+  max-width: min(780px, 82%);
+  padding: 16px 18px;
+  overflow-wrap: anywhere;
+  border: 1px solid rgb(32 52 43 / 12%);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 72%);
+  white-space: pre-wrap;
+}
+
+.lesson-message-bubble p,
+.lesson-run-recovery p {
+  margin: 0;
+}
+
+.lesson-message-bubble footer,
+.lesson-run-recovery small {
+  display: block;
+  margin-top: 8px;
+  color: #65766d;
+  font-size: 0.74rem;
+}
+
+.lesson-message-learner {
+  margin-inline-start: auto;
+  color: #f7fbf7;
+  background: #315f4a;
+}
+
+.lesson-message-learner footer {
+  color: rgb(247 251 247 / 68%);
+}
+
+.lesson-message-system {
+  align-self: center;
+  color: #65766d;
+  background: transparent;
+}
+
+.lesson-run-recovery {
+  display: grid;
+  gap: 10px;
+  border-color: rgb(155 58 46 / 24%);
+  background: rgb(155 58 46 / 8%);
+}
+
+.lesson-new-message {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  box-shadow: 0 8px 24px rgb(32 52 43 / 18%);
+}
+
 .lesson-anchor-list {
   display: grid;
   gap: 12px;
