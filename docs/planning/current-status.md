@@ -147,6 +147,10 @@
   - Infrastructure：继续复用 `paper_profile_json`，无新增 migration。
   - Desktop：课堂详情新增“论文洞察卡片”分组展示，标注来源为“模型”或“规则”。
   - E2E：覆盖卡片显示、成功回答后的更新与重启恢复。
+- Phase 6 D7.3 Paper Stage Progression：
+  - Application：paper lesson 阶段推进升级为“规则主导 + 模型补充”；规则信号不足时才采纳当前 provider payload 的 `suggestedStage` / `suggestedStageRationale`，且不会额外触发第二轮模型请求。
+  - Persistence / Desktop：`currentStage` 与 `stageSummary` 随课堂更新并在重启后恢复。
+  - E2E：覆盖 paper lesson 从 `problem_framing` 继续推进到 `method_intuition` 的主流程。
 - D1 真实 DeepSeek Provider 手动验收：
   - 真实 key 通过本地安全方式输入，完成创建、启用、连接测试、一次真实课堂生成与重启恢复验证。
   - 本轮通过 `deepseek-v4-flash` 完成真实云 Provider 验收；验收记录已做脱敏，不包含 API Key、Authorization header、原始响应正文或完整 prompt。
@@ -160,7 +164,7 @@
 
 ## 当前范围与非目标
 
-- 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、标准课堂与 paper lesson 双模式、首条 Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化、安全错误摘要持久化与展示、LessonState / LessonStep 状态机审计，以及 deterministic 学习诊断证据、误区信号、paper reading map 与 structured insight cards 展示。
+- 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、标准课堂与 paper lesson 双模式、首条 Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化、安全错误摘要持久化与展示、LessonState / LessonStep 状态机审计，以及 deterministic 学习诊断证据、误区信号、paper reading map、structured insight cards 与更细粒度的 paper stage progression 展示。
 - 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、embeddings、语义检索、流式课堂、完整评分 rubric、独立复习中心、通知/日历提醒、论文工作区、后台导入任务。
 
 ## 当前门禁

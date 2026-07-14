@@ -462,7 +462,9 @@ test('starts a paper lesson, advances the paper stage, and restores it after res
         .fill('I think the paper is solving how evidence supports model behavior.')
       await page.getByRole('button', { name: '提交回答' }).click()
 
-      await expect(page.locator('.lesson-paper-stage').getByText('问题定位')).toBeVisible()
+      await expect(
+        page.locator('.lesson-paper-stage').getByText('问题定位', { exact: true }),
+      ).toBeVisible()
       await expect(
         page
           .locator('.lesson-message-list')
@@ -477,6 +479,17 @@ test('starts a paper lesson, advances the paper stage, and restores it after res
       ).toBeVisible()
       await expect(paperInsights.getByText('Method clues', { exact: true })).toBeVisible()
       await expect(paperInsights.getByText('规则', { exact: true }).first()).toBeVisible()
+
+      await page
+        .getByLabel('你的回答')
+        .fill(
+          'The key idea works because the evidence signal constrains noisy supervision and gives the model a better inductive bias.',
+        )
+      await page.getByRole('button', { name: '提交回答' }).click()
+
+      await expect(
+        page.locator('.lesson-paper-stage').getByText('方法直觉', { exact: true }),
+      ).toBeVisible()
     } finally {
       await first.close()
     }
@@ -486,7 +499,9 @@ test('starts a paper lesson, advances the paper stage, and restores it after res
       const page = await second.firstWindow()
       await page.locator('nav').getByRole('button', { name: '课堂' }).click()
       await page.getByRole('button', { name: '打开 Paper Map 课堂' }).click()
-      await expect(page.locator('.lesson-paper-stage').getByText('问题定位')).toBeVisible()
+      await expect(
+        page.locator('.lesson-paper-stage').getByText('方法直觉', { exact: true }),
+      ).toBeVisible()
       await expect(page.locator('.lesson-paper-map').getByText('论文阅读地图')).toBeVisible()
       await expect(page.locator('.lesson-paper-insights').getByText('论文洞察卡片')).toBeVisible()
       await expect(

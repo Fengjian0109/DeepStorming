@@ -138,14 +138,131 @@ const inferLessonMode = (documentType: DocumentType, requested?: LessonMode): Le
   return requested
 }
 
-const nextPaperStageForReply = (
+const PAPER_STAGE_ORDER: readonly PaperReadingStage[] = [
+  'orientation',
+  'problem_framing',
+  'method_intuition',
+  'method_mechanics',
+  'evidence_check',
+  'critical_review',
+  'transfer',
+  'synthesis',
+]
+
+const paperStageLabel = (stage: PaperReadingStage): string => {
+  switch (stage) {
+    case 'orientation':
+      return '整体定位'
+    case 'problem_framing':
+      return '问题定位'
+    case 'method_intuition':
+      return '方法直觉'
+    case 'method_mechanics':
+      return '方法细节'
+    case 'evidence_check':
+      return '证据核验'
+    case 'critical_review':
+      return '批判审视'
+    case 'transfer':
+      return '迁移延伸'
+    case 'synthesis':
+      return '复盘整合'
+  }
+}
+
+const stageIndex = (stage: PaperReadingStage): number => PAPER_STAGE_ORDER.indexOf(stage)
+
+const clampPaperStageProgression = (
   currentStage: PaperReadingStage,
-  reply: string,
+  candidateStage: PaperReadingStage,
 ): PaperReadingStage => {
-  if (currentStage === 'orientation') return 'problem_framing'
-  if (/公式|推导|loss|objective/iu.test(reply)) return 'method_mechanics'
-  if (/局限|质疑|问题|假设/iu.test(reply)) return 'critical_review'
-  return currentStage
+  const current = stageIndex(currentStage)
+  const candidate = stageIndex(candidateStage)
+  if (candidate <= current) return currentStage
+  if (candidate - current > 1) return currentStage
+  return candidateStage
+}
+
+const detectRuleBasedPaperStage = (
+  reply: string,
+  readingMap: PaperReadingMap,
+  insightCards: readonly PaperInsightCard[],
+): Readonly<{
+  strength: 'strong' | 'weak' | 'none'
+  stage: PaperReadingStage | null
+  rationale: string | null
+}> => {
+  const normalized = reply.toLowerCase()
+
+  if (/experiment|benchmark|ablation|指标|实验|对比|消融/iu.test(normalized)) {
+    return {
+      strength: 'strong',
+      stage: 'evidence_check',
+      rationale: '当前回答开始讨论实验结果与证据。',
+    }
+  }
+  if (
+    /because|intuition|why it works|inductive bias|直觉|为什么有效|关键想法|核心思路/iu.test(
+      normalized,
+    )
+  ) {
+    return {
+      strength: 'strong',
+      stage: 'method_intuition',
+      rationale: '当前回答开始解释方法为何有效。',
+    }
+  }
+  if (
+    /module|architecture|formula|loss|objective|training|训练|结构|公式|流程|模块/iu.test(
+      normalized,
+    )
+  ) {
+    return {
+      strength: 'strong',
+      stage: 'method_mechanics',
+      rationale: '当前回答开始讨论方法细节与实现机制。',
+    }
+  }
+  if (
+    /limitation|assumption|failure|counterexample|局限|假设|不足|反例|漏洞|质疑/iu.test(normalized)
+  ) {
+    return {
+      strength: 'strong',
+      stage: 'critical_review',
+      rationale: '当前回答开始讨论局限、假设或潜在问题。',
+    }
+  }
+  if (
+    /future|transfer|adapt|application|nearby settings|启发|迁移|应用|改进|未来/iu.test(normalized)
+  ) {
+    return {
+      strength: 'strong',
+      stage: 'transfer',
+      rationale: '当前回答开始讨论迁移、应用或改进方向。',
+    }
+  }
+  if (/summary|takeaway|overall|总结|主线|整体看|最终理解/.test(normalized)) {
+    return {
+      strength: 'strong',
+      stage: 'synthesis',
+      rationale: '当前回答开始整体总结论文主线。',
+    }
+  }
+  if (readingMap.slots.some((slot) => slot.kind === 'evidence' && slot.status === 'updated')) {
+    return {
+      strength: 'weak',
+      stage: 'evidence_check',
+      rationale: '阅读地图已积累实验相关线索。',
+    }
+  }
+  if (insightCards.some((card) => card.kind === 'limitation')) {
+    return {
+      strength: 'weak',
+      stage: 'critical_review',
+      rationale: '当前洞察卡片已经出现局限线索。',
+    }
+  }
+  return { strength: 'none', stage: null, rationale: null }
 }
 
 const updateReadingMapSlot = (
@@ -294,6 +411,8 @@ const normalizeStructuredPaperInsights = (
   }
 
   const updatesValue = value['readingMapUpdates']
+  const suggestedStageValue = value['suggestedStage']
+  const suggestedStageRationaleValue = value['suggestedStageRationale']
   const readingMapUpdates: Partial<Record<PaperReadingMapSlotKind, string>> = {}
   if (isRecord(updatesValue)) {
     for (const [kind, summary] of Object.entries(updatesValue)) {
@@ -307,9 +426,29 @@ const normalizeStructuredPaperInsights = (
     }
   }
 
+  const suggestedStage =
+    suggestedStageValue === 'orientation' ||
+    suggestedStageValue === 'problem_framing' ||
+    suggestedStageValue === 'method_intuition' ||
+    suggestedStageValue === 'method_mechanics' ||
+    suggestedStageValue === 'evidence_check' ||
+    suggestedStageValue === 'critical_review' ||
+    suggestedStageValue === 'transfer' ||
+    suggestedStageValue === 'synthesis'
+      ? suggestedStageValue
+      : undefined
+
+  const suggestedStageRationale =
+    typeof suggestedStageRationaleValue === 'string' &&
+    suggestedStageRationaleValue.trim().length > 0
+      ? suggestedStageRationaleValue.trim()
+      : undefined
+
   return {
     cards,
     ...(Object.keys(readingMapUpdates).length === 0 ? {} : { readingMapUpdates }),
+    ...(suggestedStage === undefined ? {} : { suggestedStage }),
+    ...(suggestedStageRationale === undefined ? {} : { suggestedStageRationale }),
   }
 }
 
@@ -1158,11 +1297,11 @@ const updatePaperProfileAfterReply = (
   if (session.lessonMode !== 'paper' || session.paperProfile === null) {
     return session.paperProfile
   }
-  const nextStage = nextPaperStageForReply(session.paperProfile.currentStage, reply)
   const citedAnchorIds = session.sourceAnchors.map((anchor) => anchor.id)
   const normalizedStructuredInsights = normalizeStructuredPaperInsights(structuredPaperInsights)
   const insights =
-    normalizedStructuredInsights ?? extractFallbackPaperInsights(nextStage, reply, citedAnchorIds)
+    normalizedStructuredInsights ??
+    extractFallbackPaperInsights(session.paperProfile.currentStage, reply, citedAnchorIds)
 
   let readingMap =
     normalizedStructuredInsights === undefined
@@ -1200,10 +1339,43 @@ const updatePaperProfileAfterReply = (
     )
   }
 
+  let currentStage = session.paperProfile.currentStage
+  let stageSummary = session.paperProfile.stageSummary
+  if (currentStage === 'orientation') {
+    currentStage = 'problem_framing'
+    stageSummary = '已进入问题定位：当前回答开始聚焦论文要解决的问题。'
+  } else {
+    const rule = detectRuleBasedPaperStage(reply, readingMap, insightCards)
+    if (rule.strength === 'strong' && rule.stage !== null) {
+      const nextStage = clampPaperStageProgression(currentStage, rule.stage)
+      if (nextStage !== currentStage) {
+        currentStage = nextStage
+        stageSummary = `已进入${paperStageLabel(nextStage)}：${rule.rationale}`
+      }
+    } else if (normalizedStructuredInsights?.suggestedStage !== undefined) {
+      const nextStage = clampPaperStageProgression(
+        currentStage,
+        normalizedStructuredInsights.suggestedStage,
+      )
+      if (nextStage !== currentStage) {
+        currentStage = nextStage
+        stageSummary =
+          normalizedStructuredInsights.suggestedStageRationale ??
+          `已进入${paperStageLabel(nextStage)}：当前回答的规则信号不足，已采用本轮结构化阶段建议。`
+      }
+    } else if (rule.strength === 'weak' && rule.stage !== null) {
+      const nextStage = clampPaperStageProgression(currentStage, rule.stage)
+      if (nextStage !== currentStage) {
+        currentStage = nextStage
+        stageSummary = `已进入${paperStageLabel(nextStage)}：${rule.rationale}`
+      }
+    }
+  }
+
   return {
     ...session.paperProfile,
-    currentStage: nextStage,
-    stageSummary: reply.trim(),
+    currentStage,
+    stageSummary,
     readingMap,
     insightCards,
   }

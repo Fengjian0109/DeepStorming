@@ -21,6 +21,8 @@ export type StructuredPaperInsightCardInput = Readonly<{
 
 export type StructuredPaperInsights = Readonly<{
   readingMapUpdates?: StructuredPaperReadingMapUpdates
+  suggestedStage?: PaperReadingStage
+  suggestedStageRationale?: string
   cards: readonly StructuredPaperInsightCardInput[]
 }>
 

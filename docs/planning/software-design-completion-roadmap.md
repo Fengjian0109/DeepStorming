@@ -172,10 +172,10 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 - 课堂页“当前论文阶段”展示。
 - D7.1 Paper Reading Map MVP：paper lesson 已有 Why / What / How / Evidence / Limits / Next 六槽阅读地图，并随课堂成功交互持久化更新。
 - D7.2 Paper Structured Insights MVP：paper lesson 已能沉淀 Section / Claim / Evidence / Limitation 洞察卡片，并与六槽地图同步更新。
+- D7.3 Paper Stage Progression：paper lesson 已支持更细粒度的阶段推进规则，并在规则信号不足时接收本轮结构化阶段建议。
 
 剩余 D7 工作：
 
-- 更细粒度的 paper stage（方法、实验、局限、启发）推进规则。
 - 跨论文工作区与论文专用复习聚合视图。
 
 ### D8. 发布候选

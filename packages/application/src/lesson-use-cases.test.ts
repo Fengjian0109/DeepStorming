@@ -718,6 +718,192 @@ describe('lesson use cases', () => {
     )
   })
 
+  it('advances from problem framing to method intuition when the reply explains why the approach works', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    lessons.records.set(created.id, {
+      ...created,
+      paperProfile:
+        created.paperProfile === null
+          ? null
+          : {
+              ...created.paperProfile,
+              currentStage: 'problem_framing',
+              stageSummary: '已进入问题定位：当前回答聚焦论文要解决的问题。',
+            },
+    })
+
+    let replyIndex = 0
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
+    ).execute({
+      lessonId: created.id,
+      content:
+        'The key idea is that the retrieval signal works because it constrains noisy supervision and gives the model a better inductive bias.',
+    })
+
+    expect(updated.paperProfile?.currentStage).toBe('method_intuition')
+    expect(updated.paperProfile?.stageSummary).toContain('方法直觉')
+  })
+
+  it('advances from method mechanics to evidence check when the reply focuses on experiments and ablations', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    lessons.records.set(created.id, {
+      ...created,
+      paperProfile:
+        created.paperProfile === null
+          ? null
+          : {
+              ...created.paperProfile,
+              currentStage: 'method_mechanics',
+              stageSummary: '已进入方法细节：当前回答聚焦模块和训练流程。',
+            },
+    })
+
+    let replyIndex = 0
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
+    ).execute({
+      lessonId: created.id,
+      content:
+        'The experiments, benchmark comparison, and ablation results are the main evidence that the method actually improves performance.',
+    })
+
+    expect(updated.paperProfile?.currentStage).toBe('evidence_check')
+    expect(updated.paperProfile?.stageSummary).toContain('证据核验')
+  })
+
+  it('accepts a provider suggested stage when local rule signals are weak', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    lessons.records.set(created.id, {
+      ...created,
+      paperProfile:
+        created.paperProfile === null
+          ? null
+          : {
+              ...created.paperProfile,
+              currentStage: 'critical_review',
+              stageSummary: '已进入批判审视：当前回答开始讨论局限。',
+            },
+    })
+
+    const generator = new FakeTutorReplyGenerator()
+    generator.nextStructuredPaperInsights = {
+      suggestedStage: 'transfer',
+      suggestedStageRationale:
+        'The learner is discussing how the method could be adapted to adjacent tasks.',
+      cards: [],
+    }
+
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => '00000000-0000-4000-8000-000000009004' },
+      createContextAssembler(),
+      generator,
+    ).execute({
+      lessonId: created.id,
+      content: 'I can see another possible direction here, but I am still not fully sure yet.',
+    })
+
+    expect(updated.paperProfile?.currentStage).toBe('transfer')
+    expect(updated.paperProfile?.stageSummary).toContain('adjacent tasks')
+  })
+
+  it('rejects provider suggestions that jump too far ahead', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    lessons.records.set(created.id, {
+      ...created,
+      paperProfile:
+        created.paperProfile === null
+          ? null
+          : {
+              ...created.paperProfile,
+              currentStage: 'problem_framing',
+              stageSummary: '已进入问题定位：当前回答聚焦论文要解决的问题。',
+            },
+    })
+
+    const generator = new FakeTutorReplyGenerator()
+    generator.nextStructuredPaperInsights = {
+      suggestedStage: 'synthesis',
+      suggestedStageRationale: 'The learner seems ready to wrap up.',
+      cards: [],
+    }
+
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => '00000000-0000-4000-8000-000000009005' },
+      createContextAssembler(),
+      generator,
+    ).execute({
+      lessonId: created.id,
+      content: 'I think the paper is about improving the task formulation.',
+    })
+
+    expect(updated.paperProfile?.currentStage).toBe('problem_framing')
+  })
+
   it('falls back to local extraction when structured paper insights are invalid', async () => {
     documents.document = { ...documentRecord, documentType: 'paper' }
     const created = await new StartLessonFromDocument(

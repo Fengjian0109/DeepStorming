@@ -40,7 +40,8 @@ it('advances from problem framing to method intuition when the reply explains wh
 
   const updated = await submitPaperReply({
     lesson,
-    learnerReply: 'The key idea is that the retrieval signal works because it constrains noisy supervision and gives the model a better inductive bias.',
+    learnerReply:
+      'The key idea is that the retrieval signal works because it constrains noisy supervision and gives the model a better inductive bias.',
   })
 
   expect(updated.paperProfile?.currentStage).toBe('method_intuition')
@@ -55,7 +56,8 @@ it('advances from method mechanics to evidence check when the reply focuses on e
 
   const updated = await submitPaperReply({
     lesson,
-    learnerReply: 'The experiments, benchmark comparison, and ablation results are the main evidence that the method actually improves performance.',
+    learnerReply:
+      'The experiments, benchmark comparison, and ablation results are the main evidence that the method actually improves performance.',
   })
 
   expect(updated.paperProfile?.currentStage).toBe('evidence_check')
@@ -71,7 +73,8 @@ Add tests for weak-rule cases:
 it('accepts a provider suggested stage when local rule signals are weak', async () => {
   generator.nextStructuredPaperInsights = {
     suggestedStage: 'transfer',
-    suggestedStageRationale: 'The learner is discussing how the method could be adapted to adjacent tasks.',
+    suggestedStageRationale:
+      'The learner is discussing how the method could be adapted to adjacent tasks.',
     cards: [],
   }
 
@@ -205,7 +208,11 @@ const detectRuleBasedPaperStage = (
   reply: string,
   readingMap: PaperReadingMap,
   insightCards: readonly PaperInsightCard[],
-): Readonly<{ strength: 'strong' | 'weak' | 'none'; stage: PaperReadingStage | null; rationale: string | null }> => {
+): Readonly<{
+  strength: 'strong' | 'weak' | 'none'
+  stage: PaperReadingStage | null
+  rationale: string | null
+}> => {
   const normalized = reply.toLowerCase()
 
   if (/experiment|benchmark|ablation|指标|实验|对比|消融/iu.test(normalized)) {
