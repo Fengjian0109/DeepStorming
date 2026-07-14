@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { StoredLessonSession } from '@deepstorming/application'
+import { createDefaultPaperReadingMap } from '@deepstorming/domain'
 import { migrateDatabase } from './migrations'
 import { openDatabase, type SqliteDatabase } from './database'
 import { SqliteLessonRepository } from './sqlite-lesson-repository'
@@ -185,6 +186,24 @@ describe('SqliteLessonRepository', () => {
         stageSummary: 'We established the paper problem and learner context.',
         termsIntroduced: ['Transformer'],
         citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+        readingMap: {
+          slots: [
+            {
+              kind: 'why' as const,
+              summary: 'The paper asks why evidence matters.',
+              status: 'seeded' as const,
+              citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+              updatedAt: '2026-07-14T00:00:00.000Z',
+            },
+            ...(['what', 'how', 'evidence', 'limits', 'next'] as const).map((kind) => ({
+              kind,
+              summary: null,
+              status: 'empty' as const,
+              citedAnchorIds: [],
+              updatedAt: null,
+            })),
+          ],
+        },
       },
     })
 
@@ -199,6 +218,31 @@ describe('SqliteLessonRepository', () => {
         stageSummary: 'The learner can now state the paper problem clearly.',
         termsIntroduced: ['Transformer', 'Attention'],
         citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+        readingMap: {
+          slots: [
+            {
+              kind: 'why' as const,
+              summary: 'The paper asks why evidence matters.',
+              status: 'updated' as const,
+              citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+              updatedAt: '2026-07-14T00:02:00.000Z',
+            },
+            {
+              kind: 'what' as const,
+              summary: 'The learner can now state the paper problem clearly.',
+              status: 'updated' as const,
+              citedAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+              updatedAt: '2026-07-14T00:02:00.000Z',
+            },
+            ...(['how', 'evidence', 'limits', 'next'] as const).map((kind) => ({
+              kind,
+              summary: null,
+              status: 'empty' as const,
+              citedAnchorIds: [],
+              updatedAt: null,
+            })),
+          ],
+        },
       },
       updatedAt: '2026-07-11T00:02:00.000Z',
     }
@@ -206,6 +250,35 @@ describe('SqliteLessonRepository', () => {
     await repo.save(updatedPaperSession)
 
     await expect(repo.findById(paperSession.id)).resolves.toEqual(updatedPaperSession)
+  })
+
+  it('normalizes legacy paper profiles that do not include readingMap', async () => {
+    const legacyId = '00000000-0000-4000-8000-000000000111'
+    db.prepare(
+      `INSERT INTO lesson_sessions
+         (id,title,status,document_id,document_title,created_at,updated_at,current_state,lesson_mode,paper_profile_json)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    ).run(
+      legacyId,
+      'Paper Map 课堂',
+      'active',
+      '00000000-0000-4000-8000-000000000201',
+      'Paper Map',
+      '2026-07-14T00:00:00.000Z',
+      '2026-07-14T00:00:00.000Z',
+      'opening',
+      'paper',
+      JSON.stringify({
+        currentStage: 'orientation',
+        stageSummary: null,
+        termsIntroduced: [],
+        citedAnchorIds: [],
+      }),
+    )
+
+    const session = await repo.findById(legacyId)
+
+    expect(session?.paperProfile?.readingMap).toEqual(createDefaultPaperReadingMap())
   })
 
   it('persists mastery evidence and misconception signals', async () => {
