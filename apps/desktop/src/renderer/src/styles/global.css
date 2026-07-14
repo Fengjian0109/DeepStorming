@@ -1080,6 +1080,54 @@ h2 {
   padding-block: 4px;
 }
 
+.rich-message-citations {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.citation-card {
+  padding: 12px 14px;
+  border-inline-start: 4px solid #4c8a6d;
+  border-radius: 0 12px 12px 0;
+  color: #20342b;
+  background: rgb(235 239 234 / 92%);
+}
+
+.citation-card-header {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.citation-card-header span {
+  color: #65766d;
+  font-size: 0.76rem;
+}
+
+.citation-card blockquote {
+  margin: 8px 0 6px;
+  padding: 0;
+  border: 0;
+  color: #20342b;
+  font-weight: 650;
+}
+
+.citation-card p {
+  margin: 0;
+  color: #52675d;
+  font-size: 0.84rem;
+}
+
+.citation-return-button {
+  min-height: 30px;
+  margin-top: 9px;
+  padding-inline: 10px;
+  color: #23533d;
+  background: rgb(255 255 255 / 68%);
+}
+
 .lesson-message-bubble footer,
 .lesson-run-recovery small {
   display: block;

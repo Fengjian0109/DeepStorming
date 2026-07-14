@@ -8,6 +8,9 @@ type LessonConversationProps = Readonly<{
   retryingModelRunId?: string | undefined
   onRetryRun: (modelRunId: string) => void
   onCancelRetry: () => void
+  onReturnToEvidence?: (
+    target: Readonly<{ documentId: string; pageNumber: number; blockId: string }>,
+  ) => void
 }>
 
 const roleLabels = {
@@ -23,6 +26,7 @@ export const LessonConversation = ({
   retryingModelRunId,
   onRetryRun,
   onCancelRetry,
+  onReturnToEvidence,
 }: LessonConversationProps): React.JSX.Element => {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const previousMessageCount = useRef<number | undefined>(undefined)
@@ -68,6 +72,11 @@ export const LessonConversation = ({
         )}
         {session.messages.map((message) => {
           const label = roleLabels[message.role]
+          const pdfAnchor = session.sourceAnchors.find(
+            (anchor) =>
+              message.sourceAnchorIds.includes(anchor.id) && anchor.target?.kind === 'pdf_block',
+          )
+          const pdfTarget = pdfAnchor?.target?.kind === 'pdf_block' ? pdfAnchor.target : undefined
           return (
             <article
               key={message.id}
@@ -78,6 +87,17 @@ export const LessonConversation = ({
                 role={message.role}
                 markdown={message.tutorTurn?.responseMarkdown ?? message.content}
                 narration={message.role === 'tutor' ? message.tutorTurn?.narration : null}
+                citations={message.role === 'tutor' ? message.tutorTurn?.citations : []}
+                onReturnToCitation={
+                  pdfAnchor && pdfTarget && onReturnToEvidence
+                    ? () =>
+                        onReturnToEvidence({
+                          documentId: pdfAnchor.documentId,
+                          pageNumber: pdfTarget.pageNumber,
+                          blockId: pdfTarget.blockId,
+                        })
+                    : undefined
+                }
               />
               <footer>{label}</footer>
             </article>

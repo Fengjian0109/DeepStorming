@@ -39,5 +39,21 @@ describe('TutorTurn', () => {
         figureReferences: [],
       }),
     ).toThrow('Tutor citations must be unique')
+    expect(() =>
+      normalizeTutorTurn({
+        narration: null,
+        responseMarkdown: '继续',
+        citations: [
+          {
+            chunkId: 'chunk-1',
+            quote: '证据',
+            rationale: '理由',
+            pageNumberStart: 3,
+            pageNumberEnd: 2,
+          },
+        ],
+        figureReferences: [],
+      }),
+    ).toThrow('Tutor citation page range is invalid')
   })
 })

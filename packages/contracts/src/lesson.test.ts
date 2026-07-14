@@ -66,6 +66,8 @@ const session = {
             chunkId: '00000000-0000-4000-8000-000000000901',
             quote: 'Evidence',
             rationale: '这是当前问题所依据的原文。',
+            pageNumberStart: 1,
+            pageNumberEnd: 2,
           },
         ],
         figureReferences: [],
@@ -276,6 +278,26 @@ describe('lesson contracts', () => {
       lessonSessionSchema.safeParse({
         ...session,
         masteryEvidence: [{ ...session.masteryEvidence[0], confidence: 2 }],
+      }).success,
+    ).toBe(false)
+    expect(
+      lessonSessionSchema.safeParse({
+        ...session,
+        messages: [
+          {
+            ...session.messages[0],
+            tutorTurn: {
+              ...session.messages[0].tutorTurn,
+              citations: [
+                {
+                  ...session.messages[0].tutorTurn.citations[0],
+                  pageNumberStart: 3,
+                  pageNumberEnd: 2,
+                },
+              ],
+            },
+          },
+        ],
       }).success,
     ).toBe(false)
     expect(

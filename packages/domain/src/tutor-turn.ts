@@ -2,6 +2,8 @@ export type TutorCitation = Readonly<{
   chunkId: string
   quote: string
   rationale: string
+  pageNumberStart?: number
+  pageNumberEnd?: number
 }>
 
 export type TutorFigureReference = Readonly<{
@@ -31,11 +33,32 @@ export const normalizeTutorTurn = (turn: TutorTurn): TutorTurn => {
   if (turn.citations.length > 8) throw new Error('Tutor citations are too many')
   if (turn.figureReferences.length > 4) throw new Error('Tutor figure references are too many')
 
-  const citations = turn.citations.map((citation) => ({
-    chunkId: required(citation.chunkId, 'Tutor citation chunk is invalid', 200),
-    quote: required(citation.quote, 'Tutor citation quote is invalid', 1_000),
-    rationale: required(citation.rationale, 'Tutor citation rationale is invalid', 500),
-  }))
+  const citations = turn.citations.map((citation) => {
+    const hasStart = citation.pageNumberStart !== undefined
+    const hasEnd = citation.pageNumberEnd !== undefined
+    if (hasStart !== hasEnd) throw new Error('Tutor citation page range is incomplete')
+    if (
+      hasStart &&
+      hasEnd &&
+      (!Number.isInteger(citation.pageNumberStart) ||
+        !Number.isInteger(citation.pageNumberEnd) ||
+        citation.pageNumberStart! < 1 ||
+        citation.pageNumberEnd! < citation.pageNumberStart!)
+    ) {
+      throw new Error('Tutor citation page range is invalid')
+    }
+    return {
+      chunkId: required(citation.chunkId, 'Tutor citation chunk is invalid', 200),
+      quote: required(citation.quote, 'Tutor citation quote is invalid', 1_000),
+      rationale: required(citation.rationale, 'Tutor citation rationale is invalid', 500),
+      ...(hasStart && hasEnd
+        ? {
+            pageNumberStart: citation.pageNumberStart!,
+            pageNumberEnd: citation.pageNumberEnd!,
+          }
+        : {}),
+    }
+  })
   if (new Set(citations.map((citation) => citation.chunkId)).size !== citations.length) {
     throw new Error('Tutor citations must be unique')
   }

@@ -26,7 +26,10 @@ describe('parseTutorTurnCandidate', () => {
         }),
         { contextChunks, allowedFigureIds: ['figure-1'] },
       ),
-    ).toMatchObject({ responseMarkdown: '你会如何解释这个求和？' })
+    ).toMatchObject({
+      responseMarkdown: '你会如何解释这个求和？',
+      citations: [{ pageNumberStart: 2, pageNumberEnd: 2 }],
+    })
   })
 
   it('rejects malformed JSON, foreign chunks, unverifiable quotes, and foreign figures', () => {

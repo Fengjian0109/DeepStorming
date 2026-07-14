@@ -77,7 +77,7 @@ export const parseTutorTurnCandidate = (
     })
 
     const chunks = new Map(ownership.contextChunks.map((chunk) => [chunk.chunkId, chunk]))
-    for (const citation of turn.citations) {
+    const verifiedCitations = turn.citations.map((citation) => {
       const chunk = chunks.get(citation.chunkId)
       if (chunk === undefined) {
         throw new TutorTurnValidationError('Tutor citation does not belong to this request.')
@@ -85,14 +85,19 @@ export const parseTutorTurnCandidate = (
       if (!normalizeComparable(chunk.text).includes(normalizeComparable(citation.quote))) {
         throw new TutorTurnValidationError('Tutor citation quote cannot be verified.')
       }
-    }
+      return {
+        ...citation,
+        pageNumberStart: chunk.pageNumberStart,
+        pageNumberEnd: chunk.pageNumberEnd,
+      }
+    })
     const figures = new Set(ownership.allowedFigureIds)
     for (const reference of turn.figureReferences) {
       if (!figures.has(reference.figureId)) {
         throw new TutorTurnValidationError('Tutor figure does not belong to this request.')
       }
     }
-    return turn
+    return { ...turn, citations: verifiedCitations }
   } catch (error) {
     if (error instanceof TutorTurnValidationError) throw error
     throw new TutorTurnValidationError('Tutor turn failed validation.')

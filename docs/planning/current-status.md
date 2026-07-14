@@ -14,8 +14,9 @@
 - TutorTurn 通过 Contracts、Domain 与 SQLite `tutor_turn_json` 持久化，同时保留 `content` 兼容旧消息。
 - Migration 18 为历史课堂保持可读，新消息可恢复完整结构化显示数据。
 - 导师与学习者消息统一使用安全 Markdown/GFM/LaTeX 管线；导师动作单独以弱化斜体显示，代码、表格、链接和行内/块级公式均可读，原始 HTML、事件属性和危险 URL 不进入 DOM。
+- 已验证文本引用显示为强调卡片，包含逐字 quote、页码范围和引用理由；可从聊天直接回到当前 PDF 的来源 block，点击本身不改写对话滚动锚点。
 
-进行中：强调引用、PDF 图片提取和对话图片卡片。
+进行中：PDF 图片提取和对话图片卡片。
 
 ## AI-first workspace redesign — Stage 2
 

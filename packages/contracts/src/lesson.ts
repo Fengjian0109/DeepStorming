@@ -88,6 +88,24 @@ export const lessonSourceAnchorSchema = z
     message: 'endOffset must be greater than startOffset',
   })
 
+export const lessonTutorCitationSchema = z
+  .object({
+    chunkId: requiredTextSchema.max(200),
+    quote: requiredTextSchema.max(1_000),
+    rationale: requiredTextSchema.max(500),
+    pageNumberStart: z.number().int().positive().optional(),
+    pageNumberEnd: z.number().int().positive().optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      (value.pageNumberStart === undefined && value.pageNumberEnd === undefined) ||
+      (value.pageNumberStart !== undefined &&
+        value.pageNumberEnd !== undefined &&
+        value.pageNumberEnd >= value.pageNumberStart),
+    { message: 'Citation page range is invalid.' },
+  )
+
 export const lessonMessageSchema = z
   .object({
     id: z.string().uuid(),
@@ -102,17 +120,7 @@ export const lessonMessageSchema = z
       .object({
         narration: z.string().trim().min(1).max(1_000).nullable(),
         responseMarkdown: requiredTextSchema.max(8_000),
-        citations: z
-          .array(
-            z
-              .object({
-                chunkId: requiredTextSchema.max(200),
-                quote: requiredTextSchema.max(1_000),
-                rationale: requiredTextSchema.max(500),
-              })
-              .strict(),
-          )
-          .max(8),
+        citations: z.array(lessonTutorCitationSchema).max(8),
         figureReferences: z
           .array(
             z
@@ -461,6 +469,7 @@ export type LessonSessionStatusDto = z.infer<typeof lessonSessionStatusSchema>
 export type LessonSourceAnchorDto = z.infer<typeof lessonSourceAnchorSchema>
 export type LessonMessageRoleDto = z.infer<typeof lessonMessageRoleSchema>
 export type LessonMessageDto = z.infer<typeof lessonMessageSchema>
+export type LessonTutorCitationDto = z.infer<typeof lessonTutorCitationSchema>
 export type LessonModelRunStatusDto = z.infer<typeof lessonModelRunStatusSchema>
 export type LessonStateDto = z.infer<typeof lessonStateSchema>
 export type TutorActionTypeDto = z.infer<typeof tutorActionTypeSchema>

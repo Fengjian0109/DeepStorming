@@ -88,6 +88,63 @@ describe('LessonConversation', () => {
     expect(document.querySelectorAll('.katex')).toHaveLength(2)
   })
 
+  it('renders verified citation cards and returns to PDF evidence without changing chat scroll', async () => {
+    const onReturnToEvidence = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <LessonConversation
+        session={
+          {
+            ...baseSession,
+            sourceAnchors: [
+              {
+                id: 'anchor-1',
+                documentId: 'doc-1',
+                startOffset: 0,
+                endOffset: 8,
+                snippet: 'Evidence',
+                target: { kind: 'pdf_block', pageNumber: 4, blockId: 'block-4', blockIndex: 0 },
+              },
+            ],
+            messages: [
+              {
+                ...baseSession.messages[1],
+                sourceAnchorIds: ['anchor-1'],
+                tutorTurn: {
+                  narration: null,
+                  responseMarkdown: '请检查证据。',
+                  citations: [
+                    {
+                      chunkId: 'chunk-1',
+                      quote: 'Evidence',
+                      rationale: '直接证据',
+                      pageNumberStart: 4,
+                      pageNumberEnd: 4,
+                    },
+                  ],
+                  figureReferences: [],
+                },
+              },
+            ],
+          } as LessonSessionDto
+        }
+        onRetryRun={vi.fn()}
+        onCancelRetry={vi.fn()}
+        onReturnToEvidence={onReturnToEvidence}
+      />,
+    )
+    const scroller = screen.getByRole('log', { name: '课堂消息' })
+    Object.defineProperty(scroller, 'scrollTop', { configurable: true, writable: true, value: 180 })
+
+    await user.click(screen.getByRole('button', { name: '回到来源' }))
+    expect(onReturnToEvidence).toHaveBeenCalledWith({
+      documentId: 'doc-1',
+      pageNumber: 4,
+      blockId: 'block-4',
+    })
+    expect(scroller.scrollTop).toBe(180)
+  })
+
   it('renders a useful empty state', () => {
     render(
       <LessonConversation

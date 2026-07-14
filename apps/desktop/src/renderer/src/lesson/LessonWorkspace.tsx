@@ -328,6 +328,7 @@ export const LessonWorkspace = ({
             }
             onRetryRun={(modelRunId) => void retryRun(modelRunId)}
             onCancelRetry={() => void cancelRetry()}
+            {...(onReturnToEvidence === undefined ? {} : { onReturnToEvidence })}
           />
 
           <LessonComposer
