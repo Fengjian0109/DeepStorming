@@ -8,7 +8,9 @@ import type {
 } from '@deepstorming/contracts'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
-import { DocumentForm } from './DocumentForm'
+import { WorkspaceContextual } from '../app/WorkspaceShell'
+import { DocumentCreateDialog } from './DocumentCreateDialog'
+import { DocumentDetailPanel } from './DocumentDetailPanel'
 import { DocumentList } from './DocumentList'
 import { PdfReaderPanel } from './PdfReaderPanel'
 
@@ -72,13 +74,16 @@ export const DocumentLibrary = ({
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>()
   const [detailState, setDetailState] = useState<DetailState>({ status: 'idle' })
   const [pagePreviewState, setPagePreviewState] = useState<PagePreviewState>({ status: 'idle' })
+  const [readerOpen, setReaderOpen] = useState(false)
   const [selectedPdfTarget, setSelectedPdfTarget] =
     useState<Readonly<{ pageNumber: number; blockId: string }>>()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummaryDto>()
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const listRequestSequence = useRef(0)
   const detailRequestSequence = useRef(0)
+  const readerRequestSequence = useRef(0)
   const searchRequestSequence = useRef(0)
   const operationSequence = useRef(0)
   const consumedFocusKey = useRef<string | undefined>(undefined)
@@ -105,39 +110,18 @@ export const DocumentLibrary = ({
   const loadDetail = useCallback(async (document: DocumentSummaryDto) => {
     const requestSequence = detailRequestSequence.current + 1
     detailRequestSequence.current = requestSequence
+    readerRequestSequence.current += 1
     setSelectedDocumentId(document.id)
     setSelectedPdfTarget(undefined)
+    setReaderOpen(false)
     setDetailState({ status: 'loading', documentId: document.id })
-    setPagePreviewState({ status: 'loading', documentId: document.id })
+    setPagePreviewState({ status: 'idle' })
     const result = await window.deepstorming.documents.get(document.id)
     if (detailRequestSequence.current !== requestSequence) return
 
     if (result.ok) {
       setDetailState({ status: 'ready', document: result.data })
-      const pagesResult = await window.deepstorming.documents.getPages(document.id)
-      if (detailRequestSequence.current !== requestSequence) return
-      if (!pagesResult.ok) {
-        setPagePreviewState({
-          status: 'error',
-          documentId: document.id,
-          message: pagesResult.error.message,
-        })
-        return
-      }
-      const pagesWithBlocks = []
-      for (const page of pagesResult.data) {
-        const blocksResult = await window.deepstorming.documents.getPageBlocks(
-          document.id,
-          page.pageNumber,
-        )
-        if (detailRequestSequence.current !== requestSequence) return
-        pagesWithBlocks.push({
-          page,
-          blocks: blocksResult.ok ? [...blocksResult.data] : [],
-        })
-      }
-      setPagePreviewState({ status: 'ready', documentId: document.id, pages: pagesWithBlocks })
-      return
+      return result.data
     }
 
     setDetailState({ status: 'error', documentId: document.id })
@@ -146,6 +130,59 @@ export const DocumentLibrary = ({
       status: 'error',
       message: getErrorMessage('文档详情加载失败。', result),
     })
+  }, [])
+
+  const openReader = useCallback(async (document: DocumentDetailDto) => {
+    const requestSequence = readerRequestSequence.current + 1
+    readerRequestSequence.current = requestSequence
+    setReaderOpen(true)
+
+    const isPdf = document.originalFileName?.toLowerCase().endsWith('.pdf') ?? false
+    if (!isPdf) {
+      setPagePreviewState({ status: 'ready', documentId: document.id, pages: [] })
+      return
+    }
+
+    setPagePreviewState({ status: 'loading', documentId: document.id })
+    const pagesResult = await window.deepstorming.documents.getPages(document.id)
+    if (readerRequestSequence.current !== requestSequence) return
+    if (!pagesResult.ok) {
+      setPagePreviewState({
+        status: 'error',
+        documentId: document.id,
+        message: pagesResult.error.message,
+      })
+      return
+    }
+
+    const pagesWithBlocks: Array<
+      Readonly<{ page: DocumentPageDto; blocks: DocumentTextBlockDto[] }>
+    > = []
+    for (const page of pagesResult.data) {
+      const blocksResult = await window.deepstorming.documents.getPageBlocks(
+        document.id,
+        page.pageNumber,
+      )
+      if (readerRequestSequence.current !== requestSequence) return
+      if (!blocksResult.ok) {
+        setPagePreviewState({
+          status: 'error',
+          documentId: document.id,
+          message: blocksResult.error.message,
+        })
+        return
+      }
+      pagesWithBlocks.push({ page, blocks: [...blocksResult.data] })
+    }
+
+    setPagePreviewState({ status: 'ready', documentId: document.id, pages: pagesWithBlocks })
+  }, [])
+
+  const closeReader = useCallback(() => {
+    readerRequestSequence.current += 1
+    setReaderOpen(false)
+    setPagePreviewState({ status: 'idle' })
+    setSelectedPdfTarget(undefined)
   }, [])
 
   useEffect(() => {
@@ -158,12 +195,14 @@ export const DocumentLibrary = ({
     if (summary === undefined) return
     const key = `${focusTarget.documentId}:${focusTarget.pageNumber}:${focusTarget.blockId}`
     if (consumedFocusKey.current === key) return
-    void loadDetail(summary).then(() => {
+    void loadDetail(summary).then((document) => {
+      if (document === undefined) return
       consumedFocusKey.current = key
       setSelectedPdfTarget({ pageNumber: focusTarget.pageNumber, blockId: focusTarget.blockId })
+      void openReader(document)
       onFocusConsumed?.()
     })
-  }, [focusTarget, listState, loadDetail, onFocusConsumed])
+  }, [focusTarget, listState, loadDetail, onFocusConsumed, openReader])
 
   const searchDocuments = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -345,9 +384,11 @@ export const DocumentLibrary = ({
     }
 
     if (selectedDocumentId === deleteTarget.id) {
+      readerRequestSequence.current += 1
       setSelectedDocumentId(undefined)
       setDetailState({ status: 'idle' })
       setPagePreviewState({ status: 'idle' })
+      setReaderOpen(false)
       setSelectedPdfTarget(undefined)
     }
     setDeleteTarget(undefined)
@@ -355,42 +396,69 @@ export const DocumentLibrary = ({
     await loadDocuments()
   }
 
-  return (
-    <div className="provider-workspace">
-      <section className="workspace-header" aria-labelledby="document-title">
-        <div>
-          <p className="section-kicker">DOCUMENTS</p>
-          <h1 id="document-title">文档库</h1>
-          <p>直接输入正文或导入 .txt / .md 文件，统一管理学习文档。</p>
+  let readerContent: React.ReactNode = null
+  if (detailState.status === 'ready') {
+    const document = detailState.document
+    const isPdf = document.originalFileName?.toLowerCase().endsWith('.pdf') ?? false
+
+    if (!isPdf) {
+      readerContent = <pre className="document-reader-body">{document.plainText}</pre>
+    } else if (
+      pagePreviewState.status === 'loading' &&
+      pagePreviewState.documentId === document.id
+    ) {
+      readerContent = <p className="muted-state">正在加载 PDF 页面…</p>
+    } else if (pagePreviewState.status === 'error' && pagePreviewState.documentId === document.id) {
+      readerContent = (
+        <div className="reader-error-state">
+          <p role="alert" className="error-state">
+            {pagePreviewState.message}
+          </p>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void openReader(document)}
+          >
+            重试加载阅读器
+          </button>
         </div>
-      </section>
+      )
+    } else if (
+      pagePreviewState.status === 'ready' &&
+      pagePreviewState.documentId === document.id &&
+      pagePreviewState.pages.length > 0
+    ) {
+      readerContent = (
+        <PdfReaderPanel
+          documentId={document.id}
+          pages={pagePreviewState.pages}
+          selectedTarget={selectedPdfTarget}
+          onSelectTarget={setSelectedPdfTarget}
+          onStartLesson={(input) =>
+            void startLesson({
+              ...input,
+              documentTitle: document.title,
+              target: {
+                kind: 'pdf_block',
+                pageNumber: input.pageNumber,
+                blockId: input.blockId,
+                blockIndex: input.blockIndex,
+              },
+            })
+          }
+        />
+      )
+    } else {
+      readerContent = <p className="muted-state">这个 PDF 暂无可显示的页面。</p>
+    }
+  }
 
-      <div className="document-layout">
-        <aside className="panel">
-          <h2>新建文档</h2>
-          <DocumentForm
-            disabled={asyncState.status === 'loading'}
-            onSubmit={createDocument}
-            onError={(message) => setAsyncState({ status: 'error', message })}
-          />
-          <div className="document-import-card">
-            <h3>导入 PDF</h3>
-            <p className="field-help">导入带文本层的 PDF，DeepStorming 会保存页面和文本块。</p>
-            <label className="file-picker">
-              <span>导入 PDF</span>
-              <input
-                type="file"
-                accept=".pdf,application/pdf"
-                disabled={asyncState.status === 'loading'}
-                onChange={(event) => void importPdf(event)}
-              />
-            </label>
-          </div>
-        </aside>
-
-        <main className="panel">
-          <div className="panel-header">
-            <h2>文档列表</h2>
+  return (
+    <div className="document-workspace">
+      <WorkspaceContextual>
+        <section className="document-contextual-navigation" aria-label="文档导航内容">
+          <div className="contextual-section-header">
+            <h2>文档</h2>
             {listState.status === 'error' && (
               <button
                 type="button"
@@ -401,15 +469,6 @@ export const DocumentLibrary = ({
               </button>
             )}
           </div>
-
-          {asyncState.status !== 'idle' && (
-            <p
-              className={`operation-state operation-state-${asyncState.status}`}
-              role={asyncState.status === 'error' ? 'alert' : 'status'}
-            >
-              {asyncState.message}
-            </p>
-          )}
 
           <form
             className="document-search"
@@ -432,157 +491,154 @@ export const DocumentLibrary = ({
           {searchState.status === 'loading' && (
             <p className="muted-state">正在搜索“{searchState.query}”…</p>
           )}
-
           {searchState.status === 'error' && (
             <p role="alert" className="error-state">
               {searchState.message}
             </p>
           )}
-
           {searchState.status === 'ready' && searchState.results.length === 0 && (
             <p className="muted-state">没有找到“{searchState.query}”。</p>
           )}
-
           {searchState.status === 'ready' && searchState.results.length > 0 && (
             <div className="document-search-results" aria-label="搜索结果">
               {searchState.results.map((result) => (
-                <article key={`${result.documentId}:${result.startOffset}`} className="search-hit">
-                  <div>
-                    <h3>{result.title}</h3>
-                    <p>{result.snippet}</p>
-                    <p className="field-help">
-                      字符 {result.startOffset}–{result.endOffset}
-                    </p>
+                <article key={result.documentId + ':' + result.startOffset} className="search-hit">
+                  <h3>{result.title}</h3>
+                  <p>{result.snippet}</p>
+                  <p className="field-help">
+                    字符 {result.startOffset}–{result.endOffset}
+                  </p>
+                  <div className="card-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => openSearchResult(result)}
+                      disabled={asyncState.status === 'loading'}
+                    >
+                      打开 {result.title}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void startLesson({
+                          documentId: result.documentId,
+                          documentTitle: result.title,
+                          startOffset: result.startOffset,
+                          endOffset: result.endOffset,
+                          snippet: result.snippet,
+                        })
+                      }
+                      disabled={asyncState.status === 'loading'}
+                    >
+                      用此片段开始课堂
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => openSearchResult(result)}
-                    disabled={asyncState.status === 'loading'}
-                  >
-                    打开 {result.title}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void startLesson({
-                        documentId: result.documentId,
-                        documentTitle: result.title,
-                        startOffset: result.startOffset,
-                        endOffset: result.endOffset,
-                        snippet: result.snippet,
-                      })
-                    }
-                    disabled={asyncState.status === 'loading'}
-                  >
-                    用此片段开始课堂
-                  </button>
                 </article>
               ))}
             </div>
           )}
 
           {listState.status === 'loading' && <p className="muted-state">正在加载文档…</p>}
-
           {listState.status === 'error' && (
             <p role="alert" className="error-state">
               {listState.message}
             </p>
           )}
-
           {listState.status === 'ready' && listState.documents.length === 0 && (
             <div className="empty-state">
               <h3>还没有文档</h3>
-              <p>从粘贴文本或导入文本文件开始建立你的文档库。</p>
+              <p>从粘贴文本或导入文件开始建立你的文档库。</p>
             </div>
           )}
-
           {listState.status === 'ready' && listState.documents.length > 0 && (
             <DocumentList
               documents={listState.documents}
               selectedDocumentId={selectedDocumentId}
-              deletingDocumentId={deleteTarget?.id}
               disabled={asyncState.status === 'loading'}
               onSelect={(document) => void loadDetail(document)}
-              onDelete={setDeleteTarget}
             />
           )}
-        </main>
+        </section>
+      </WorkspaceContextual>
 
-        <section className="panel document-detail" aria-live="polite">
-          <div className="panel-header">
-            <h2>文档详情</h2>
+      <section className="document-main-canvas" aria-labelledby="document-title">
+        <header className="workspace-header document-main-header">
+          <div>
+            <p className="section-kicker">DOCUMENTS</p>
+            <h1 id="document-title">文档库</h1>
+            <p>导入资料、查看摘要，然后进入阅读器或开始课堂。</p>
           </div>
+        </header>
 
+        <div className="document-import-section">
+          <div className="document-import-toolbar" role="toolbar" aria-label="添加学习资料">
+            <button type="button" onClick={() => setCreateDialogOpen(true)}>
+              粘贴文本 / 导入 TXT、MD
+            </button>
+            <label className="file-picker">
+              <span>{asyncState.status === 'loading' ? '处理中…' : '导入可选择文字的 PDF'}</span>
+              <input
+                type="file"
+                aria-label="导入可选择文字的 PDF"
+                accept=".pdf,application/pdf"
+                disabled={asyncState.status === 'loading'}
+                onChange={(event) => void importPdf(event)}
+              />
+            </label>
+          </div>
+          <p className="field-help">第一版仅支持带可选择文字层的 PDF，不支持扫描件。</p>
+        </div>
+
+        {asyncState.status !== 'idle' && (
+          <p
+            className={'operation-state operation-state-' + asyncState.status}
+            role={asyncState.status === 'error' ? 'alert' : 'status'}
+          >
+            {asyncState.message}
+          </p>
+        )}
+
+        <section className="document-main-panel" aria-live="polite">
           {detailState.status !== 'ready' && (
-            <p className="muted-state">
-              {detailState.status === 'loading'
-                ? '正在加载文档详情…'
-                : '选择一篇文档后可查看正文。'}
-            </p>
-          )}
-
-          {detailState.status === 'ready' && (
-            <article>
-              <h2>{detailState.document.title}</h2>
-              <p className="field-help">
-                {detailState.document.sourceKind === 'pasted_text' ? '粘贴文本' : '文本文件'} ·{' '}
-                {detailState.document.characterCount} 字符
+            <div className="document-detail-empty">
+              <h2>文档详情</h2>
+              <p className="muted-state">
+                {detailState.status === 'loading'
+                  ? '正在加载文档详情…'
+                  : '选择一篇文档后可查看摘要。'}
               </p>
-              <div className="form-actions document-detail-actions">
-                <button
-                  type="button"
-                  onClick={() =>
-                    void startLesson({
-                      documentId: detailState.document.id,
-                      documentTitle: detailState.document.title,
-                      startOffset: 0,
-                      endOffset: snippetFrom(detailState.document.plainText).length,
-                      snippet: snippetFrom(detailState.document.plainText),
-                    })
-                  }
-                  disabled={asyncState.status === 'loading'}
-                >
-                  开始课堂
-                </button>
-              </div>
-              <pre className="document-body">{detailState.document.plainText}</pre>
-              {pagePreviewState.status === 'loading' &&
-                pagePreviewState.documentId === detailState.document.id && (
-                  <p className="muted-state">正在加载 PDF 页面…</p>
-                )}
-              {pagePreviewState.status === 'error' &&
-                pagePreviewState.documentId === detailState.document.id && (
-                  <p role="alert" className="error-state">
-                    {pagePreviewState.message}
-                  </p>
-                )}
-              {pagePreviewState.status === 'ready' &&
-                pagePreviewState.documentId === detailState.document.id &&
-                pagePreviewState.pages.length > 0 && (
-                  <PdfReaderPanel
-                    documentId={detailState.document.id}
-                    pages={pagePreviewState.pages}
-                    selectedTarget={selectedPdfTarget}
-                    onSelectTarget={setSelectedPdfTarget}
-                    onStartLesson={(input) =>
-                      void startLesson({
-                        ...input,
-                        documentTitle: detailState.document.title,
-                        target: {
-                          kind: 'pdf_block',
-                          pageNumber: input.pageNumber,
-                          blockId: input.blockId,
-                          blockIndex: input.blockIndex,
-                        },
-                      })
-                    }
-                  />
-                )}
-            </article>
+            </div>
+          )}
+          {detailState.status === 'ready' && (
+            <DocumentDetailPanel
+              document={detailState.document}
+              busy={asyncState.status === 'loading'}
+              readerOpen={readerOpen}
+              onStartLesson={() =>
+                void startLesson({
+                  documentId: detailState.document.id,
+                  documentTitle: detailState.document.title,
+                  startOffset: 0,
+                  endOffset: snippetFrom(detailState.document.plainText).length,
+                  snippet: snippetFrom(detailState.document.plainText),
+                })
+              }
+              onOpenReader={() => void openReader(detailState.document)}
+              onCloseReader={closeReader}
+              onDelete={() => setDeleteTarget(detailState.document)}
+              reader={readerContent}
+            />
           )}
         </section>
-      </div>
+      </section>
+
+      <DocumentCreateDialog
+        open={createDialogOpen}
+        saving={asyncState.status === 'loading'}
+        onClose={() => setCreateDialogOpen(false)}
+        onSubmit={createDocument}
+        onError={(message) => setAsyncState({ status: 'error', message })}
+      />
 
       {deleteTarget && (
         <div className="modal-backdrop">

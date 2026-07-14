@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LessonWorkspace } from './LessonWorkspace'
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
 
 const session = {
   id: '00000000-0000-4000-8000-000000000101',
@@ -399,6 +407,7 @@ afterEach(() => {
 
 describe('LessonWorkspace', () => {
   it('renders paper stage and summary for paper lessons', async () => {
+    const user = userEvent.setup()
     window.deepstorming.lessons.list = vi
       .fn()
       .mockResolvedValue({ ok: true, data: [paperSession], requestId: crypto.randomUUID() })
@@ -408,36 +417,43 @@ describe('LessonWorkspace', () => {
 
     render(<LessonWorkspace selectedLessonId={paperSession.id} />)
 
-    expect(await screen.findByText('当前论文阶段')).toBeTruthy()
-    expect(screen.getByText('问题定位')).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Paper Map 论文课堂' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    await user.click(screen.getByRole('tab', { name: '进度' }))
+    expect(screen.getByText(/论文阶段：问题定位/)).toBeTruthy()
     expect(screen.getByText('The learner is still orienting around the paper.')).toBeTruthy()
   })
 
   it('does not render paper metadata for standard lessons', async () => {
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
-    expect(await screen.findByRole('heading', { name: '课堂' })).toBeTruthy()
-    expect(screen.queryByText('当前论文阶段')).toBeNull()
+    expect(await screen.findByRole('heading', { name: 'Paper Map 课堂' })).toBeTruthy()
+    expect(screen.queryByText('问题定位')).toBeNull()
   })
 
   it('lists lesson sessions and opens a selected session', async () => {
     const user = userEvent.setup()
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
-    expect(await screen.findByRole('heading', { name: '课堂' })).toBeTruthy()
-    expect(await screen.findAllByRole('heading', { name: 'Paper Map 课堂' })).toHaveLength(2)
-    expect(screen.getByText('Evidence')).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Paper Map 课堂' })).toBeTruthy()
     expect(screen.getByText(/你觉得它想解决的核心问题是什么/)).toBeTruthy()
-    expect(
-      screen.getByText((_content, node) => node?.textContent === '导师 · Prompt mock-tutor-v1'),
-    ).toBeTruthy()
-    expect(screen.getByText('mock-local · succeeded')).toBeTruthy()
     expect(screen.getByText('当前阶段：苏格拉底追问')).toBeTruthy()
-    expect(screen.getByText('动作：ask · opening → probing')).toBeTruthy()
-    expect(screen.getByText('上下文证据')).toBeTruthy()
+    const conversation = screen.getByRole('log', { name: '课堂消息' })
+    expect(conversation.className).toContain('lesson-conversation')
+    expect(conversation.contains(screen.getByLabelText('你的回答'))).toBe(false)
+    expect(screen.getByLabelText('你的回答').closest('.lesson-composer')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: '生成记录' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: '学习诊断' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: '复习任务' })).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    expect(screen.getByText('Evidence')).toBeTruthy()
+    await user.click(screen.getByRole('tab', { name: '技术' }))
+    expect(screen.getByText('mock-local · succeeded')).toBeTruthy()
+    expect(screen.getByText(/ask.*opening.*probing/)).toBeTruthy()
     expect(screen.getByText('第 1 页 · 312 字')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: '打开 Paper Map 课堂' }))
+    await user.click(screen.getByRole('button', { name: 'Paper Map 课堂 · 进行中' }))
     await waitFor(() => expect(window.deepstorming.lessons.get).toHaveBeenCalledWith(session.id))
   })
 
@@ -468,7 +484,9 @@ describe('LessonWorkspace', () => {
       <LessonWorkspace selectedLessonId={session.id} onReturnToEvidence={onReturnToEvidence} />,
     )
 
-    expect(await screen.findByText('第 2 页 · Block 2')).toBeTruthy()
+    await screen.findByRole('heading', { name: 'Paper Map 课堂' })
+    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    expect(screen.getByText('第 2 页 · Block 2')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '回到证据' }))
     expect(onReturnToEvidence).toHaveBeenCalledWith({
       documentId: session.documentId,
@@ -483,7 +501,7 @@ describe('LessonWorkspace', () => {
 
     await screen.findByText(/你觉得它想解决的核心问题是什么/)
     await user.type(screen.getByLabelText('你的回答'), '它在说明证据如何支撑判断。')
-    await user.click(screen.getByRole('button', { name: '提交回答' }))
+    await user.click(screen.getByRole('button', { name: '发送' }))
 
     await waitFor(() =>
       expect(window.deepstorming.lessons.reply).toHaveBeenCalledWith({
@@ -494,10 +512,9 @@ describe('LessonWorkspace', () => {
     )
     expect(await screen.findByText('它在说明证据如何支撑判断。')).toBeTruthy()
     expect(await screen.findByText(/下一步你会如何验证这个判断/)).toBeTruthy()
-    expect(screen.getByText('lesson.mockTutor.followUp v1')).toBeTruthy()
-    expect(screen.getByText('动作：ask · probing → probing')).toBeTruthy()
-    expect(screen.getByText('第 2-3 页 · 186 字')).toBeTruthy()
-    expect(screen.getByRole('heading', { name: '学习诊断' })).toBeTruthy()
+    expect((screen.getByLabelText('你的回答') as HTMLTextAreaElement).value).toBe('')
+    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    await user.click(screen.getByRole('tab', { name: '诊断' }))
     expect(screen.getByText('部分理解 · 55%')).toBeTruthy()
     expect(
       screen.getByText('Learner gave a source-grounded answer that can support follow-up.'),
@@ -513,9 +530,12 @@ describe('LessonWorkspace', () => {
       .fn()
       .mockResolvedValue({ ok: true, data: legacySession, requestId: crypto.randomUUID() })
 
+    const user = userEvent.setup()
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
-    expect(await screen.findByText('状态机记录尚未生成')).toBeTruthy()
+    await screen.findByRole('heading', { name: 'Paper Map 课堂' })
+    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    await user.click(screen.getByRole('tab', { name: '诊断' }))
     expect(screen.getByText('还没有学习诊断。')).toBeTruthy()
   })
 
@@ -527,17 +547,18 @@ describe('LessonWorkspace', () => {
       .fn()
       .mockResolvedValue({ ok: true, data: stuckSession, requestId: crypto.randomUUID() })
 
+    const user = userEvent.setup()
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
+    await screen.findByRole('heading', { name: 'Paper Map 课堂' })
+    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    await user.click(screen.getByRole('tab', { name: '诊断' }))
     expect(await screen.findByText('建议复习 · 75%')).toBeTruthy()
+    expect(screen.getByText('Learner explicitly signaled they are stuck or unsure.')).toBeTruthy()
+    expect(screen.getByText('学习者表达卡住')).toBeTruthy()
     expect(
-      screen.getAllByText('Learner explicitly signaled they are stuck or unsure.'),
-    ).toHaveLength(2)
-    expect(screen.getByText('可能误区：学习者表达卡住 · medium')).toBeTruthy()
-    expect(
-      screen.getAllByText('Learner used language that indicates confusion or being stuck.'),
-    ).toHaveLength(2)
-    expect(screen.getByText('建议加入后续复习')).toBeTruthy()
+      screen.getByText('Learner used language that indicates confusion or being stuck.'),
+    ).toBeTruthy()
   })
 
   it('renders review tasks and records remembered reviews', async () => {
@@ -550,7 +571,9 @@ describe('LessonWorkspace', () => {
       .mockResolvedValue({ ok: true, data: stuckSession, requestId: crypto.randomUUID() })
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
-    expect(await screen.findByText('复习任务')).toBeTruthy()
+    await screen.findByRole('heading', { name: 'Paper Map 课堂' })
+    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    await user.click(screen.getByRole('tab', { name: '复习' }))
     expect(screen.getByText('复习：学习者表达卡住。请重新解释这段证据想说明什么。')).toBeTruthy()
     await user.type(screen.getByLabelText('这次复习回答'), '我已经能解释证据和判断依据。')
     await user.click(screen.getByRole('button', { name: '记住了' }))
@@ -564,6 +587,50 @@ describe('LessonWorkspace', () => {
       }),
     )
     expect(await screen.findByText('复习记录已保存。')).toBeTruthy()
+  })
+
+  it('ignores a review result after the user opens another lesson', async () => {
+    const user = userEvent.setup()
+    const otherSession = {
+      ...session,
+      id: '00000000-0000-4000-8000-000000000112',
+      title: '第二节课堂',
+      updatedAt: '2026-07-12T00:00:00.000Z',
+    }
+    const reviewRequest =
+      deferred<Awaited<ReturnType<typeof window.deepstorming.lessons.recordReview>>>()
+    window.deepstorming.lessons.list = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [stuckSession, otherSession],
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.lessons.get = vi.fn().mockImplementation(async (lessonId: string) => ({
+      ok: true,
+      data: lessonId === otherSession.id ? otherSession : stuckSession,
+      requestId: crypto.randomUUID(),
+    }))
+    window.deepstorming.lessons.recordReview = vi.fn().mockReturnValue(reviewRequest.promise)
+    render(<LessonWorkspace selectedLessonId={stuckSession.id} />)
+
+    await screen.findByRole('heading', { name: 'Paper Map 课堂' })
+    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    await user.click(screen.getByRole('tab', { name: '复习' }))
+    await user.type(screen.getByLabelText('这次复习回答'), '我已经理解。')
+    await user.click(screen.getByRole('button', { name: '记住了' }))
+    await user.click(screen.getByRole('button', { name: '第二节课堂 · 进行中' }))
+    expect(await screen.findByRole('heading', { name: '第二节课堂' })).toBeTruthy()
+
+    await act(async () => {
+      reviewRequest.resolve({
+        ok: true,
+        data: stuckSession,
+        requestId: crypto.randomUUID(),
+      })
+      await reviewRequest.promise
+    })
+
+    expect(screen.getByRole('heading', { name: '第二节课堂' })).toBeTruthy()
+    expect(screen.queryByText('复习记录已保存。')).toBeNull()
   })
 
   it('shows snippet fallback when a lesson run has no retrieval chunks', async () => {
@@ -585,8 +652,12 @@ describe('LessonWorkspace', () => {
       .fn()
       .mockResolvedValue({ ok: true, data: degradedSession, requestId: crypto.randomUUID() })
 
+    const user = userEvent.setup()
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
+    await screen.findByRole('heading', { name: 'Paper Map 课堂' })
+    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    await user.click(screen.getByRole('tab', { name: '技术' }))
     expect(await screen.findByText('课堂仍可继续（已降级为 snippet）')).toBeTruthy()
   })
 
@@ -597,7 +668,7 @@ describe('LessonWorkspace', () => {
 
     await screen.findByText(/你觉得它想解决的核心问题是什么/)
     await user.type(screen.getByLabelText('你的回答'), '它在说明证据如何支撑判断。')
-    await user.click(screen.getByRole('button', { name: '提交回答' }))
+    await user.click(screen.getByRole('button', { name: '发送' }))
 
     await user.click(await screen.findByRole('button', { name: '取消生成' }))
 
@@ -617,8 +688,7 @@ describe('LessonWorkspace', () => {
       .mockResolvedValue({ ok: true, data: failedSession, requestId: crypto.randomUUID() })
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
-    expect(await screen.findByText('mock-local · failed')).toBeTruthy()
-    expect(screen.getByText('The lesson operation could not be completed.')).toBeTruthy()
+    expect(await screen.findByText('The lesson operation could not be completed.')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '重试生成 lesson.mockTutor.followUp v1' }))
 
     await waitFor(() =>
@@ -629,7 +699,6 @@ describe('LessonWorkspace', () => {
       }),
     )
     expect(await screen.findByText(/下一步你会如何验证这个判断/)).toBeTruthy()
-    expect(screen.getAllByText('lesson.mockTutor.followUp v1')).toHaveLength(2)
   })
 
   it('cancels an in-flight retry generation', async () => {
@@ -643,7 +712,7 @@ describe('LessonWorkspace', () => {
     window.deepstorming.lessons.retryRun = vi.fn().mockReturnValue(new Promise(() => undefined))
     render(<LessonWorkspace selectedLessonId={session.id} />)
 
-    expect(await screen.findByText('mock-local · failed')).toBeTruthy()
+    expect(await screen.findByText('The lesson operation could not be completed.')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '重试生成 lesson.mockTutor.followUp v1' }))
     await user.click(await screen.findByRole('button', { name: '取消重试' }))
 
@@ -652,5 +721,55 @@ describe('LessonWorkspace', () => {
     expect(operationId).toEqual(expect.any(String))
     expect(window.deepstorming.lessons.cancelRun).toHaveBeenCalledWith(operationId)
     expect(await screen.findByText('生成已取消。')).toBeTruthy()
+  })
+
+  it('preserves the draft and exposes provider failures without local tutor output', async () => {
+    const user = userEvent.setup()
+    window.deepstorming.lessons.reply = vi.fn().mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'PROVIDER_UNAVAILABLE',
+        message: 'AI Provider 暂不可用，请检查设置。',
+        retryable: true,
+      },
+      requestId: crypto.randomUUID(),
+    })
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    await screen.findByRole('heading', { name: 'Paper Map 课堂' })
+    await user.type(screen.getByLabelText('你的回答'), '保留这段回答')
+    await user.click(screen.getByRole('button', { name: '发送' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'AI Provider 暂不可用，请检查设置。',
+    )
+    expect((screen.getByLabelText('你的回答') as HTMLTextAreaElement).value).toBe('保留这段回答')
+    expect(screen.queryByText(/本地导师/)).toBeNull()
+  })
+
+  it('offers retries for list and detail load failures', async () => {
+    const user = userEvent.setup()
+    window.deepstorming.lessons.list = vi.fn().mockResolvedValue({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR', message: '课堂列表加载失败。', retryable: true },
+      requestId: crypto.randomUUID(),
+    })
+    const { unmount } = render(<LessonWorkspace selectedLessonId={session.id} />)
+    expect((await screen.findByRole('alert')).textContent).toContain('课堂列表加载失败。')
+    expect(screen.getByRole('button', { name: '重试加载' })).toBeTruthy()
+    unmount()
+
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [session], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi.fn().mockResolvedValue({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR', message: '课堂详情加载失败。', retryable: true },
+      requestId: crypto.randomUUID(),
+    })
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+    expect((await screen.findByRole('alert')).textContent).toContain('课堂详情加载失败。')
+    await user.click(screen.getByRole('button', { name: '重试课堂详情' }))
+    expect(window.deepstorming.lessons.get).toHaveBeenCalledTimes(2)
   })
 })
