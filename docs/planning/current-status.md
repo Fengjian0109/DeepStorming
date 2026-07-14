@@ -1,9 +1,33 @@
 # DeepStorming 当前开发状态
 
 - 更新时间：2026-07-14
-- 当前分支：`main`
-- 当前阶段：Phase 6 D1 Real DeepSeek Acceptance + D8 Self-Use Release Candidate
-- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环、D5 课堂状态机审计链路、D6-MVP 学习诊断证据闭环、D6 Review Scheduler MVP、D7 Paper Lesson Mode MVP 已完成；D1 处于“DeepSeek 已完成、OpenAI-compatible 待真实端点验收”的部分完成状态；D8 已推进到自用版发布候选
+- 当前分支：`codex/chat-first-workspace`
+- 当前阶段：AI-first workspace redesign — Stage 1 interface foundation
+- 状态：Stage 1 实现与验收完成；后续 AI-only 教学契约、富对话渲染、完整课程生命周期和上下文压缩尚未开始
+
+## AI-first workspace redesign — Stage 1 interface foundation
+
+Stage 1 将桌面端从功能卡片堆叠页重构为“分层侧栏 + 对话主区”的工作空间，并保持既有业务能力和安全边界不变。
+
+已完成：
+
+- 可独立收起、拖拽调宽和一键全部收起/恢复的主副侧栏；侧栏与分隔线总宽度不超过窗口宽度的 50%，布局偏好只保存在 Renderer 本地 UI 存储中。
+- 文档、课堂、设置统一进入工作空间壳层；Provider 管理移入设置，副侧栏按当前页面展示文档或按教材分组的课程历史。
+- 文档导入改为顶部工具栏与对话框；详情默认只展示不超过 320 字符的摘要，完整正文和 PDF page/block 仅在用户打开阅读器时按需加载。
+- 第一版 PDF 继续只支持具有可选择文本层的电子版 PDF；OCR 和扫描件不在本阶段范围内。
+- 课堂主区只展示导师与学习者的连续对话；生成记录、证据、学习诊断、论文进度和复习任务移入信息抽屉。
+- 固定底部输入框支持 Enter 发送、Shift+Enter 换行、输入法合成保护、取消生成、草稿保留、失败重试和智能自动滚动。
+- 响应式和无障碍加固，包括窄屏默认收起副侧栏、键盘焦点、焦点恢复、滚动隔离与 reduced-motion。
+- Electron E2E 覆盖设置中的 Mock Provider 生命周期，以及文档导入、紧凑详情、延迟阅读器、从文档开课、对话回复、抽屉查看、侧栏调整/收起与重启恢复的完整旅程。
+
+本阶段没有修改 Domain、Application、Infrastructure、IPC contract 或数据库 schema；它是现有能力的 Renderer 信息架构与交互重构。
+
+明确未完成：
+
+- 严格 AI-only 导师契约，以及导师/伙伴的提示词、性格、擅长领域和头像配置。
+- Markdown/LaTeX、强调引用、PDF 图片提取与聊天中的自动图像匹配。
+- 三档课堂节奏、下课保存记忆、课后复习/休息分流、课程完成语义和聊天记录 MD/PDF 导出。
+- 剩余上下文低于阈值时的自动压缩、token 统计与默认 30% 阈值设置。
 
 ## 已完成
 
@@ -148,13 +172,13 @@
 
 ## 当前范围与非目标
 
-- 已完成范围：本地文本/PDF 文档库、文本导入、PDF 文本层导入、列表/详情/删除、SQLite 持久化、正文搜索、PDF page/block 事实保存、本地课堂会话创建/列表/详情/重启持久化、标准课堂与 paper lesson 双模式、首条 Tutor 提问持久化、Prompt Manifest 与 Model Run 记录、学习者回复、下一轮 Tutor 追问、failed/cancelled 生成记录的本地重试入口、Provider Gateway 的课堂追问生成端口、Lesson reply/retry 的 Provider 成功/失败/取消路径接线、reply/retry 的 `started/failed/cancelled/succeeded` run 持久化、安全错误摘要持久化与展示、LessonState / LessonStep 状态机审计，以及 deterministic 学习诊断证据与误区信号展示。
-- 非目标：OCR、PDF 页面渲染阅读器、块坐标高亮、embeddings、语义检索、流式课堂、完整评分 rubric、独立复习中心、通知/日历提醒、论文工作区、后台导入任务。
+- 已完成范围：既有文本/PDF 文档、Provider、课堂、诊断、复习和论文模式能力，以及 Stage 1 的 chat-first 工作空间界面基础。
+- 当前非目标：OCR、扫描 PDF、严格 AI-only 导师、Markdown/LaTeX 与图像引用渲染、课程结束/记忆/复习分流、聊天导出、自动上下文压缩、embeddings、语义检索、通知/日历提醒和后台导入任务。
 
 ## 当前门禁
 
 1. `pnpm check`：通过；Prettier、全 workspace typecheck、测试与桌面端构建全部通过。
-2. `pnpm test:e2e`：通过；开发版 Provider lifecycle、文档/课堂重启持久化、Review Scheduler 持久化和 paper lesson 阶段恢复 4 个 E2E 通过。文档主流程覆盖 `.md` 导入、PDF 导入、PDF 页面/Block 预览、从 PDF block 启动 paper lesson 后的上下文证据与状态机展示、学习者回复后的 paper follow-up 与阶段推进、正文搜索启动 standard lesson、重启后课堂/学习诊断/paper stage 持久可见，以及 chunk 索引缺失时的 snippet-only 降级继续课堂；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
+2. `pnpm test:e2e`：通过；当前 Stage 1 套件有 2 个开发版 Electron E2E 通过，分别覆盖设置中的 Mock Provider lifecycle，以及 chat-first 文档/课堂完整旅程。主旅程包含 `.md` 与可选择文本 PDF 导入、紧凑详情、显式打开阅读器、从文档开课、对话回复、信息抽屉、侧栏调宽/收起与重启恢复；packaged persistence 测试在未先执行 `pnpm package:dir` 时按说明跳过。脚本在 Playwright 前重建 Electron ABI，并在结束后恢复 Node ABI。
 3. `pnpm package:dir`：通过；Electron 43.1.0 为 arm64 重建原生模块，目录包位于 `apps/desktop/release/mac-arm64/DeepStorming.app`。
 4. `pnpm exec playwright test tests/e2e/packaged-provider.spec.ts`：通过；同一临时 `userData` 下，打包 App 第一次创建 `Packaged Tutor`/`mock-success`，第二次启动仍显示该 Provider 与模型名。
 5. 原生模块证据：`Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node` 为 Mach-O 64-bit arm64 bundle；使用该目录包的 Electron runtime 从 `app.asar` 加载模块并完成临时 SQLite 的 create/insert/select，输出 `{"value":"ok"}`。
@@ -174,4 +198,4 @@ pnpm package:dir
 
 ## 下一步
 
-D1 的 DeepSeek 真实验收已经打通，OpenAI-compatible 真实验收则已整理成可随时恢复执行的正式清单；D8 也已推进到“自用版发布候选”这一层。接下来优先完成打包产物复核、packaged persistence 复测、敏感信息扫描与最终文档收尾；若后续补齐真实兼容端点，再按既有矩阵补完 D1。若未来要走公开发布，再继续补齐品牌图标、Developer ID 签名、公证和对外分发策略。
+按照 AI-first workspace redesign 路线继续 Stage 2：先建立严格 AI-only 导师契约和导师/伙伴设置，再依次推进富对话渲染与引用/图像管线、完整课程生命周期与导出、上下文压缩与 token 预算。旧 D1–D8 路线保留为既有能力与发布基线，不代表这些新阶段已经完成。
