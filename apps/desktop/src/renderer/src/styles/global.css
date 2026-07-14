@@ -988,6 +988,98 @@ h2 {
   margin: 0;
 }
 
+.rich-message {
+  color: inherit;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-size: 0.96rem;
+  line-height: 1.72;
+  white-space: normal;
+}
+
+.rich-message-narration {
+  margin-bottom: 8px !important;
+  color: #7a857f;
+  font-size: 0.92em;
+}
+
+.rich-message-body > :first-child {
+  margin-top: 0;
+}
+
+.rich-message-body > :last-child {
+  margin-bottom: 0;
+}
+
+.rich-message-body p,
+.rich-message-body ul,
+.rich-message-body ol,
+.rich-message-body blockquote,
+.rich-message-body pre,
+.rich-message-body table {
+  margin-block: 0 0.8em;
+}
+
+.rich-message-body pre,
+.rich-message-body code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+
+.rich-message-body :not(pre) > code {
+  padding: 0.12em 0.35em;
+  border-radius: 5px;
+  background: rgb(32 52 43 / 9%);
+}
+
+.rich-message-body pre {
+  max-width: 100%;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 10px;
+  background: rgb(32 52 43 / 8%);
+}
+
+.rich-message-body table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rich-message-body th,
+.rich-message-body td {
+  padding: 7px 9px;
+  border: 1px solid rgb(32 52 43 / 16%);
+  text-align: start;
+}
+
+.rich-message-body blockquote {
+  padding-inline-start: 12px;
+  border-inline-start: 3px solid #8aa497;
+  color: #52675d;
+}
+
+.rich-message-body a {
+  color: #1f6548;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.lesson-message-learner .rich-message-narration,
+.lesson-message-learner .rich-message-body a {
+  color: rgb(247 251 247 / 78%);
+}
+
+.rich-message-body .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 4px;
+}
+
 .lesson-message-bubble footer,
 .lesson-run-recovery small {
   display: block;

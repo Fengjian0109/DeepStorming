@@ -1,6 +1,8 @@
 import type { LessonSessionDto } from '@deepstorming/contracts'
 import React, { useLayoutEffect, useRef, useState } from 'react'
 
+import { RichMessage } from './RichMessage'
+
 type LessonConversationProps = Readonly<{
   session: LessonSessionDto
   retryingModelRunId?: string | undefined
@@ -72,7 +74,11 @@ export const LessonConversation = ({
               className={`lesson-message-bubble lesson-message-${message.role}`}
               aria-label={`${label}消息`}
             >
-              <p>{message.content}</p>
+              <RichMessage
+                role={message.role}
+                markdown={message.tutorTurn?.responseMarkdown ?? message.content}
+                narration={message.role === 'tutor' ? message.tutorTurn?.narration : null}
+              />
               <footer>{label}</footer>
             </article>
           )

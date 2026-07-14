@@ -391,6 +391,8 @@ type TutorTurn = {
 
 Application 必须校验 JSON 结构、引用 chunk 是否属于本次检索上下文，以及 quote 是否逐字存在于该 chunk。第一次失败时可向同一 Provider 发起一次带固定修复说明的重试；第二次仍无效则以 `AI_GENERATION_FAILED` 结束本轮，不持久化无效导师消息或学习诊断。
 
+Renderer 只消费已校验的 Contracts DTO，并用同一条 Markdown 管线渲染导师与学习者正文：GFM 与数学语法先解析，KaTeX 只处理允许的数学节点；原始 HTML 不解析，rehype 白名单清理危险节点、属性和 URL。导师 `narration` 作为纯文本斜体单独渲染，不进入 Markdown/HTML 管线。
+
 ### 12.2 TutorAction
 
 ```ts

@@ -13,8 +13,9 @@
 - Application 校验字段、引用 chunk 归属及逐字 quote；首次无效时只允许同一 Provider 修复一次，第二次失败返回可重试的 `AI_GENERATION_FAILED`，不把无效内容写成导师消息。
 - TutorTurn 通过 Contracts、Domain 与 SQLite `tutor_turn_json` 持久化，同时保留 `content` 兼容旧消息。
 - Migration 18 为历史课堂保持可读，新消息可恢复完整结构化显示数据。
+- 导师与学习者消息统一使用安全 Markdown/GFM/LaTeX 管线；导师动作单独以弱化斜体显示，代码、表格、链接和行内/块级公式均可读，原始 HTML、事件属性和危险 URL 不进入 DOM。
 
-进行中：安全 Markdown/GFM 与 LaTeX 渲染、强调引用、PDF 图片提取和对话图片卡片。
+进行中：强调引用、PDF 图片提取和对话图片卡片。
 
 ## AI-first workspace redesign — Stage 2
 

@@ -20,9 +20,15 @@
     "@deepstorming/domain": "workspace:*",
     "@deepstorming/infrastructure": "workspace:*",
     "better-sqlite3": "12.11.1",
+    "katex": "0.17.0",
     "pdf-parse": "2.4.5",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "react-markdown": "10.1.0",
+    "rehype-katex": "7.0.1",
+    "rehype-sanitize": "6.0.0",
+    "remark-gfm": "4.0.1",
+    "remark-math": "6.0.0"
   },
   "devDependencies": {
     "@deepstorming/testkit": "workspace:*",

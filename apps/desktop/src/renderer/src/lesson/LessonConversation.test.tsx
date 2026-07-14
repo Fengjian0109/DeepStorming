@@ -58,6 +58,36 @@ describe('LessonConversation', () => {
     expect(screen.queryByRole('heading', { name: '复习任务' })).toBeNull()
   })
 
+  it('renders structured tutor narration and Markdown while keeping learner LaTeX rich', () => {
+    render(
+      <LessonConversation
+        session={
+          {
+            ...baseSession,
+            messages: [
+              {
+                ...baseSession.messages[1],
+                tutorTurn: {
+                  narration: '她指向公式。',
+                  responseMarkdown: '为什么 **梯度** 是 $\\nabla f$？',
+                  citations: [],
+                  figureReferences: [],
+                },
+              },
+              { ...baseSession.messages[2], content: '因为 $f(x)=x^2$。' },
+            ],
+          } as LessonSessionDto
+        }
+        onRetryRun={vi.fn()}
+        onCancelRetry={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('她指向公式。').tagName).toBe('EM')
+    expect(screen.getByText('梯度').tagName).toBe('STRONG')
+    expect(document.querySelectorAll('.katex')).toHaveLength(2)
+  })
+
   it('renders a useful empty state', () => {
     render(
       <LessonConversation
