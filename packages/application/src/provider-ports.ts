@@ -1,5 +1,28 @@
-import type { PaperReadingStage, ProviderProfile, ProviderTestStatus } from '@deepstorming/domain'
+import type {
+  PaperInsightCardConfidence,
+  PaperInsightCardKind,
+  PaperReadingMapSlotKind,
+  PaperReadingStage,
+  ProviderProfile,
+  ProviderTestStatus,
+} from '@deepstorming/domain'
 export type { ClockPort, IdGeneratorPort } from './document-ports'
+
+export type StructuredPaperReadingMapUpdates = Partial<Record<PaperReadingMapSlotKind, string>>
+
+export type StructuredPaperInsightCardInput = Readonly<{
+  kind: PaperInsightCardKind
+  title: string
+  summary: string
+  sourceAnchorIds: readonly string[]
+  stage: PaperReadingStage
+  confidence: PaperInsightCardConfidence
+}>
+
+export type StructuredPaperInsights = Readonly<{
+  readingMapUpdates?: StructuredPaperReadingMapUpdates
+  cards: readonly StructuredPaperInsightCardInput[]
+}>
 
 export type StoredProvider = Omit<ProviderProfile, 'hasApiKey'> & {
   readonly revision: number
@@ -143,7 +166,7 @@ export interface ProviderGatewayPort {
       learnerReply: string
     }>,
     token: CancellationToken,
-  ): Promise<Readonly<{ content: string }>>
+  ): Promise<Readonly<{ content: string; structuredPaperInsights?: StructuredPaperInsights }>>
 }
 
 export interface ProviderGatewayFactoryPort {

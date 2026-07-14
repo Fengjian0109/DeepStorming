@@ -1,5 +1,6 @@
 import {
   createDefaultPaperReadingMap,
+  normalizePaperInsightCards,
   normalizeMasteryEvidence,
   normalizeMisconceptionSignal,
   normalizeReviewEvent,
@@ -13,6 +14,9 @@ import {
   type DocumentType,
   type LessonMode,
   type PaperReadingMap,
+  type PaperInsightCard,
+  type PaperInsightCardConfidence,
+  type PaperInsightCardKind,
   type PaperReadingMapSlotKind,
   type LessonRunRetryDraft,
   type LessonModelRun,
@@ -33,6 +37,7 @@ import type {
   LessonTutorReplyRequest,
   LessonTutorReplyGeneratorPort,
   LessonTutorReplyResult,
+  type StructuredPaperInsights,
   StoredMasteryEvidence,
   StoredMisconceptionSignal,
   StoredReviewItem,
@@ -163,6 +168,150 @@ const updateReadingMapSlot = (
   ),
 })
 
+const hashInsightSeed = (seed: string): string => {
+  let hash = 2166136261
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0')
+}
+
+const deterministicPaperInsightCardId = (
+  kind: PaperInsightCardKind,
+  title: string,
+  stage: PaperReadingStage,
+  updatedAt: string,
+): string => {
+  const seed = `${kind}|${title}|${stage}|${updatedAt}`
+  const a = hashInsightSeed(`a|${seed}`)
+  const b = hashInsightSeed(`b|${seed}`)
+  const c = hashInsightSeed(`c|${seed}`)
+  const d = hashInsightSeed(`d|${seed}`)
+  const e = hashInsightSeed(`e|${seed}`)
+  const f = hashInsightSeed(`f|${seed}`)
+  return `${a}-${b.slice(0, 4)}-4${c.slice(0, 3)}-8${d.slice(0, 3)}-${(e + f).slice(0, 12)}`
+}
+
+const createPaperInsightCard = (input: {
+  kind: PaperInsightCardKind
+  title: string
+  summary: string
+  sourceAnchorIds: readonly string[]
+  stage: PaperReadingStage
+  confidence: PaperInsightCardConfidence
+  updatedAt: string
+}): PaperInsightCard => ({
+  id: deterministicPaperInsightCardId(input.kind, input.title, input.stage, input.updatedAt),
+  kind: input.kind,
+  title: input.title.trim(),
+  summary: input.summary.trim(),
+  sourceAnchorIds: [...new Set(input.sourceAnchorIds)],
+  stage: input.stage,
+  confidence: input.confidence,
+  updatedAt: input.updatedAt,
+})
+
+const normalizeInsightTitleKey = (value: string): string =>
+  value.trim().toLowerCase().replaceAll(/\s+/g, ' ')
+
+const mergePaperInsightCard = (
+  cards: readonly PaperInsightCard[],
+  candidate: PaperInsightCard,
+): readonly PaperInsightCard[] => {
+  const candidateSummaryKey = normalizeInsightTitleKey(candidate.summary).slice(0, 24)
+  const index = cards.findIndex((card) => {
+    if (card.kind !== candidate.kind) return false
+    return (
+      normalizeInsightTitleKey(card.title) === normalizeInsightTitleKey(candidate.title) ||
+      normalizeInsightTitleKey(card.summary).includes(candidateSummaryKey)
+    )
+  })
+
+  if (index === -1) return normalizePaperInsightCards([...cards, candidate])
+
+  const existing = cards[index]!
+  const next = [...cards]
+  next[index] = {
+    ...existing,
+    ...candidate,
+    id: existing.id,
+    confidence:
+      existing.confidence === 'model' || candidate.confidence === 'model' ? 'model' : 'fallback',
+  }
+  return normalizePaperInsightCards(next)
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
+
+const normalizeStructuredPaperInsights = (
+  value: StructuredPaperInsights | undefined,
+): StructuredPaperInsights | undefined => {
+  if (value === undefined || !isRecord(value) || !Array.isArray(value.cards)) return undefined
+
+  const cards = value.cards
+    .map((card) => {
+      if (!isRecord(card)) return null
+      if (
+        (card.kind !== 'section' &&
+          card.kind !== 'claim' &&
+          card.kind !== 'evidence' &&
+          card.kind !== 'limitation') ||
+        typeof card.title !== 'string' ||
+        card.title.trim().length === 0 ||
+        typeof card.summary !== 'string' ||
+        card.summary.trim().length === 0 ||
+        !Array.isArray(card.sourceAnchorIds) ||
+        !card.sourceAnchorIds.every((id) => typeof id === 'string') ||
+        (card.stage !== 'orientation' &&
+          card.stage !== 'problem_framing' &&
+          card.stage !== 'method_intuition' &&
+          card.stage !== 'method_mechanics' &&
+          card.stage !== 'evidence_check' &&
+          card.stage !== 'critical_review' &&
+          card.stage !== 'transfer' &&
+          card.stage !== 'synthesis') ||
+        (card.confidence !== 'fallback' && card.confidence !== 'model')
+      ) {
+        return null
+      }
+
+      return {
+        kind: card.kind,
+        title: card.title.trim(),
+        summary: card.summary.trim(),
+        sourceAnchorIds: card.sourceAnchorIds,
+        stage: card.stage,
+        confidence: card.confidence,
+      }
+    })
+    .filter((card) => card !== null)
+
+  if (cards.length !== value.cards.length) return undefined
+
+  const readingMapUpdates = !isRecord(value.readingMapUpdates)
+    ? undefined
+    : Object.fromEntries(
+        Object.entries(value.readingMapUpdates)
+          .filter(
+            ([kind, summary]) =>
+              ['why', 'what', 'how', 'evidence', 'limits', 'next'].includes(kind) &&
+              typeof summary === 'string' &&
+              summary.trim().length > 0,
+          )
+          .map(([kind, summary]) => [kind, summary.trim()]),
+      )
+
+  return {
+    readingMapUpdates:
+      readingMapUpdates === undefined || Object.keys(readingMapUpdates).length === 0
+        ? undefined
+        : readingMapUpdates,
+    cards,
+  }
+}
+
 const createInitialPaperReadingMap = (
   documentTitle: string,
   sourceSnippet: string,
@@ -239,6 +388,74 @@ const updatePaperReadingMapAfterReply = (
   }
 
   return next
+}
+
+const extractFallbackPaperInsights = (
+  stage: PaperReadingStage,
+  reply: string,
+  citedAnchorIds: readonly string[],
+): StructuredPaperInsights => {
+  const normalized = reply.trim()
+  const readingMapUpdates: Partial<Record<PaperReadingMapSlotKind, string>> = {
+    what: `学习者当前理解：${normalized.slice(0, 180)}`,
+  }
+  const cards: Array<{
+    kind: PaperInsightCardKind
+    title: string
+    summary: string
+    sourceAnchorIds: readonly string[]
+    stage: PaperReadingStage
+    confidence: PaperInsightCardConfidence
+  }> = []
+
+  if (stage === 'orientation' || stage === 'problem_framing') {
+    cards.push({
+      kind: 'claim',
+      title: 'Current problem framing',
+      summary: normalized.slice(0, 240),
+      sourceAnchorIds: citedAnchorIds,
+      stage,
+      confidence: 'fallback',
+    })
+  }
+  if (/method|algorithm|model|mechanism|方法|算法|模型|机制/iu.test(normalized)) {
+    readingMapUpdates.how = `方法线索：${normalized.slice(0, 180)}`
+    cards.push({
+      kind: 'section',
+      title: 'Method clues',
+      summary: normalized.slice(0, 240),
+      sourceAnchorIds: citedAnchorIds,
+      stage,
+      confidence: 'fallback',
+    })
+  }
+  if (/evidence|experiment|result|figure|supports|实验|结果|图表|支撑/iu.test(normalized)) {
+    readingMapUpdates.evidence = `证据线索：${normalized.slice(0, 180)}`
+    cards.push({
+      kind: 'evidence',
+      title: 'Evidence thread',
+      summary: normalized.slice(0, 240),
+      sourceAnchorIds: citedAnchorIds,
+      stage,
+      confidence: 'fallback',
+    })
+  }
+  if (/limit|limitation|assumption|counterexample|局限|假设|反例|不能|失败|不足/iu.test(normalized)) {
+    readingMapUpdates.limits = `局限线索：${normalized.slice(0, 180)}`
+    cards.push({
+      kind: 'limitation',
+      title: 'Limitation noted',
+      summary: normalized.slice(0, 240),
+      sourceAnchorIds: citedAnchorIds,
+      stage,
+      confidence: 'fallback',
+    })
+  }
+  if (/future|next|transfer|application|improve|未来|启发|迁移|应用|改进/iu.test(normalized)) {
+    readingMapUpdates.next = `延展线索：${normalized.slice(0, 180)}`
+  }
+
+  return { readingMapUpdates, cards }
 }
 
 const createMockTutorFirstQuestion = (documentTitle: string, snippet: string): string =>
@@ -933,20 +1150,54 @@ const updatePaperProfileAfterReply = (
   session: StoredLessonSession,
   reply: string,
   updatedAt: string,
+  structuredPaperInsights?: StructuredPaperInsights,
 ): StoredLessonSession['paperProfile'] => {
   if (session.lessonMode !== 'paper' || session.paperProfile === null) {
     return session.paperProfile
   }
+  const nextStage = nextPaperStageForReply(session.paperProfile.currentStage, reply)
+  const citedAnchorIds = session.sourceAnchors.map((anchor) => anchor.id)
+  const normalizedStructuredInsights = normalizeStructuredPaperInsights(structuredPaperInsights)
+  const insights =
+    normalizedStructuredInsights ?? extractFallbackPaperInsights(nextStage, reply, citedAnchorIds)
+
+  let readingMap =
+    normalizedStructuredInsights === undefined
+      ? session.paperProfile.readingMap
+      : updatePaperReadingMapAfterReply(session.paperProfile.readingMap, reply, citedAnchorIds, updatedAt)
+
+  for (const [kind, summary] of Object.entries(insights.readingMapUpdates ?? {})) {
+    readingMap = updateReadingMapSlot(
+      readingMap,
+      kind as PaperReadingMapSlotKind,
+      summary,
+      citedAnchorIds,
+      updatedAt,
+    )
+  }
+
+  let insightCards = session.paperProfile.insightCards
+  for (const card of insights.cards) {
+    insightCards = mergePaperInsightCard(
+      insightCards,
+      createPaperInsightCard({
+        kind: card.kind,
+        title: card.title,
+        summary: card.summary,
+        sourceAnchorIds: card.sourceAnchorIds,
+        stage: card.stage,
+        confidence: card.confidence,
+        updatedAt,
+      }),
+    )
+  }
+
   return {
     ...session.paperProfile,
-    currentStage: nextPaperStageForReply(session.paperProfile.currentStage, reply),
+    currentStage: nextStage,
     stageSummary: reply.trim(),
-    readingMap: updatePaperReadingMapAfterReply(
-      session.paperProfile.readingMap,
-      reply,
-      session.sourceAnchors.map((anchor) => anchor.id),
-      updatedAt,
-    ),
+    readingMap,
+    insightCards,
   }
 }
 
@@ -1165,6 +1416,7 @@ export class StartLessonFromDocument {
                 anchorId,
                 createdAt,
               ),
+              insightCards: [],
             }
           : null,
       createdAt,
@@ -1369,7 +1621,12 @@ export class SubmitLessonReply {
       reviewItems:
         reviewItem === undefined ? pending.reviewItems : [...pending.reviewItems, reviewItem],
       reviewEvents: pending.reviewEvents,
-      paperProfile: updatePaperProfileAfterReply(session, draft.content, createdAt),
+      paperProfile: updatePaperProfileAfterReply(
+        session,
+        draft.content,
+        createdAt,
+        tutorReply.structuredPaperInsights,
+      ),
       updatedAt: createdAt,
     }
 
@@ -1575,7 +1832,12 @@ export class RetryLessonRun {
       reviewItems:
         reviewItem === undefined ? pending.reviewItems : [...pending.reviewItems, reviewItem],
       reviewEvents: pending.reviewEvents,
-      paperProfile: updatePaperProfileAfterReply(session, learnerMessage.content, createdAt),
+      paperProfile: updatePaperProfileAfterReply(
+        session,
+        learnerMessage.content,
+        createdAt,
+        tutorReply.structuredPaperInsights,
+      ),
       updatedAt: createdAt,
     }
 
@@ -1780,6 +2042,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       content: generated.content,
       providerId: activeProvider.id,
       modelName: activeProvider.modelName,
+      structuredPaperInsights: generated.structuredPaperInsights,
     }
   }
 }

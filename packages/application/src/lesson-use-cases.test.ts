@@ -29,6 +29,7 @@ import type {
   ProviderGatewayFactoryPort,
   ProviderGatewayPort,
   ProviderRepositoryPort,
+  StructuredPaperInsights,
   ProviderTestStatusTransitionResult,
   SecretVaultPort,
   StoredProvider,
@@ -189,6 +190,7 @@ class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
     }[]
     readonly learnerReply: string
   }> = []
+  public nextStructuredPaperInsights?: StructuredPaperInsights
 
   async generateFirstQuestion(
     input: {
@@ -225,6 +227,7 @@ class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
       content: `Provider 追问：${input.learnerReply} / ${input.sourceSnippet}`,
       providerId: '00000000-0000-4000-8000-000000000501',
       modelName: 'deepseek-chat',
+      structuredPaperInsights: this.nextStructuredPaperInsights,
     }
   }
 }
@@ -342,6 +345,7 @@ class FakeGateway implements ProviderGatewayPort {
     }
     readonly token: CancellationToken
   }> = []
+  public nextStructuredPaperInsights?: StructuredPaperInsights
 
   async testConnection(): Promise<void> {}
 
@@ -387,7 +391,10 @@ class FakeGateway implements ProviderGatewayPort {
     token: CancellationToken,
   ) {
     this.calls.push({ input, token })
-    return { content: 'Provider 追问' }
+    return {
+      content: 'Provider 追问',
+      structuredPaperInsights: this.nextStructuredPaperInsights,
+    }
   }
 }
 
@@ -640,6 +647,139 @@ describe('lesson use cases', () => {
       status: 'seeded',
       summary: expect.stringContaining('gap between observed evidence and model behavior'),
     })
+    expect(updated.paperProfile?.insightCards).toContainEqual(
+      expect.objectContaining({
+        kind: 'claim',
+        confidence: 'fallback',
+      }),
+    )
+  })
+
+  it('prefers structured paper insights from the current tutor reply payload', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    const generator = new FakeTutorReplyGenerator()
+    generator.nextStructuredPaperInsights = {
+      readingMapUpdates: {
+        what: '模型结构化：论文核心主张是基于证据评估行为。',
+      },
+      cards: [
+        {
+          kind: 'claim',
+          title: 'Evidence-grounded evaluation',
+          summary: '论文主张应以证据为基础评估模型行为。',
+          sourceAnchorIds: [anchorId],
+          stage: 'problem_framing',
+          confidence: 'model',
+        },
+      ],
+    }
+
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => crypto.randomUUID() },
+      createContextAssembler(),
+      generator,
+    ).execute({
+      lessonId: created.id,
+      content: 'I think the paper is about evidence-grounded evaluation.',
+    })
+
+    expect(
+      updated.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what'),
+    ).toMatchObject({
+      summary: '模型结构化：论文核心主张是基于证据评估行为。',
+    })
+    expect(updated.paperProfile?.insightCards).toContainEqual(
+      expect.objectContaining({
+        kind: 'claim',
+        title: 'Evidence-grounded evaluation',
+        confidence: 'model',
+      }),
+    )
+  })
+
+  it('falls back to local extraction when structured paper insights are invalid', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    const generator = new FakeTutorReplyGenerator()
+    generator.nextStructuredPaperInsights = {
+      cards: [{ kind: 'bad' as never }] as never,
+    } as never
+
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => crypto.randomUUID() },
+      createContextAssembler(),
+      generator,
+    ).execute({
+      lessonId: created.id,
+      content: 'The method uses evidence to support the central claim.',
+    })
+
+    expect(updated.paperProfile?.insightCards).toContainEqual(
+      expect.objectContaining({
+        kind: 'claim',
+        confidence: 'fallback',
+      }),
+    )
+  })
+
+  it('does not trigger a second tutor reply generation to extract paper insights', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    const generator = new FakeTutorReplyGenerator()
+
+    await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => crypto.randomUUID() },
+      createContextAssembler(),
+      generator,
+    ).execute({
+      lessonId: created.id,
+      content: 'The paper has a limitation in evidence coverage.',
+    })
+
+    expect(generator.calls).toHaveLength(1)
   })
 
   it('requires a PDF block to belong to the source document', async () => {
@@ -1638,6 +1778,43 @@ describe('lesson use cases', () => {
         token: expect.objectContaining({ cancelled: false }),
       },
     ])
+  })
+
+  it('passes through structured paper insights from the active provider gateway', async () => {
+    const providers = new FakeProviderRepository()
+    const vault = new FakeVault()
+    const factory = new FakeGatewayFactory()
+    factory.gateway.nextStructuredPaperInsights = {
+      cards: [
+        {
+          kind: 'claim',
+          title: 'Gateway claim',
+          summary: 'Provider returned a structured paper insight.',
+          sourceAnchorIds: [],
+          stage: 'problem_framing',
+          confidence: 'model',
+        },
+      ],
+    }
+
+    const result = await new ProviderLessonTutorReplyGenerator(
+      providers,
+      vault,
+      factory,
+    ).generateFollowUp(
+      {
+        documentTitle: 'Paper Map',
+        sourceSnippet: 'Evidence',
+        lessonMode: 'paper',
+        paperStage: 'problem_framing',
+        contextChunks: [],
+        learnerReply: 'It is a structured paper reply.',
+      },
+      { cancelled: false, onCancel: () => () => undefined },
+    )
+
+    expect(result.structuredPaperInsights).toEqual(factory.gateway.nextStructuredPaperInsights)
+    expect(factory.gateway.calls).toHaveLength(1)
   })
 
   it('preserves paper-mode fallback when no active provider is configured', async () => {

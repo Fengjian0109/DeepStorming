@@ -16,7 +16,7 @@ import type {
   TutorActionType,
 } from '@deepstorming/domain'
 import type { StoredDocumentTextBlock } from './document-ports'
-import type { CancellationToken } from './provider-ports'
+import type { CancellationToken, StructuredPaperInsights } from './provider-ports'
 
 export type StoredLessonSourceAnchor = LessonSourceAnchor
 export type StoredLessonMessage = LessonMessage
@@ -82,6 +82,7 @@ export type LessonTutorReplyResult = Readonly<{
   actionType?: TutorActionType
   stateAfter?: LessonState
   rationale?: string
+  structuredPaperInsights?: StructuredPaperInsights
 }>
 
 export type LessonTutorContextChunk = Readonly<{
