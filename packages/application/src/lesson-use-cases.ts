@@ -37,7 +37,6 @@ import type {
   LessonTutorReplyRequest,
   LessonTutorReplyGeneratorPort,
   LessonTutorReplyResult,
-  type StructuredPaperInsights,
   StoredMasteryEvidence,
   StoredMisconceptionSignal,
   StoredReviewItem,
@@ -49,6 +48,7 @@ import type {
   ProviderGatewayFactoryPort,
   ProviderRepositoryPort,
   SecretVaultPort,
+  StructuredPaperInsights,
 } from './provider-ports'
 import { toProviderProfile } from './provider-use-cases'
 
@@ -248,67 +248,68 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const normalizeStructuredPaperInsights = (
   value: StructuredPaperInsights | undefined,
 ): StructuredPaperInsights | undefined => {
-  if (value === undefined || !isRecord(value) || !Array.isArray(value.cards)) return undefined
+  if (value === undefined || !isRecord(value)) return undefined
 
-  const cards = value.cards
-    .map((card) => {
-      if (!isRecord(card)) return null
-      if (
-        (card.kind !== 'section' &&
-          card.kind !== 'claim' &&
-          card.kind !== 'evidence' &&
-          card.kind !== 'limitation') ||
-        typeof card.title !== 'string' ||
-        card.title.trim().length === 0 ||
-        typeof card.summary !== 'string' ||
-        card.summary.trim().length === 0 ||
-        !Array.isArray(card.sourceAnchorIds) ||
-        !card.sourceAnchorIds.every((id) => typeof id === 'string') ||
-        (card.stage !== 'orientation' &&
-          card.stage !== 'problem_framing' &&
-          card.stage !== 'method_intuition' &&
-          card.stage !== 'method_mechanics' &&
-          card.stage !== 'evidence_check' &&
-          card.stage !== 'critical_review' &&
-          card.stage !== 'transfer' &&
-          card.stage !== 'synthesis') ||
-        (card.confidence !== 'fallback' && card.confidence !== 'model')
-      ) {
-        return null
-      }
+  const cardsValue = value['cards']
+  if (!Array.isArray(cardsValue)) return undefined
 
-      return {
-        kind: card.kind,
-        title: card.title.trim(),
-        summary: card.summary.trim(),
-        sourceAnchorIds: card.sourceAnchorIds,
-        stage: card.stage,
-        confidence: card.confidence,
-      }
+  const cards: StructuredPaperInsights['cards'][number][] = []
+  for (const card of cardsValue) {
+    if (!isRecord(card)) return undefined
+    const kind = card['kind']
+    const title = card['title']
+    const summary = card['summary']
+    const sourceAnchorIds = card['sourceAnchorIds']
+    const stage = card['stage']
+    const confidence = card['confidence']
+    if (
+      (kind !== 'section' && kind !== 'claim' && kind !== 'evidence' && kind !== 'limitation') ||
+      typeof title !== 'string' ||
+      title.trim().length === 0 ||
+      typeof summary !== 'string' ||
+      summary.trim().length === 0 ||
+      !Array.isArray(sourceAnchorIds) ||
+      !sourceAnchorIds.every((id) => typeof id === 'string') ||
+      (stage !== 'orientation' &&
+        stage !== 'problem_framing' &&
+        stage !== 'method_intuition' &&
+        stage !== 'method_mechanics' &&
+        stage !== 'evidence_check' &&
+        stage !== 'critical_review' &&
+        stage !== 'transfer' &&
+        stage !== 'synthesis') ||
+      (confidence !== 'fallback' && confidence !== 'model')
+    ) {
+      return undefined
+    }
+
+    cards.push({
+      kind,
+      title: title.trim(),
+      summary: summary.trim(),
+      sourceAnchorIds: sourceAnchorIds.map((id) => id.trim()).filter((id) => id.length > 0),
+      stage,
+      confidence,
     })
-    .filter((card) => card !== null)
+  }
 
-  if (cards.length !== value.cards.length) return undefined
-
-  const readingMapUpdates = !isRecord(value.readingMapUpdates)
-    ? undefined
-    : Object.fromEntries(
-        Object.entries(value.readingMapUpdates)
-          .filter(
-            ([kind, summary]) =>
-              ['why', 'what', 'how', 'evidence', 'limits', 'next'].includes(kind) &&
-              typeof summary === 'string' &&
-              summary.trim().length > 0,
-          )
-          .map(([kind, summary]) => [kind, summary.trim()]),
-      )
+  const updatesValue = value['readingMapUpdates']
+  const readingMapUpdates: Partial<Record<PaperReadingMapSlotKind, string>> = {}
+  if (isRecord(updatesValue)) {
+    for (const [kind, summary] of Object.entries(updatesValue)) {
+      if (
+        ['why', 'what', 'how', 'evidence', 'limits', 'next'].includes(kind) &&
+        typeof summary === 'string' &&
+        summary.trim().length > 0
+      ) {
+        readingMapUpdates[kind as PaperReadingMapSlotKind] = summary.trim()
+      }
+    }
+  }
 
   return {
-    readingMapUpdates:
-      readingMapUpdates === undefined || Object.keys(readingMapUpdates).length === 0
-        ? undefined
-        : readingMapUpdates,
     cards,
+    ...(Object.keys(readingMapUpdates).length === 0 ? {} : { readingMapUpdates }),
   }
 }
 
@@ -440,7 +441,9 @@ const extractFallbackPaperInsights = (
       confidence: 'fallback',
     })
   }
-  if (/limit|limitation|assumption|counterexample|局限|假设|反例|不能|失败|不足/iu.test(normalized)) {
+  if (
+    /limit|limitation|assumption|counterexample|局限|假设|反例|不能|失败|不足/iu.test(normalized)
+  ) {
     readingMapUpdates.limits = `局限线索：${normalized.slice(0, 180)}`
     cards.push({
       kind: 'limitation',
@@ -1164,7 +1167,12 @@ const updatePaperProfileAfterReply = (
   let readingMap =
     normalizedStructuredInsights === undefined
       ? session.paperProfile.readingMap
-      : updatePaperReadingMapAfterReply(session.paperProfile.readingMap, reply, citedAnchorIds, updatedAt)
+      : updatePaperReadingMapAfterReply(
+          session.paperProfile.readingMap,
+          reply,
+          citedAnchorIds,
+          updatedAt,
+        )
 
   for (const [kind, summary] of Object.entries(insights.readingMapUpdates ?? {})) {
     readingMap = updateReadingMapSlot(
@@ -2042,7 +2050,9 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       content: generated.content,
       providerId: activeProvider.id,
       modelName: activeProvider.modelName,
-      structuredPaperInsights: generated.structuredPaperInsights,
+      ...(generated.structuredPaperInsights === undefined
+        ? {}
+        : { structuredPaperInsights: generated.structuredPaperInsights }),
     }
   }
 }

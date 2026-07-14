@@ -211,6 +211,8 @@ class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
     input: {
       documentTitle: string
       sourceSnippet: string
+      lessonMode: 'standard' | 'paper'
+      paperStage: PaperReadingStage | null
       contextChunks: readonly {
         readonly chunkId: string
         readonly text: string
@@ -227,7 +229,9 @@ class FakeTutorReplyGenerator implements LessonTutorReplyGeneratorPort {
       content: `Provider 追问：${input.learnerReply} / ${input.sourceSnippet}`,
       providerId: '00000000-0000-4000-8000-000000000501',
       modelName: 'deepseek-chat',
-      structuredPaperInsights: this.nextStructuredPaperInsights,
+      ...(this.nextStructuredPaperInsights === undefined
+        ? {}
+        : { structuredPaperInsights: this.nextStructuredPaperInsights }),
     }
   }
 }
@@ -393,7 +397,9 @@ class FakeGateway implements ProviderGatewayPort {
     this.calls.push({ input, token })
     return {
       content: 'Provider 追问',
-      structuredPaperInsights: this.nextStructuredPaperInsights,
+      ...(this.nextStructuredPaperInsights === undefined
+        ? {}
+        : { structuredPaperInsights: this.nextStructuredPaperInsights }),
     }
   }
 }
@@ -690,7 +696,7 @@ describe('lesson use cases', () => {
     const updated = await new SubmitLessonReply(
       lessons,
       clock,
-      { generate: () => crypto.randomUUID() },
+      { generate: () => '00000000-0000-4000-8000-000000009001' },
       createContextAssembler(),
       generator,
     ).execute({
@@ -735,7 +741,7 @@ describe('lesson use cases', () => {
     const updated = await new SubmitLessonReply(
       lessons,
       clock,
-      { generate: () => crypto.randomUUID() },
+      { generate: () => '00000000-0000-4000-8000-000000009002' },
       createContextAssembler(),
       generator,
     ).execute({
@@ -771,7 +777,7 @@ describe('lesson use cases', () => {
     await new SubmitLessonReply(
       lessons,
       clock,
-      { generate: () => crypto.randomUUID() },
+      { generate: () => '00000000-0000-4000-8000-000000009003' },
       createContextAssembler(),
       generator,
     ).execute({
@@ -847,6 +853,7 @@ describe('lesson use cases', () => {
         termsIntroduced: [],
         citedAnchorIds: [],
         readingMap: createDefaultPaperReadingMap(),
+        insightCards: [],
       },
       createdAt: now,
       updatedAt: now,

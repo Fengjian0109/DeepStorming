@@ -39,12 +39,7 @@ export const PAPER_READING_MAP_SLOT_KINDS = [
   'next',
 ] as const
 export const PAPER_READING_MAP_SLOT_STATUSES = ['empty', 'seeded', 'updated'] as const
-export const PAPER_INSIGHT_CARD_KINDS = [
-  'section',
-  'claim',
-  'evidence',
-  'limitation',
-] as const
+export const PAPER_INSIGHT_CARD_KINDS = ['section', 'claim', 'evidence', 'limitation'] as const
 export const PAPER_INSIGHT_CARD_CONFIDENCE = ['fallback', 'model'] as const
 
 export type LessonSessionStatus = (typeof LESSON_SESSION_STATUSES)[number]

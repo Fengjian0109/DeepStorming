@@ -95,12 +95,7 @@ export const paperReadingMapSchema = z
       ),
     { message: 'reading map must contain exactly one slot for each kind' },
   )
-export const paperInsightCardKindSchema = z.enum([
-  'section',
-  'claim',
-  'evidence',
-  'limitation',
-])
+export const paperInsightCardKindSchema = z.enum(['section', 'claim', 'evidence', 'limitation'])
 export const paperInsightCardConfidenceSchema = z.enum(['fallback', 'model'])
 export const paperInsightCardSchema = z
   .object({

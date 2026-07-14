@@ -30,6 +30,7 @@
 ### Task 1: Extend Domain and Contracts for paper insight cards
 
 **Files:**
+
 - Modify: `packages/domain/src/lesson.ts`
 - Modify: `packages/domain/src/lesson.test.ts`
 - Modify: `packages/contracts/src/lesson.ts`
@@ -140,10 +141,42 @@ Also add a helper-focused test:
 ```ts
 it('caps paper insight cards to the latest three cards per kind', () => {
   const cards = normalizePaperInsightCards([
-    createPaperInsightCard('section', 'A', 'One', 'orientation', 'fallback', [], '2026-07-11T00:00:00.000Z'),
-    createPaperInsightCard('section', 'B', 'Two', 'orientation', 'fallback', [], '2026-07-11T00:01:00.000Z'),
-    createPaperInsightCard('section', 'C', 'Three', 'orientation', 'fallback', [], '2026-07-11T00:02:00.000Z'),
-    createPaperInsightCard('section', 'D', 'Four', 'orientation', 'fallback', [], '2026-07-11T00:03:00.000Z'),
+    createPaperInsightCard(
+      'section',
+      'A',
+      'One',
+      'orientation',
+      'fallback',
+      [],
+      '2026-07-11T00:00:00.000Z',
+    ),
+    createPaperInsightCard(
+      'section',
+      'B',
+      'Two',
+      'orientation',
+      'fallback',
+      [],
+      '2026-07-11T00:01:00.000Z',
+    ),
+    createPaperInsightCard(
+      'section',
+      'C',
+      'Three',
+      'orientation',
+      'fallback',
+      [],
+      '2026-07-11T00:02:00.000Z',
+    ),
+    createPaperInsightCard(
+      'section',
+      'D',
+      'Four',
+      'orientation',
+      'fallback',
+      [],
+      '2026-07-11T00:03:00.000Z',
+    ),
   ])
 
   expect(cards.filter((card) => card.kind === 'section').map((card) => card.title)).toEqual([
@@ -165,12 +198,7 @@ Expected: FAIL because `insightCards`, related types, and normalization helpers 
 In `packages/domain/src/lesson.ts`, add alongside the existing paper reading map declarations:
 
 ```ts
-export const PAPER_INSIGHT_CARD_KINDS = [
-  'section',
-  'claim',
-  'evidence',
-  'limitation',
-] as const
+export const PAPER_INSIGHT_CARD_KINDS = ['section', 'claim', 'evidence', 'limitation'] as const
 
 export const PAPER_INSIGHT_CARD_CONFIDENCE = ['fallback', 'model'] as const
 
@@ -232,7 +260,10 @@ export const normalizePaperInsightCards = (
     title: normalizeNonBlank(card.title, 'Paper insight card title must not be blank'),
     summary: normalizeNonBlank(card.summary, 'Paper insight card summary must not be blank'),
     sourceAnchorIds: [...new Set(card.sourceAnchorIds)],
-    updatedAt: assertIsoTimestamp(card.updatedAt, 'Paper insight card updated timestamp is invalid'),
+    updatedAt: assertIsoTimestamp(
+      card.updatedAt,
+      'Paper insight card updated timestamp is invalid',
+    ),
   }))
 
   return PAPER_INSIGHT_CARD_KINDS.flatMap((kind) =>
@@ -358,12 +389,7 @@ Expected: FAIL because the DTO schema does not yet accept `insightCards`.
 In `packages/contracts/src/lesson.ts`, add:
 
 ```ts
-export const paperInsightCardKindSchema = z.enum([
-  'section',
-  'claim',
-  'evidence',
-  'limitation',
-])
+export const paperInsightCardKindSchema = z.enum(['section', 'claim', 'evidence', 'limitation'])
 
 export const paperInsightCardConfidenceSchema = z.enum(['fallback', 'model'])
 
@@ -409,6 +435,7 @@ git commit -m "feat: add paper structured insight contracts"
 ### Task 2: Add Application structured insight extraction and merge behavior
 
 **Files:**
+
 - Modify: `packages/application/src/lesson-ports.ts`
 - Modify: `packages/application/src/lesson-use-cases.ts`
 - Modify: `packages/application/src/lesson-use-cases.test.ts`
@@ -474,9 +501,11 @@ it('prefers structured paper insights from the current provider reply payload', 
     content: 'I think the paper is about evidence-grounded evaluation.',
   })
 
-  expect(updated.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what')).toMatchObject({
-    summary: '模型结构化：论文核心主张是基于证据评估行为。',
-  })
+  expect(updated.paperProfile?.readingMap.slots.find((slot) => slot.kind === 'what')).toMatchObject(
+    {
+      summary: '模型结构化：论文核心主张是基于证据评估行为。',
+    },
+  )
   expect(updated.paperProfile?.insightCards).toContainEqual(
     expect.objectContaining({
       kind: 'claim',
@@ -580,9 +609,7 @@ Expected: FAIL because provider reply payloads do not expose structured insights
 In `packages/application/src/lesson-ports.ts`, add:
 
 ```ts
-export type StructuredPaperReadingMapUpdates = Partial<
-  Record<PaperReadingMapSlotKind, string>
->
+export type StructuredPaperReadingMapUpdates = Partial<Record<PaperReadingMapSlotKind, string>>
 
 export type StructuredPaperInsightCardInput = Readonly<{
   kind: PaperInsightCardKind
@@ -717,7 +744,8 @@ const updatePaperProfileWithStructuredInsights = (
 
   const citedAnchorIds = session.sourceAnchors.map((anchor) => anchor.id)
   const source =
-    structuredPaperInsights ?? extractFallbackPaperInsights(
+    structuredPaperInsights ??
+    extractFallbackPaperInsights(
       session.paperProfile.currentStage,
       reply,
       citedAnchorIds,
@@ -779,6 +807,7 @@ git commit -m "feat: merge paper structured insights"
 ### Task 3: Persist insight cards and expose them in the lesson workspace
 
 **Files:**
+
 - Modify: `packages/infrastructure/src/database/sqlite-lesson-repository.ts`
 - Modify: `packages/infrastructure/src/database/sqlite-lesson-repository.test.ts`
 - Modify: `apps/desktop/src/renderer/src/lesson/LessonWorkspace.tsx`
@@ -948,7 +977,8 @@ Render after `.lesson-paper-map`:
 <section className="lesson-paper-insights">
   <h3>论文洞察卡片</h3>
   {(['section', 'claim', 'evidence', 'limitation'] as const).map((kind) => {
-    const cards = detailState.session.paperProfile?.insightCards.filter((card) => card.kind === kind) ?? []
+    const cards =
+      detailState.session.paperProfile?.insightCards.filter((card) => card.kind === kind) ?? []
     if (cards.length === 0) return null
     return (
       <div key={kind} className="lesson-paper-insight-group">
@@ -1003,6 +1033,7 @@ git commit -m "feat: show paper structured insight cards"
 ### Task 4: Verify end-to-end behavior and update planning docs
 
 **Files:**
+
 - Modify: `tests/e2e/app.spec.ts`
 - Modify: `docs/planning/current-status.md`
 - Modify: `docs/planning/software-design-completion-roadmap.md`
@@ -1030,7 +1061,9 @@ After restart:
 
 ```ts
 await expect(page.locator('.lesson-paper-insights').getByText('论文洞察卡片')).toBeVisible()
-await expect(page.locator('.lesson-paper-insights').getByText('Current problem framing')).toBeVisible()
+await expect(
+  page.locator('.lesson-paper-insights').getByText('Current problem framing'),
+).toBeVisible()
 ```
 
 - [ ] **Step 2: Run the E2E suite to verify it fails**
