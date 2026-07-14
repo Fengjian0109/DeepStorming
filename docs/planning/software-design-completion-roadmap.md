@@ -52,7 +52,7 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 当前状态：
 
 - DeepSeek 手动验收已完成并记录，使用 `deepseek-v4-flash` 成功通过创建、启用、连接测试、一次真实课堂生成与重启恢复验证。
-- OpenAI-compatible 真实端点验收仍可在后续有明确需求时补做。
+- OpenAI-compatible 真实端点验收仍待真实 `HTTPS base URL + model + API key`，当前已补齐恢复执行设计与完成定义，但未把 mock 或文档推断当作真实验收结论。
 
 ### D2. PDF 文档底座
 
@@ -199,7 +199,7 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 ## 3. 推荐实施顺序
 
 ```text
-D1 真实云 Provider 手动验收与发布前收尾（DeepSeek 已完成）
+D1 真实云 Provider 手动验收与发布前收尾（DeepSeek 已完成，OpenAI-compatible 待真实端点）
   ↓
 D2 PDF 文档底座（已完成）
   ↓

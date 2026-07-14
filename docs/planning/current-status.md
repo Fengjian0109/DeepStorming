@@ -1,9 +1,9 @@
 # DeepStorming 当前开发状态
 
 - 更新时间：2026-07-14
-- 当前分支：`codex/review-scheduler-mvp`
+- 当前分支：`main`
 - 当前阶段：Phase 6 D1 Real DeepSeek Acceptance + D8 Self-Use Release Candidate
-- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环、D5 课堂状态机审计链路、D6-MVP 学习诊断证据闭环、D6 Review Scheduler MVP、D7 Paper Lesson Mode MVP，以及 D1 真实 DeepSeek 验收 / D8 自用版发布候选推进中
+- 状态：PDF import job、应用私有文件副本、页面/文本块持久化、真实文本层解析、D3 文档阅读器/证据定位、D4 chunk 检索上下文展示与 snippet 降级闭环、D5 课堂状态机审计链路、D6-MVP 学习诊断证据闭环、D6 Review Scheduler MVP、D7 Paper Lesson Mode MVP 已完成；D1 处于“DeepSeek 已完成、OpenAI-compatible 待真实端点验收”的部分完成状态；D8 已推进到自用版发布候选
 
 ## 已完成
 
@@ -138,6 +138,10 @@
 - D1 真实 DeepSeek Provider 手动验收：
   - 真实 key 通过本地安全方式输入，完成创建、启用、连接测试、一次真实课堂生成与重启恢复验证。
   - 本轮通过 `deepseek-v4-flash` 完成真实云 Provider 验收；验收记录已做脱敏，不包含 API Key、Authorization header、原始响应正文或完整 prompt。
+- D1 OpenAI-compatible 真实验收状态：
+  - 当前缺少可用的真实兼容端点与凭据，因此保持“待真实验收”状态。
+  - 这不是本地实现缺陷；后续补充真实 `HTTPS base URL + model + API key` 后，按 `docs/planning/provider-cloud-release-acceptance.md` 的 O-01 ~ O-08 执行即可恢复推进。
+  - 在没有真实兼容端点的前提下，不以 mock、单测或文档推断替代真实验收结论。
 - D8 自用版发布候选推进：
   - 补充未签名自用版发布说明、隐私/备份/恢复边界。
   - 保留签名、公证和公开分发为后续工作，不把它们作为当前自用版门禁。
@@ -170,4 +174,4 @@ pnpm package:dir
 
 ## 下一步
 
-D1 的 DeepSeek 真实验收已经打通，D8 也已推进到“自用版发布候选”这一层。接下来优先完成打包产物复核、packaged persistence 复测、敏感信息扫描与最终文档收尾；若未来要走公开发布，再继续补齐品牌图标、Developer ID 签名、公证和对外分发策略。
+D1 的 DeepSeek 真实验收已经打通，OpenAI-compatible 真实验收则已整理成可随时恢复执行的正式清单；D8 也已推进到“自用版发布候选”这一层。接下来优先完成打包产物复核、packaged persistence 复测、敏感信息扫描与最终文档收尾；若后续补齐真实兼容端点，再按既有矩阵补完 D1。若未来要走公开发布，再继续补齐品牌图标、Developer ID 签名、公证和对外分发策略。
