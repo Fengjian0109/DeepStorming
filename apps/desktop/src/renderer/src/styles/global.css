@@ -567,6 +567,58 @@ h2 {
   margin-top: 10px;
 }
 
+.lesson-paper-insights {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.lesson-paper-insights h3,
+.lesson-paper-insight-group h4 {
+  margin: 0;
+}
+
+.lesson-paper-insight-group {
+  display: grid;
+  gap: 10px;
+}
+
+.lesson-paper-insight-list {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.lesson-paper-insight-card {
+  padding: 12px;
+  border: 1px solid rgb(74 139 104 / 20%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 72%);
+}
+
+.lesson-paper-insight-card header,
+.lesson-paper-insight-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lesson-paper-insight-card header span,
+.lesson-paper-insight-card footer {
+  color: #65766d;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.lesson-paper-insight-card p {
+  margin: 10px 0 0;
+}
+
+.lesson-paper-insight-card footer {
+  margin-top: 10px;
+}
+
 .lesson-mastery-diagnosis {
   display: grid;
   gap: 10px;

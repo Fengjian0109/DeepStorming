@@ -154,6 +154,28 @@ const paperSession = {
         },
       ],
     },
+    insightCards: [
+      {
+        id: '00000000-0000-4000-8000-000000000121',
+        kind: 'claim' as const,
+        title: 'Evidence-grounded evaluation',
+        summary: '论文主张应以证据为基础评估模型行为。',
+        sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+        stage: 'problem_framing' as const,
+        confidence: 'model' as const,
+        updatedAt: '2026-07-14T00:00:00.000Z',
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000122',
+        kind: 'evidence' as const,
+        title: 'Observed evidence',
+        summary: '实验结果被用来支撑核心判断。',
+        sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+        stage: 'evidence_check' as const,
+        confidence: 'fallback' as const,
+        updatedAt: '2026-07-14T00:01:00.000Z',
+      },
+    ],
   },
 }
 
@@ -459,9 +481,14 @@ describe('LessonWorkspace', () => {
     expect(await screen.findByText('当前论文阶段')).toBeTruthy()
     expect(screen.getByText('论文阅读地图')).toBeTruthy()
     expect(screen.getByText('Why')).toBeTruthy()
-    expect(screen.getByText('问题定位')).toBeTruthy()
+    expect(screen.getAllByText('问题定位').length).toBeGreaterThan(0)
     expect(screen.getByText('The learner is still orienting around the paper.')).toBeTruthy()
     expect(screen.getByText('The paper asks why evidence supports model behavior.')).toBeTruthy()
+    expect(screen.getByText('论文洞察卡片')).toBeTruthy()
+    expect(screen.getByText('Claim')).toBeTruthy()
+    expect(screen.getByText('Evidence-grounded evaluation')).toBeTruthy()
+    expect(screen.getByText('模型')).toBeTruthy()
+    expect(screen.getByText('规则')).toBeTruthy()
     expect(screen.getAllByText('等待课堂继续补全').length).toBeGreaterThan(0)
     expect(screen.getAllByText('已关联证据').length).toBeGreaterThan(0)
   })
@@ -472,6 +499,7 @@ describe('LessonWorkspace', () => {
     expect(await screen.findByRole('heading', { name: '课堂' })).toBeTruthy()
     expect(screen.queryByText('当前论文阶段')).toBeNull()
     expect(screen.queryByText('论文阅读地图')).toBeNull()
+    expect(screen.queryByText('论文洞察卡片')).toBeNull()
   })
 
   it('lists lesson sessions and opens a selected session', async () => {

@@ -84,6 +84,24 @@ const paperReadingMapStatusLabels: Record<
   updated: '已更新',
 }
 
+const paperInsightKindLabels: Record<
+  NonNullable<LessonSessionDto['paperProfile']>['insightCards'][number]['kind'],
+  string
+> = {
+  section: 'Section',
+  claim: 'Claim',
+  evidence: 'Evidence',
+  limitation: 'Limitation',
+}
+
+const paperInsightConfidenceLabels: Record<
+  NonNullable<LessonSessionDto['paperProfile']>['insightCards'][number]['confidence'],
+  string
+> = {
+  model: '模型',
+  fallback: '规则',
+}
+
 const masteryJudgementLabels: Record<LessonMasteryEvidenceDto['judgement'], string> = {
   insufficient: '证据不足',
   partial_understanding: '部分理解',
@@ -416,6 +434,35 @@ export const LessonWorkspace = ({
                         </article>
                       ))}
                     </div>
+                  </section>
+                  <section className="lesson-paper-insights">
+                    <h3>论文洞察卡片</h3>
+                    {(['section', 'claim', 'evidence', 'limitation'] as const).map((kind) => {
+                      const cards = detailState.session.paperProfile?.insightCards.filter(
+                        (card) => card.kind === kind,
+                      )
+                      if (!cards || cards.length === 0) return null
+                      return (
+                        <div key={kind} className="lesson-paper-insight-group">
+                          <h4>{paperInsightKindLabels[kind]}</h4>
+                          <div className="lesson-paper-insight-list">
+                            {cards.map((card) => (
+                              <article key={card.id} className="lesson-paper-insight-card">
+                                <header>
+                                  <strong>{card.title}</strong>
+                                  <span>{paperInsightConfidenceLabels[card.confidence]}</span>
+                                </header>
+                                <p>{card.summary}</p>
+                                <footer>
+                                  <span>{paperStageLabels[card.stage]}</span>
+                                  {card.sourceAnchorIds.length > 0 ? <span>已关联证据</span> : null}
+                                </footer>
+                              </article>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </section>
                 </>
               ) : null}

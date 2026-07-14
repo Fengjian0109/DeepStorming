@@ -204,6 +204,18 @@ describe('SqliteLessonRepository', () => {
             })),
           ],
         },
+        insightCards: [
+          {
+            id: '00000000-0000-4000-8000-000000000302',
+            kind: 'claim',
+            title: 'Core claim',
+            summary: 'The paper argues evidence matters.',
+            sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+            stage: 'orientation',
+            confidence: 'model',
+            updatedAt: '2026-07-14T00:00:00.000Z',
+          },
+        ],
       },
     })
 
@@ -243,6 +255,28 @@ describe('SqliteLessonRepository', () => {
             })),
           ],
         },
+        insightCards: [
+          {
+            id: '00000000-0000-4000-8000-000000000302',
+            kind: 'claim' as const,
+            title: 'Core claim',
+            summary: 'The paper argues evidence matters.',
+            sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+            stage: 'orientation' as const,
+            confidence: 'model' as const,
+            updatedAt: '2026-07-14T00:00:00.000Z',
+          },
+          {
+            id: '00000000-0000-4000-8000-000000000303',
+            kind: 'evidence' as const,
+            title: 'Observed evidence',
+            summary: 'The learner can point to the supporting evidence.',
+            sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+            stage: 'problem_framing' as const,
+            confidence: 'fallback' as const,
+            updatedAt: '2026-07-14T00:02:00.000Z',
+          },
+        ],
       },
       updatedAt: '2026-07-11T00:02:00.000Z',
     }
@@ -279,6 +313,7 @@ describe('SqliteLessonRepository', () => {
     const session = await repo.findById(legacyId)
 
     expect(session?.paperProfile?.readingMap).toEqual(createDefaultPaperReadingMap())
+    expect(session?.paperProfile?.insightCards).toEqual([])
   })
 
   it('persists mastery evidence and misconception signals', async () => {
