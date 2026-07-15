@@ -243,6 +243,8 @@ export const createCompositionRoot = async (
         assembleLessonContext,
         lessonTutorReplyGenerator,
         lessonOperations,
+        prepareLessonContextCompression,
+        learningSettingsRepository,
       ),
       cancelLessonRun: new CancelLessonRun(lessonOperations),
       recordReviewEvent: new RecordReviewEvent(lessonRepository, clock, ids),

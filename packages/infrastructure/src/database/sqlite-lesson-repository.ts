@@ -40,6 +40,21 @@ type LessonRow = {
   updated_at: string
 }
 
+type ContextSnapshotDiagnosticRow = {
+  version: number
+  model_name: string
+  remaining_percent: number
+  threshold_percent: number
+  created_at: string
+}
+
+type ContextJobDiagnosticRow = {
+  status: 'started' | 'succeeded' | 'failed' | 'cancelled'
+  error_code: string | null
+  started_at: string
+  finished_at: string | null
+}
+
 type AnchorRow = {
   id: string
   lesson_id: string
@@ -276,6 +291,7 @@ const mapSession = (
   misconceptionSignals: readonly StoredMisconceptionSignal[],
   reviewItems: readonly StoredReviewItem[],
   reviewEvents: readonly StoredReviewEvent[],
+  contextDiagnostics?: NonNullable<StoredLessonSession['contextDiagnostics']>,
 ): StoredLessonSession => ({
   id: row.id,
   title: row.title,
@@ -315,6 +331,7 @@ const mapSession = (
   ...(row.post_lesson_action === null ? {} : { postLessonAction: row.post_lesson_action }),
   ...(row.completed_at === null ? {} : { completedAt: row.completed_at }),
   ...(row.review_response === null ? {} : { reviewResponse: row.review_response }),
+  ...(contextDiagnostics === undefined ? {} : { contextDiagnostics }),
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -328,6 +345,44 @@ export class SqliteLessonRepository implements LessonRepositoryPort, LessonMemor
     } catch {
       throw databaseError('DATABASE_UNAVAILABLE')
     }
+  }
+
+  private contextDiagnosticsFor(lessonIds: readonly string[]) {
+    const result = new Map<string, NonNullable<StoredLessonSession['contextDiagnostics']>>()
+    const snapshotStatement = this.db
+      .prepare(`SELECT c.version,c.model_name,c.remaining_percent,c.threshold_percent,c.created_at
+      FROM lesson_sessions l JOIN context_snapshots c ON c.id=l.active_context_snapshot_id
+      WHERE l.id=? AND c.lesson_id=l.id`)
+    const jobStatement = this.db
+      .prepare(`SELECT status,error_code,started_at,finished_at FROM context_compression_jobs
+      WHERE lesson_id=? ORDER BY started_at DESC,operation_id DESC LIMIT 1`)
+    for (const lessonId of lessonIds) {
+      const snapshot = snapshotStatement.get(lessonId) as ContextSnapshotDiagnosticRow | undefined
+      const job = jobStatement.get(lessonId) as ContextJobDiagnosticRow | undefined
+      if (snapshot === undefined && job === undefined) continue
+      result.set(lessonId, {
+        activeSnapshot:
+          snapshot === undefined
+            ? null
+            : {
+                version: snapshot.version,
+                modelName: snapshot.model_name,
+                remainingPercent: snapshot.remaining_percent,
+                thresholdPercent: snapshot.threshold_percent,
+                createdAt: snapshot.created_at,
+              },
+        latestJob:
+          job === undefined
+            ? null
+            : {
+                status: job.status,
+                errorCode: job.error_code,
+                startedAt: job.started_at,
+                finishedAt: job.finished_at,
+              },
+      })
+    }
+    return result
   }
 
   private anchorsFor(lessonIds: readonly string[]): Map<string, StoredLessonSourceAnchor[]> {
@@ -579,6 +634,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort, LessonMemor
       const misconceptionSignals = this.misconceptionSignalsFor(lessonIds)
       const reviewItems = this.reviewItemsFor(lessonIds)
       const reviewEvents = this.reviewEventsFor(lessonIds)
+      const contextDiagnostics = this.contextDiagnosticsFor(lessonIds)
       return rows.map((row) =>
         mapSession(
           row,
@@ -590,6 +646,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort, LessonMemor
           misconceptionSignals.get(row.id) ?? [],
           reviewItems.get(row.id) ?? [],
           reviewEvents.get(row.id) ?? [],
+          contextDiagnostics.get(row.id),
         ),
       )
     })
@@ -608,6 +665,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort, LessonMemor
       const misconceptionSignals = this.misconceptionSignalsFor([id])
       const reviewItems = this.reviewItemsFor([id])
       const reviewEvents = this.reviewEventsFor([id])
+      const contextDiagnostics = this.contextDiagnosticsFor([id])
       return mapSession(
         row,
         anchors.get(id) ?? [],
@@ -618,6 +676,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort, LessonMemor
         misconceptionSignals.get(id) ?? [],
         reviewItems.get(id) ?? [],
         reviewEvents.get(id) ?? [],
+        contextDiagnostics.get(id),
       )
     })
   }

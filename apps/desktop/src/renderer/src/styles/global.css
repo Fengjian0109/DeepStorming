@@ -1269,6 +1269,24 @@ h2 {
   margin: 8px 24px 0;
 }
 
+.lesson-context-diagnostics {
+  padding: 14px;
+  border: 1px solid #ccd8d1;
+  border-radius: 12px;
+  background: #f1f4f1;
+}
+
+.lesson-context-diagnostics h3,
+.lesson-context-diagnostics p {
+  margin: 0 0 8px;
+}
+
+.lesson-context-preparing {
+  margin: 0 24px 8px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 .lesson-end-overlay {
   position: absolute;
   z-index: 14;

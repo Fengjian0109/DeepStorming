@@ -282,9 +282,9 @@
 - Modify: `apps/desktop/src/renderer/src/lesson/LessonWorkspace.tsx`
 - Test: matching Renderer tests
 
-- [ ] Write failing tests for threshold settings, context usage display, compression status, cancel/retry, and unobtrusive failure messaging.
-- [ ] Implement controls and diagnostics without placing technical records in the normal chat stream.
-- [ ] Run focused tests and commit `feat(renderer): add context compression controls`.
+- [x] Write failing tests for threshold settings, context usage display, compression status, cancel/retry, and unobtrusive failure messaging.
+- [x] Implement controls and diagnostics without placing technical records in the normal chat stream.
+- [x] Run focused tests and commit `feat(renderer): add context compression controls`.
 
 ## Final acceptance
 

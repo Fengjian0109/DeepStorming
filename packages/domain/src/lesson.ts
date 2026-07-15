@@ -105,6 +105,22 @@ export type LessonEndJob = Readonly<{
 
 export type PostLessonAction = 'immediate_review' | 'rest'
 
+export type LessonContextDiagnostics = Readonly<{
+  activeSnapshot: Readonly<{
+    version: number
+    modelName: string
+    remainingPercent: number
+    thresholdPercent: number
+    createdAt: string
+  }> | null
+  latestJob: Readonly<{
+    status: 'started' | 'succeeded' | 'failed' | 'cancelled'
+    errorCode: string | null
+    startedAt: string
+    finishedAt: string | null
+  }> | null
+}>
+
 export type LessonSourceTarget =
   | Readonly<{ kind: 'text_range' }>
   | Readonly<{
@@ -147,6 +163,7 @@ export type LessonSession = Readonly<{
   postLessonAction?: PostLessonAction
   completedAt?: string
   reviewResponse?: string
+  contextDiagnostics?: LessonContextDiagnostics
   createdAt: string
   updatedAt: string
 }>

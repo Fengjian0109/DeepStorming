@@ -17,7 +17,7 @@
 | Stage 2：AI-only tutor contract and settings | 已完成（2026-07-14） | 去除本地教学兜底；导师/伙伴提示词、性格、领域、头像和 Provider 设置；稳定 AI 错误与恢复语义                                                       |
 | Stage 3：rich chat and citation pipeline     | 已完成（2026-07-15） | Markdown/LaTeX、强调引用、可选择文本 PDF 的图像提取与引用匹配、用户公式渲染                                                                       |
 | Stage 4：lesson lifecycle and export         | 已完成               | 三档节奏、下课保存记忆、总结复习或休息、按教材保存多节完整课程、MD/PDF 聊天导出                                                                   |
-| Stage 5：context compression and hardening   | 待开始               | 可配置阈值（默认剩余 30%）、AI 上下文精炼、token 统计、故障与长会话加固                                                                           |
+| Stage 5：context compression and hardening   | 已完成               | 可配置阈值（默认剩余 30%）、AI 上下文精炼、token 统计、故障与长会话加固                                                                           |
 
 Stage 1 只改变 Renderer 信息架构与交互，没有修改 Domain、Application、Infrastructure、IPC contract 或数据库 schema。完成 Stage 1 不代表 Stage 2–5 的 AI 教学能力已经交付。
 

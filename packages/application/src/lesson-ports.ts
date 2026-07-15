@@ -22,6 +22,7 @@ import type {
   TutorActionType,
   TutorTurn,
   ContextSnapshot,
+  LessonContextDiagnostics,
 } from '@deepstorming/domain'
 import type { StoredDocumentTextBlock } from './document-ports'
 import type { CancellationToken } from './provider-ports'
@@ -93,6 +94,7 @@ export type StoredLessonSession = Readonly<{
   postLessonAction?: PostLessonAction
   completedAt?: string
   reviewResponse?: string
+  contextDiagnostics?: LessonContextDiagnostics
   createdAt: string
   updatedAt: string
 }>

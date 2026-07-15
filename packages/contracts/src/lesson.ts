@@ -397,6 +397,30 @@ export const lessonSessionSchema = z
     postLessonAction: postLessonActionSchema.optional(),
     completedAt: timestampSchema.optional(),
     reviewResponse: requiredTextSchema.max(8_000).optional(),
+    contextDiagnostics: z
+      .object({
+        activeSnapshot: z
+          .object({
+            version: z.number().int().positive(),
+            modelName: requiredTextSchema.max(200),
+            remainingPercent: z.number().min(0).max(100),
+            thresholdPercent: z.number().int().min(10).max(50),
+            createdAt: timestampSchema,
+          })
+          .strict()
+          .nullable(),
+        latestJob: z
+          .object({
+            status: z.enum(['started', 'succeeded', 'failed', 'cancelled']),
+            errorCode: z.string().max(100).nullable(),
+            startedAt: timestampSchema,
+            finishedAt: timestampSchema.nullable(),
+          })
+          .strict()
+          .nullable(),
+      })
+      .strict()
+      .optional(),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })

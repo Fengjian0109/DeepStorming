@@ -510,6 +510,40 @@ describe('LessonWorkspace', () => {
     expect(await screen.findByText('课堂记录已导出。')).toBeTruthy()
   })
 
+  it('shows context budget and compression status in the technical drawer', async () => {
+    const user = userEvent.setup()
+    const withContext = {
+      ...session,
+      contextDiagnostics: {
+        activeSnapshot: {
+          version: 2,
+          modelName: 'deepseek-chat',
+          remainingPercent: 29.5,
+          thresholdPercent: 30,
+          createdAt: '2026-07-15T03:00:00.000Z',
+        },
+        latestJob: {
+          status: 'succeeded' as const,
+          errorCode: null,
+          startedAt: '2026-07-15T03:00:00.000Z',
+          finishedAt: '2026-07-15T03:00:01.000Z',
+        },
+      },
+    }
+    window.deepstorming.lessons.list = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: [withContext], requestId: crypto.randomUUID() })
+    window.deepstorming.lessons.get = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: withContext, requestId: crypto.randomUUID() })
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+    await user.click(await screen.findByRole('button', { name: '课堂信息' }))
+    await user.click(screen.getByRole('tab', { name: '技术' }))
+    expect(screen.getByText('deepseek-chat · 快照 v2')).toBeTruthy()
+    expect(screen.getByText('压缩前剩余 29.5% · 触发阈值 30%')).toBeTruthy()
+    expect(screen.getByText('最近整理：succeeded')).toBeTruthy()
+  })
+
   it('does not render paper metadata for standard lessons', async () => {
     render(<LessonWorkspace selectedLessonId={session.id} />)
 

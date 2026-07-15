@@ -112,6 +112,9 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   ...(session.postLessonAction === undefined ? {} : { postLessonAction: session.postLessonAction }),
   ...(session.completedAt === undefined ? {} : { completedAt: session.completedAt }),
   ...(session.reviewResponse === undefined ? {} : { reviewResponse: session.reviewResponse }),
+  ...(session.contextDiagnostics === undefined
+    ? {}
+    : { contextDiagnostics: session.contextDiagnostics }),
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })
@@ -1335,6 +1338,8 @@ export class RetryLessonRun {
     private readonly lessonContextAssembler?: Pick<AssembleLessonContext, 'execute'>,
     private readonly tutorReplyGenerator?: LessonTutorReplyGeneratorPort,
     private readonly operations?: LessonRunOperations,
+    private readonly contextCompression?: Pick<PrepareLessonContextCompression, 'execute'>,
+    private readonly learningSettings?: LearningSettingsRepositoryPort,
   ) {}
 
   public async execute(input: LessonRunRetryDraft): Promise<LessonSession> {
@@ -1425,6 +1430,22 @@ export class RetryLessonRun {
 
     let tutorReply: LessonTutorReplyResult
     try {
+      const preferences = (await this.learningSettings?.getSnapshot())?.classroomPreferences
+      const recentTurnCount = preferences?.recentTurnCount ?? 8
+      const compression =
+        this.contextCompression === undefined
+          ? undefined
+          : await this.contextCompression.execute(
+              {
+                session: pending,
+                operationId: draft.operationId ?? modelRunId,
+                thresholdPercent: preferences?.contextCompressionRemainingPercent ?? 30,
+                recentTurnCount,
+                reservedOutputTokens: 1_600,
+                fixedPromptTokens: 2_000 + contextSummary.contextCharacterCount,
+              },
+              token,
+            )
       tutorReply = await generateTutorReply(
         this.tutorReplyGenerator,
         {
@@ -1437,6 +1458,22 @@ export class RetryLessonRun {
           learnerReply: learnerMessage.content,
           ...(session.tutorSnapshot === undefined ? {} : { tutorSnapshot: session.tutorSnapshot }),
           ...(session.pace === undefined ? {} : { pace: session.pace }),
+          ...(compression !== undefined &&
+          'snapshot' in compression &&
+          compression.snapshot !== undefined
+            ? { contextSnapshot: compression.snapshot }
+            : {}),
+          ...(this.contextCompression === undefined
+            ? {}
+            : {
+                recentMessages: pending.messages
+                  .filter((message) => message.role === 'tutor' || message.role === 'learner')
+                  .slice(-recentTurnCount)
+                  .map((message) => ({
+                    role: message.role as 'tutor' | 'learner',
+                    content: message.content,
+                  })),
+              }),
         },
         token,
       )

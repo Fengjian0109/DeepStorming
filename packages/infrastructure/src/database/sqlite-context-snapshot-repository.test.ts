@@ -6,6 +6,7 @@ import type { ContextSnapshot } from '@deepstorming/domain'
 import { openDatabase } from './database'
 import { migrateDatabase } from './migrations'
 import { SqliteContextSnapshotRepository } from './sqlite-context-snapshot-repository'
+import { SqliteLessonRepository } from './sqlite-lesson-repository'
 
 const dirs: string[] = []
 afterEach(async () =>
@@ -71,5 +72,25 @@ it('stores immutable snapshots, activates one, and retains every raw message', a
   expect(() =>
     db.prepare('UPDATE context_snapshots SET version=2 WHERE id=?').run(snapshot.id),
   ).toThrow()
+  db.prepare(
+    "INSERT INTO context_compression_jobs(operation_id,lesson_id,status,snapshot_id,error_code,started_at,finished_at) VALUES (?,?,'succeeded',?,NULL,?,?)",
+  ).run(
+    '00000000-0000-4000-8000-000000000501',
+    lessonId,
+    snapshot.id,
+    '2026-07-15T02:00:00.000Z',
+    '2026-07-15T02:00:01.000Z',
+  )
+  await expect(new SqliteLessonRepository(db).findById(lessonId)).resolves.toMatchObject({
+    contextDiagnostics: {
+      activeSnapshot: {
+        version: 1,
+        modelName: 'deepseek-chat',
+        remainingPercent: 29.81,
+        thresholdPercent: 30,
+      },
+      latestJob: { status: 'succeeded', errorCode: null },
+    },
+  })
   db.close()
 })

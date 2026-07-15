@@ -258,6 +258,33 @@ export const LessonInfoDrawer = ({
 
         {activeTab === 'technical' && (
           <section className="lesson-info-section" aria-label="技术记录">
+            {session.contextDiagnostics && (
+              <article className="lesson-context-diagnostics" aria-label="上下文诊断">
+                <h3>上下文预算</h3>
+                {session.contextDiagnostics.activeSnapshot === null ? (
+                  <p className="muted-state">尚未生成压缩快照。</p>
+                ) : (
+                  <>
+                    <p>
+                      {session.contextDiagnostics.activeSnapshot.modelName} · 快照 v
+                      {session.contextDiagnostics.activeSnapshot.version}
+                    </p>
+                    <p>
+                      压缩前剩余 {session.contextDiagnostics.activeSnapshot.remainingPercent}% ·
+                      触发阈值 {session.contextDiagnostics.activeSnapshot.thresholdPercent}%
+                    </p>
+                  </>
+                )}
+                {session.contextDiagnostics.latestJob && (
+                  <p>
+                    最近整理：{session.contextDiagnostics.latestJob.status}
+                    {session.contextDiagnostics.latestJob.errorCode
+                      ? ` · ${session.contextDiagnostics.latestJob.errorCode}`
+                      : ''}
+                  </p>
+                )}
+              </article>
+            )}
             {session.modelRuns.length === 0 && <p className="muted-state">还没有技术记录。</p>}
             {session.modelRuns.map((run) => {
               const step = session.steps.find((entry) => entry.modelRunId === run.id)

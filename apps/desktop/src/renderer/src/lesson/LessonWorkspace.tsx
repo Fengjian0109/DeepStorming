@@ -533,6 +533,12 @@ export const LessonWorkspace = ({
             />
           )}
 
+          {replyState.status === 'submitting' && (
+            <p role="status" className="lesson-context-preparing">
+              正在检查上下文并生成导师回复…
+            </p>
+          )}
+
           {runRetryState.status === 'success' && (
             <p role="status" className="lesson-chat-operation success-state">
               {runRetryState.message}
