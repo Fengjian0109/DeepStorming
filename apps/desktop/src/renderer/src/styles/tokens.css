@@ -1,0 +1,57 @@
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Segoe UI', sans-serif;
+  --font-display: Georgia, 'Songti SC', STSong, serif;
+  --color-canvas: #f7f5f0;
+  --color-surface: #fffdfa;
+  --color-surface-raised: #ffffff;
+  --color-sidebar: #25241f;
+  --color-sidebar-raised: #34332e;
+  --color-text: #2b2925;
+  --color-text-muted: #747068;
+  --color-text-on-dark: #e7e3da;
+  --color-border: #ded9d0;
+  --color-border-strong: #c9c2b8;
+  --color-accent: #c96545;
+  --color-accent-hover: #ad5338;
+  --color-accent-soft: #f3dfd6;
+  --color-danger: #a44d3d;
+  --color-danger-soft: #f5e2dd;
+  --color-success: #537a63;
+  --color-success-soft: #e3eee6;
+  --color-warning: #9a6b2f;
+  --color-warning-soft: #f5ead8;
+  --color-overlay: rgb(29 28 25 / 48%);
+  --shadow-soft: 0 12px 34px rgb(43 41 37 / 8%);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --control-height: 38px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-canvas: #1d1c19;
+  --color-surface: #252420;
+  --color-surface-raised: #2d2c28;
+  --color-sidebar: #171714;
+  --color-sidebar-raised: #2b2a26;
+  --color-text: #e5e1d8;
+  --color-text-muted: #a39f96;
+  --color-text-on-dark: #e9e5dc;
+  --color-border: #403e38;
+  --color-border-strong: #57544c;
+  --color-accent: #df7d5d;
+  --color-accent-hover: #ed9071;
+  --color-accent-soft: #4a3027;
+  --color-danger: #d27b69;
+  --color-danger-soft: #4b2d29;
+  --color-success: #81aa8d;
+  --color-success-soft: #263b2d;
+  --color-warning: #d0a66c;
+  --color-warning-soft: #453724;
+  --color-overlay: rgb(0 0 0 / 62%);
+  --shadow-soft: 0 14px 38px rgb(0 0 0 / 22%);
+}
