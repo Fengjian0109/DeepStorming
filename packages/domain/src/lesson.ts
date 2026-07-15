@@ -1,7 +1,17 @@
 import { LESSON_PACES, type LessonPace, type LessonTutorSnapshot } from './learning-settings'
 import type { TutorTurn } from './tutor-turn'
 
-export const LESSON_SESSION_STATUSES = ['active', 'archived'] as const
+export const LESSON_SESSION_STATUSES = [
+  'preparing',
+  'active',
+  'summarizing',
+  'pending_review',
+  'reviewing',
+  'completed',
+  'paused',
+  'error',
+  'archived',
+] as const
 export const LESSON_MESSAGE_ROLES = ['system', 'tutor', 'learner'] as const
 export const LESSON_MODEL_RUN_STATUSES = ['started', 'succeeded', 'failed', 'cancelled'] as const
 export const LESSON_STATES = [
@@ -55,6 +65,46 @@ export type PaperLessonProfile = Readonly<{
   citedAnchorIds: readonly string[]
 }>
 
+export type LessonMemory = Readonly<{
+  lessonId: string
+  documentId: string
+  topic: string
+  coverage: string
+  summaryMarkdown: string
+  mastered: readonly string[]
+  unstable: readonly string[]
+  misconceptions: readonly string[]
+  sourceAnchorIds: readonly string[]
+  figureIds: readonly string[]
+  unresolvedQuestions: readonly string[]
+  reviewPrompts: readonly string[]
+  nextLessonStart: string
+  createdAt: string
+}>
+
+export type DocumentLearningMemory = Readonly<{
+  documentId: string
+  revision: number
+  summaryMarkdown: string
+  mastered: readonly string[]
+  unstable: readonly string[]
+  misconceptions: readonly string[]
+  unresolvedQuestions: readonly string[]
+  nextLessonStart: string
+  sourceLessonIds: readonly string[]
+  updatedAt: string
+}>
+
+export type LessonEndJob = Readonly<{
+  operationId: string
+  status: 'started' | 'succeeded' | 'failed' | 'cancelled'
+  errorSummary: LessonModelRunErrorSummary | null
+  startedAt: string
+  finishedAt: string | null
+}>
+
+export type PostLessonAction = 'immediate_review' | 'rest'
+
 export type LessonSourceTarget =
   | Readonly<{ kind: 'text_range' }>
   | Readonly<{
@@ -92,6 +142,11 @@ export type LessonSession = Readonly<{
   paperProfile: PaperLessonProfile | null
   tutorSnapshot?: LessonTutorSnapshot
   pace?: LessonPace
+  memory?: LessonMemory
+  endJob?: LessonEndJob
+  postLessonAction?: PostLessonAction
+  completedAt?: string
+  reviewResponse?: string
   createdAt: string
   updatedAt: string
 }>
@@ -299,6 +354,21 @@ const VALID_STATE_TRANSITIONS: ReadonlyMap<LessonState, readonly LessonState[]> 
   ['completed', []],
 ])
 
+const VALID_LIFECYCLE_TRANSITIONS: ReadonlyMap<
+  LessonSessionStatus,
+  readonly LessonSessionStatus[]
+> = new Map([
+  ['preparing', ['active', 'error', 'archived']],
+  ['active', ['summarizing', 'paused', 'error', 'archived']],
+  ['summarizing', ['pending_review', 'error']],
+  ['pending_review', ['reviewing', 'archived']],
+  ['reviewing', ['completed', 'pending_review', 'error']],
+  ['completed', ['archived']],
+  ['paused', ['active', 'summarizing', 'archived']],
+  ['error', ['active', 'summarizing', 'pending_review', 'reviewing', 'archived']],
+  ['archived', []],
+])
+
 const assertLessonState = (state: LessonState, message: string): void => {
   if (!includes(LESSON_STATES, state)) throw new Error(message)
 }
@@ -392,6 +462,106 @@ export const validateLessonStateTransition = (
   assertLessonState(stateAfter, 'Lesson state is invalid')
   if (!(VALID_STATE_TRANSITIONS.get(stateBefore) ?? []).includes(stateAfter)) {
     throw new Error('Lesson state transition is invalid')
+  }
+}
+
+export const assertLessonLifecycleTransition = (
+  statusBefore: LessonSessionStatus,
+  statusAfter: LessonSessionStatus,
+): void => {
+  if (!includes(LESSON_SESSION_STATUSES, statusBefore)) {
+    throw new Error('Lesson lifecycle status is invalid')
+  }
+  if (!includes(LESSON_SESSION_STATUSES, statusAfter)) {
+    throw new Error('Lesson lifecycle status is invalid')
+  }
+  if (!(VALID_LIFECYCLE_TRANSITIONS.get(statusBefore) ?? []).includes(statusAfter)) {
+    throw new Error('Lesson lifecycle transition is invalid')
+  }
+}
+
+const normalizeUniqueList = (
+  values: readonly string[],
+  message: string,
+  maxItems = 24,
+): readonly string[] => {
+  if (values.length > maxItems) throw new Error(`${message} is too long`)
+  return [
+    ...new Set(
+      values.map((value) => {
+        const normalized = normalizeNonBlank(value, `${message} item is invalid`)
+        if (normalized.length > 500) throw new Error(`${message} item is too long`)
+        return normalized
+      }),
+    ),
+  ]
+}
+
+export const normalizeLessonMemory = (memory: LessonMemory): LessonMemory => ({
+  ...memory,
+  lessonId: assertUuid(memory.lessonId, 'Lesson memory lesson id is invalid'),
+  documentId: assertUuid(memory.documentId, 'Lesson memory document id is invalid'),
+  topic: normalizeNonBlank(memory.topic, 'Lesson memory topic is invalid').slice(0, 240),
+  coverage: normalizeNonBlank(memory.coverage, 'Lesson memory coverage is invalid').slice(0, 500),
+  summaryMarkdown: normalizeNonBlank(
+    memory.summaryMarkdown,
+    'Lesson memory summary is invalid',
+  ).slice(0, 8_000),
+  mastered: normalizeUniqueList(memory.mastered, 'Lesson memory mastered facts'),
+  unstable: normalizeUniqueList(memory.unstable, 'Lesson memory unstable facts'),
+  misconceptions: normalizeUniqueList(memory.misconceptions, 'Lesson memory misconceptions'),
+  sourceAnchorIds: normalizeUniqueList(memory.sourceAnchorIds, 'Lesson memory source anchors'),
+  figureIds: normalizeUniqueList(memory.figureIds, 'Lesson memory figures'),
+  unresolvedQuestions: normalizeUniqueList(
+    memory.unresolvedQuestions,
+    'Lesson memory unresolved questions',
+  ),
+  reviewPrompts: normalizeUniqueList(memory.reviewPrompts, 'Lesson memory review prompts', 8),
+  nextLessonStart: normalizeNonBlank(
+    memory.nextLessonStart,
+    'Lesson memory next start is invalid',
+  ).slice(0, 1_000),
+  createdAt: assertIsoTimestamp(memory.createdAt, 'Lesson memory timestamp is invalid'),
+})
+
+export const normalizeDocumentLearningMemory = (
+  memory: DocumentLearningMemory,
+): DocumentLearningMemory => {
+  if (!Number.isInteger(memory.revision) || memory.revision < 1) {
+    throw new Error('Document learning memory revision is invalid')
+  }
+  return {
+    ...memory,
+    documentId: assertUuid(memory.documentId, 'Document learning memory id is invalid'),
+    summaryMarkdown: normalizeNonBlank(
+      memory.summaryMarkdown,
+      'Document learning memory summary is invalid',
+    ).slice(0, 12_000),
+    mastered: normalizeUniqueList(memory.mastered, 'Document learning memory mastered facts', 60),
+    unstable: normalizeUniqueList(memory.unstable, 'Document learning memory unstable facts', 60),
+    misconceptions: normalizeUniqueList(
+      memory.misconceptions,
+      'Document learning memory misconceptions',
+      60,
+    ),
+    unresolvedQuestions: normalizeUniqueList(
+      memory.unresolvedQuestions,
+      'Document learning memory unresolved questions',
+      60,
+    ),
+    nextLessonStart: normalizeNonBlank(
+      memory.nextLessonStart,
+      'Document learning memory next start is invalid',
+    ).slice(0, 1_000),
+    sourceLessonIds: normalizeUniqueList(
+      memory.sourceLessonIds,
+      'Document learning memory source lessons',
+      100,
+    ),
+    updatedAt: assertIsoTimestamp(
+      memory.updatedAt,
+      'Document learning memory timestamp is invalid',
+    ),
   }
 }
 

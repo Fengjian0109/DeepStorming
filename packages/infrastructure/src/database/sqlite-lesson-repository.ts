@@ -3,6 +3,7 @@ import type {
   StoredLessonModelRun,
   StoredLessonStep,
   LessonRepositoryPort,
+  LessonMemoryRepositoryPort,
   StoredMasteryEvidence,
   StoredMisconceptionSignal,
   StoredReviewEvent,
@@ -11,6 +12,7 @@ import type {
   StoredLessonSourceAnchor,
 } from '@deepstorming/application'
 import type {
+  DocumentLearningMemory,
   LessonPace,
   LessonSourceTarget,
   LessonTutorSnapshot,
@@ -29,6 +31,11 @@ type LessonRow = {
   paper_profile_json: string | null
   lesson_pace: LessonPace | null
   tutor_snapshot_json: string | null
+  lesson_memory_json: string | null
+  lesson_end_job_json: string | null
+  post_lesson_action: NonNullable<StoredLessonSession['postLessonAction']> | null
+  completed_at: string | null
+  review_response: string | null
   created_at: string
   updated_at: string
 }
@@ -293,11 +300,26 @@ const mapSession = (
   ...(row.tutor_snapshot_json === null
     ? {}
     : { tutorSnapshot: parseJsonObject<LessonTutorSnapshot>(row.tutor_snapshot_json) }),
+  ...(row.lesson_memory_json === null
+    ? {}
+    : {
+        memory: parseJsonObject<NonNullable<StoredLessonSession['memory']>>(row.lesson_memory_json),
+      }),
+  ...(row.lesson_end_job_json === null
+    ? {}
+    : {
+        endJob: parseJsonObject<NonNullable<StoredLessonSession['endJob']>>(
+          row.lesson_end_job_json,
+        ),
+      }),
+  ...(row.post_lesson_action === null ? {} : { postLessonAction: row.post_lesson_action }),
+  ...(row.completed_at === null ? {} : { completedAt: row.completed_at }),
+  ...(row.review_response === null ? {} : { reviewResponse: row.review_response }),
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
 
-export class SqliteLessonRepository implements LessonRepositoryPort {
+export class SqliteLessonRepository implements LessonRepositoryPort, LessonMemoryRepositoryPort {
   public constructor(private readonly db: SqliteDatabase) {}
 
   private safe<T>(fn: () => T): T {
@@ -606,8 +628,8 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
         this.db
           .prepare(
             `INSERT INTO lesson_sessions
-             (id,title,status,document_id,document_title,created_at,updated_at,current_state,lesson_mode,paper_profile_json,lesson_pace,tutor_snapshot_json)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+             (id,title,status,document_id,document_title,created_at,updated_at,current_state,lesson_mode,paper_profile_json,lesson_pace,tutor_snapshot_json,lesson_memory_json,lesson_end_job_json,post_lesson_action,completed_at,review_response)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           )
           .run(
             session.id,
@@ -622,6 +644,11 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             session.paperProfile === null ? null : JSON.stringify(session.paperProfile),
             session.pace ?? null,
             session.tutorSnapshot === undefined ? null : JSON.stringify(session.tutorSnapshot),
+            session.memory === undefined ? null : JSON.stringify(session.memory),
+            session.endJob === undefined ? null : JSON.stringify(session.endJob),
+            session.postLessonAction ?? null,
+            session.completedAt ?? null,
+            session.reviewResponse ?? null,
           )
         const insertAnchor = this.db.prepare(
           `INSERT INTO lesson_source_anchors
@@ -714,7 +741,7 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
       this.db.transaction(() => {
         this.db
           .prepare(
-            'UPDATE lesson_sessions SET title=?,status=?,current_state=?,updated_at=?,lesson_mode=?,paper_profile_json=?,lesson_pace=?,tutor_snapshot_json=? WHERE id=?',
+            'UPDATE lesson_sessions SET title=?,status=?,current_state=?,updated_at=?,lesson_mode=?,paper_profile_json=?,lesson_pace=?,tutor_snapshot_json=?,lesson_memory_json=?,lesson_end_job_json=?,post_lesson_action=?,completed_at=?,review_response=? WHERE id=?',
           )
           .run(
             session.title,
@@ -725,6 +752,11 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
             session.paperProfile === null ? null : JSON.stringify(session.paperProfile),
             session.pace ?? null,
             session.tutorSnapshot === undefined ? null : JSON.stringify(session.tutorSnapshot),
+            session.memory === undefined ? null : JSON.stringify(session.memory),
+            session.endJob === undefined ? null : JSON.stringify(session.endJob),
+            session.postLessonAction ?? null,
+            session.completedAt ?? null,
+            session.reviewResponse ?? null,
             session.id,
           )
         this.db.prepare('DELETE FROM lesson_review_events WHERE lesson_id=?').run(session.id)
@@ -808,5 +840,54 @@ export class SqliteLessonRepository implements LessonRepositoryPort {
         return session
       })(),
     )
+  }
+
+  public async findDocumentMemory(documentId: string): Promise<DocumentLearningMemory | undefined> {
+    return this.safe(() => {
+      const row = this.db
+        .prepare('SELECT memory_json FROM document_learning_memories WHERE document_id=?')
+        .get(documentId) as { memory_json: string } | undefined
+      return row === undefined
+        ? undefined
+        : parseJsonObject<DocumentLearningMemory>(row.memory_json)
+    })
+  }
+
+  public async saveDocumentMemory(
+    memory: DocumentLearningMemory,
+    expectedRevision: number | null,
+  ): Promise<'saved' | 'stale'> {
+    return this.safe(() => {
+      if (expectedRevision === null) {
+        const result = this.db
+          .prepare(
+            `INSERT INTO document_learning_memories(document_id,revision,memory_json,updated_at)
+             VALUES (?,?,?,?) ON CONFLICT(document_id) DO NOTHING`,
+          )
+          .run(memory.documentId, memory.revision, JSON.stringify(memory), memory.updatedAt)
+        return result.changes === 1 ? 'saved' : 'stale'
+      }
+      const result = this.db
+        .prepare(
+          `UPDATE document_learning_memories
+           SET revision=?,memory_json=?,updated_at=?
+           WHERE document_id=? AND revision=?`,
+        )
+        .run(
+          memory.revision,
+          JSON.stringify(memory),
+          memory.updatedAt,
+          memory.documentId,
+          expectedRevision,
+        )
+      if (result.changes === 1) return 'saved'
+      const existing = this.db
+        .prepare('SELECT revision,memory_json FROM document_learning_memories WHERE document_id=?')
+        .get(memory.documentId) as { revision: number; memory_json: string } | undefined
+      return existing?.revision === memory.revision &&
+        existing.memory_json === JSON.stringify(memory)
+        ? 'saved'
+        : 'stale'
+    })
   }
 }

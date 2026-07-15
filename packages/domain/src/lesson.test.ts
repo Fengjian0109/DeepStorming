@@ -144,7 +144,17 @@ describe('lesson domain', () => {
   })
 
   it('defines the accepted lesson session statuses', () => {
-    expect(LESSON_SESSION_STATUSES).toEqual(['active', 'archived'])
+    expect(LESSON_SESSION_STATUSES).toEqual([
+      'preparing',
+      'active',
+      'summarizing',
+      'pending_review',
+      'reviewing',
+      'completed',
+      'paused',
+      'error',
+      'archived',
+    ])
   })
 
   it('defines the accepted lesson message roles', () => {

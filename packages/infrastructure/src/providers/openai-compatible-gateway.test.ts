@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import type { CancellationToken } from '@deepstorming/application'
+import type { LessonSession } from '@deepstorming/domain'
 
 import { OpenAICompatibleGateway } from './openai-compatible-gateway'
 
@@ -392,4 +393,53 @@ test('rejects empty lesson tutor content as invalid provider response', async ()
       liveToken(),
     ),
   ).rejects.toMatchObject({ code: 'PROVIDER_RESPONSE_INVALID' })
+})
+
+test('sends lesson history and cumulative memory with strict structured memory instructions', async () => {
+  await startServer((_request, response) => {
+    response.setHeader('content-type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: '{"lessonMemory":{}}' } }] }))
+  })
+  const session = {
+    id: 'lesson-1',
+    title: 'Attention',
+    documentId: 'document-1',
+    documentTitle: 'Deep Learning',
+    lessonMode: 'standard',
+    sourceAnchors: [],
+    masteryEvidence: [],
+    misconceptionSignals: [],
+    messages: [{ role: 'learner', content: 'query 与 key 匹配', sourceAnchorIds: [] }],
+  } as unknown as LessonSession
+
+  await new OpenAICompatibleGateway(baseUrl).generateLessonMemory(
+    {
+      modelName: 'model-a',
+      session,
+      previousDocumentMemory: {
+        documentId: 'document-1',
+        revision: 1,
+        summaryMarkdown: 'Earlier lesson',
+        mastered: [],
+        unstable: [],
+        misconceptions: [],
+        unresolvedQuestions: [],
+        nextLessonStart: 'Attention',
+        sourceLessonIds: ['lesson-0'],
+        updatedAt: '2026-07-14T00:00:00.000Z',
+      },
+      repair: { reason: 'Lesson memory failed validation.' },
+    },
+    liveToken(),
+  )
+
+  const body = JSON.parse(requests[0]?.body ?? '{}') as {
+    max_tokens: number
+    messages: Array<{ content: string }>
+  }
+  expect(body.max_tokens).toBe(1_600)
+  expect(body.messages[0]?.content).toContain('字段必须且只能是 lessonMemory、documentMemory')
+  expect(body.messages[0]?.content).toContain('唯一一次修复机会')
+  expect(body.messages[1]?.content).toContain('Earlier lesson')
+  expect(body.messages[1]?.content).toContain('query 与 key 匹配')
 })

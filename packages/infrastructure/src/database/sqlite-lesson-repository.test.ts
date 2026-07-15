@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { StoredLessonSession } from '@deepstorming/application'
+import type { DocumentLearningMemory } from '@deepstorming/domain'
 import { migrateDatabase } from './migrations'
 import { openDatabase, type SqliteDatabase } from './database'
 import { SqliteLessonRepository } from './sqlite-lesson-repository'
@@ -530,5 +531,78 @@ describe('SqliteLessonRepository', () => {
     expect(
       db.prepare('SELECT count(*) count FROM lesson_steps WHERE lesson_id=?').get(session().id),
     ).toEqual({ count: 2 })
+  })
+
+  it('round-trips lesson end lifecycle state and generated memory', async () => {
+    const memory = {
+      lessonId: session().id,
+      documentId: session().documentId,
+      topic: 'Attention',
+      coverage: 'Pages 1–4',
+      summaryMarkdown: 'Attention summary',
+      mastered: ['mapping'],
+      unstable: ['scaling'],
+      misconceptions: [],
+      sourceAnchorIds: ['00000000-0000-4000-8000-000000000301'],
+      figureIds: ['figure-1'],
+      unresolvedQuestions: ['why scale?'],
+      reviewPrompts: ['请解释缩放。'],
+      nextLessonStart: 'derive scaling',
+      createdAt: '2026-07-15T00:00:00.000Z',
+    } as const
+    const ended = session({
+      status: 'pending_review',
+      currentState: 'summarizing',
+      memory,
+      endJob: {
+        operationId: '00000000-0000-4000-8000-000000000777',
+        status: 'succeeded',
+        errorSummary: null,
+        startedAt: '2026-07-15T00:00:00.000Z',
+        finishedAt: '2026-07-15T00:01:00.000Z',
+      },
+      postLessonAction: 'rest',
+      updatedAt: '2026-07-15T00:01:00.000Z',
+    })
+
+    await repo.create(ended)
+    await expect(repo.findById(ended.id)).resolves.toEqual(ended)
+
+    const completed = {
+      ...ended,
+      status: 'completed' as const,
+      currentState: 'completed' as const,
+      postLessonAction: 'immediate_review' as const,
+      completedAt: '2026-07-15T00:02:00.000Z',
+      reviewResponse: '缩放避免点积过大。',
+      updatedAt: '2026-07-15T00:02:00.000Z',
+    }
+    await repo.save(completed)
+    await expect(repo.findById(ended.id)).resolves.toEqual(completed)
+  })
+
+  it('saves document learning memory with optimistic revision checks', async () => {
+    const memory: DocumentLearningMemory = {
+      documentId: session().documentId,
+      revision: 1,
+      summaryMarkdown: 'First lesson',
+      mastered: ['mapping'],
+      unstable: [],
+      misconceptions: [],
+      unresolvedQuestions: [],
+      nextLessonStart: 'scaling',
+      sourceLessonIds: [session().id],
+      updatedAt: '2026-07-15T00:00:00.000Z',
+    }
+
+    await expect(repo.saveDocumentMemory(memory, null)).resolves.toBe('saved')
+    await expect(repo.saveDocumentMemory(memory, null)).resolves.toBe('stale')
+    await expect(repo.findDocumentMemory(memory.documentId)).resolves.toEqual(memory)
+
+    const updated = { ...memory, revision: 2, summaryMarkdown: 'Two lessons' }
+    await expect(repo.saveDocumentMemory(updated, 0)).resolves.toBe('stale')
+    await expect(repo.saveDocumentMemory(updated, 1)).resolves.toBe('saved')
+    await expect(repo.saveDocumentMemory(updated, 1)).resolves.toBe('saved')
+    await expect(repo.findDocumentMemory(memory.documentId)).resolves.toEqual(updated)
   })
 })

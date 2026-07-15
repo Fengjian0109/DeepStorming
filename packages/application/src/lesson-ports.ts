@@ -3,6 +3,10 @@ import type {
   LessonMode,
   LessonPace,
   LessonTutorSnapshot,
+  LessonMemory,
+  LessonEndJob,
+  PostLessonAction,
+  DocumentLearningMemory,
   LessonModelRun,
   LessonState,
   LessonStep,
@@ -29,6 +33,32 @@ export type StoredMasteryEvidence = MasteryEvidence
 export type StoredMisconceptionSignal = MisconceptionSignal
 export type StoredReviewItem = ReviewItem
 export type StoredReviewEvent = ReviewEvent
+
+export type LessonMemoryGenerationResult = Readonly<{
+  lessonMemory: Omit<LessonMemory, 'lessonId' | 'documentId' | 'createdAt'>
+  documentMemory: Omit<
+    DocumentLearningMemory,
+    'documentId' | 'revision' | 'sourceLessonIds' | 'updatedAt'
+  >
+}>
+
+export interface LessonMemoryGeneratorPort {
+  generate(
+    input: Readonly<{
+      session: StoredLessonSession
+      previousDocumentMemory?: DocumentLearningMemory
+    }>,
+    token: CancellationToken,
+  ): Promise<LessonMemoryGenerationResult>
+}
+
+export interface LessonMemoryRepositoryPort {
+  findDocumentMemory(documentId: string): Promise<DocumentLearningMemory | undefined>
+  saveDocumentMemory(
+    memory: DocumentLearningMemory,
+    expectedRevision: number | null,
+  ): Promise<'saved' | 'stale'>
+}
 
 export interface DocumentSourceLocatorPort {
   findTextBlock(
@@ -57,6 +87,11 @@ export type StoredLessonSession = Readonly<{
   paperProfile: PaperLessonProfile | null
   tutorSnapshot?: LessonTutorSnapshot
   pace?: LessonPace
+  memory?: LessonMemory
+  endJob?: LessonEndJob
+  postLessonAction?: PostLessonAction
+  completedAt?: string
+  reviewResponse?: string
   createdAt: string
   updatedAt: string
 }>

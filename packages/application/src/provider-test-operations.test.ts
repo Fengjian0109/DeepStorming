@@ -166,6 +166,10 @@ class CapturingGateway implements ProviderGatewayPort {
   public block = false
   public unblock?: () => void
 
+  public async generateLessonMemory(): Promise<{ content: string }> {
+    throw new Error('not used')
+  }
+
   public async testConnection(
     input: { modelName: string; apiKey?: string },
     token: CancellationToken,

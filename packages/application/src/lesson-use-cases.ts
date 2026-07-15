@@ -23,6 +23,10 @@ import {
   type TutorActionType,
   type LessonPace,
   type LessonTutorSnapshot,
+  type DocumentLearningMemory,
+  assertLessonLifecycleTransition,
+  normalizeDocumentLearningMemory,
+  normalizeLessonMemory,
 } from '@deepstorming/domain'
 import type {
   ClockPort,
@@ -43,6 +47,8 @@ import type {
   StoredReviewItem,
   StoredLessonSession,
   DocumentSourceLocatorPort,
+  LessonMemoryGeneratorPort,
+  LessonMemoryRepositoryPort,
 } from './lesson-ports'
 import type {
   CancellationToken,
@@ -53,6 +59,7 @@ import type {
 import { toProviderProfile } from './provider-use-cases'
 import type { LearningSettingsRepositoryPort } from './learning-settings-ports'
 import { parseTutorTurnCandidate, TutorTurnValidationError } from './tutor-turn-validation'
+import { LessonMemoryValidationError, parseLessonMemoryCandidate } from './lesson-memory-validation'
 
 export type LessonUseCaseErrorCode =
   | 'LESSON_VALIDATION_FAILED'
@@ -65,6 +72,9 @@ export type LessonUseCaseErrorCode =
   | 'AI_PROVIDER_REQUIRED'
   | 'LESSON_TUTOR_NOT_FOUND'
   | 'AI_GENERATION_FAILED'
+  | 'LESSON_INVALID_TRANSITION'
+  | 'LESSON_END_IN_PROGRESS'
+  | 'LESSON_MEMORY_CONFLICT'
 
 export class LessonUseCaseError extends Error {
   public constructor(
@@ -96,6 +106,11 @@ const toView = (session: StoredLessonSession): LessonSession => ({
   paperProfile: session.paperProfile,
   ...(session.tutorSnapshot === undefined ? {} : { tutorSnapshot: session.tutorSnapshot }),
   ...(session.pace === undefined ? {} : { pace: session.pace }),
+  ...(session.memory === undefined ? {} : { memory: session.memory }),
+  ...(session.endJob === undefined ? {} : { endJob: session.endJob }),
+  ...(session.postLessonAction === undefined ? {} : { postLessonAction: session.postLessonAction }),
+  ...(session.completedAt === undefined ? {} : { completedAt: session.completedAt }),
+  ...(session.reviewResponse === undefined ? {} : { reviewResponse: session.reviewResponse }),
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 })
@@ -1568,6 +1583,334 @@ export class RecordReviewEvent {
     }
 
     return toView(await saveLesson(this.repository, updated))
+  }
+}
+
+export type EndLessonInput = Readonly<{ lessonId: string; operationId: string }>
+export type ChoosePostLessonActionInput = Readonly<{
+  lessonId: string
+  action: 'immediate_review' | 'rest'
+}>
+export type CompleteLessonReviewInput = Readonly<{ lessonId: string; response: string }>
+
+const findLesson = async (
+  repository: LessonRepositoryPort,
+  lessonId: string,
+): Promise<StoredLessonSession> => {
+  if (!UUID.test(lessonId)) throw validationError(new Error('Lesson id is invalid'))
+  let session: StoredLessonSession | undefined
+  try {
+    session = await repository.findById(lessonId)
+  } catch (error) {
+    throw asDatabaseError(error)
+  }
+  if (session === undefined) {
+    throw new LessonUseCaseError('LESSON_NOT_FOUND', 'The lesson was not found.', false)
+  }
+  return session
+}
+
+const invalidTransition = (): LessonUseCaseError =>
+  new LessonUseCaseError(
+    'LESSON_INVALID_TRANSITION',
+    'The lesson cannot move to the requested state.',
+    false,
+  )
+
+const assertLifecycle = (
+  before: StoredLessonSession['status'],
+  after: StoredLessonSession['status'],
+): void => {
+  try {
+    assertLessonLifecycleTransition(before, after)
+  } catch {
+    throw invalidTransition()
+  }
+}
+
+const endMemoryFailed = (): LessonUseCaseError =>
+  new LessonUseCaseError(
+    'AI_GENERATION_FAILED',
+    'The AI could not produce a valid lesson memory.',
+    true,
+  )
+
+export class EndLesson {
+  public constructor(
+    private readonly lessons: LessonRepositoryPort,
+    private readonly memories: LessonMemoryRepositoryPort,
+    private readonly generator: LessonMemoryGeneratorPort,
+    private readonly clock: ClockPort,
+  ) {}
+
+  public async execute(
+    input: EndLessonInput,
+    token: CancellationToken,
+  ): Promise<LessonSessionView> {
+    if (!UUID.test(input.operationId)) {
+      throw validationError(new Error('Lesson end operation id is invalid'))
+    }
+    let session = await findLesson(this.lessons, input.lessonId)
+    if (
+      session.endJob?.operationId === input.operationId &&
+      session.endJob.status === 'succeeded'
+    ) {
+      return toView(session)
+    }
+    if (session.status === 'summarizing' && session.endJob?.operationId !== input.operationId) {
+      throw new LessonUseCaseError(
+        'LESSON_END_IN_PROGRESS',
+        'Another lesson end operation is already running.',
+        true,
+      )
+    }
+    if (session.status !== 'summarizing') assertLifecycle(session.status, 'summarizing')
+
+    const startedAt =
+      session.endJob?.operationId === input.operationId
+        ? session.endJob.startedAt
+        : this.clock.now()
+    const pending: StoredLessonSession = {
+      ...session,
+      status: 'summarizing',
+      endJob: {
+        operationId: input.operationId,
+        status: 'started',
+        errorSummary: null,
+        startedAt,
+        finishedAt: null,
+      },
+      updatedAt: this.clock.now(),
+    }
+    session = await saveLesson(this.lessons, pending)
+
+    try {
+      let previousDocumentMemory: DocumentLearningMemory | undefined
+      try {
+        previousDocumentMemory = await this.memories.findDocumentMemory(session.documentId)
+      } catch (error) {
+        throw asDatabaseError(error)
+      }
+      if (token.cancelled) throw cancelledError(input.operationId)
+      const generated = await this.generator.generate(
+        {
+          session,
+          ...(previousDocumentMemory === undefined ? {} : { previousDocumentMemory }),
+        },
+        token,
+      )
+      if (token.cancelled) throw cancelledError(input.operationId)
+      const finishedAt = this.clock.now()
+      const lessonMemory = normalizeLessonMemory({
+        ...generated.lessonMemory,
+        lessonId: session.id,
+        documentId: session.documentId,
+        createdAt: finishedAt,
+      })
+      const documentMemory = normalizeDocumentLearningMemory({
+        ...generated.documentMemory,
+        documentId: session.documentId,
+        revision: (previousDocumentMemory?.revision ?? 0) + 1,
+        sourceLessonIds: [...(previousDocumentMemory?.sourceLessonIds ?? []), session.id],
+        updatedAt: finishedAt,
+      })
+      const saved = await this.memories.saveDocumentMemory(
+        documentMemory,
+        previousDocumentMemory?.revision ?? null,
+      )
+      if (saved === 'stale') {
+        throw new LessonUseCaseError(
+          'LESSON_MEMORY_CONFLICT',
+          'The document learning memory changed. Retry ending the lesson.',
+          true,
+        )
+      }
+      assertLifecycle('summarizing', 'pending_review')
+      return toView(
+        await saveLesson(this.lessons, {
+          ...session,
+          status: 'pending_review',
+          memory: lessonMemory,
+          endJob: {
+            operationId: input.operationId,
+            status: 'succeeded',
+            errorSummary: null,
+            startedAt,
+            finishedAt,
+          },
+          updatedAt: finishedAt,
+        }),
+      )
+    } catch (error) {
+      const failure =
+        error instanceof LessonUseCaseError
+          ? error
+          : token.cancelled
+            ? cancelledError(input.operationId)
+            : endMemoryFailed()
+      const finishedAt = this.clock.now()
+      await saveLesson(this.lessons, {
+        ...session,
+        status: 'error',
+        endJob: {
+          operationId: input.operationId,
+          status: failure.code === 'OPERATION_CANCELLED' ? 'cancelled' : 'failed',
+          errorSummary: {
+            code: failure.code,
+            message: failure.message,
+            retryable: failure.retryable,
+          },
+          startedAt,
+          finishedAt,
+        },
+        updatedAt: finishedAt,
+      })
+      throw failure
+    }
+  }
+}
+
+export class ChoosePostLessonAction {
+  public constructor(
+    private readonly lessons: LessonRepositoryPort,
+    private readonly clock: ClockPort,
+  ) {}
+
+  public async execute(input: ChoosePostLessonActionInput): Promise<LessonSessionView> {
+    let session = await findLesson(this.lessons, input.lessonId)
+    if (input.action !== 'immediate_review' && input.action !== 'rest') {
+      throw validationError(new Error('Post-lesson action is invalid'))
+    }
+    if (session.memory === undefined) throw invalidTransition()
+    if (session.postLessonAction === input.action) return toView(session)
+
+    if (input.action === 'rest') {
+      if (session.status === 'reviewing') assertLifecycle('reviewing', 'pending_review')
+      else if (session.status !== 'pending_review') throw invalidTransition()
+      session = await saveLesson(this.lessons, {
+        ...session,
+        status: 'pending_review',
+        postLessonAction: 'rest',
+        updatedAt: this.clock.now(),
+      })
+      return toView(session)
+    }
+
+    if (session.status !== 'pending_review') throw invalidTransition()
+    assertLifecycle('pending_review', 'reviewing')
+    return toView(
+      await saveLesson(this.lessons, {
+        ...session,
+        status: 'reviewing',
+        postLessonAction: 'immediate_review',
+        updatedAt: this.clock.now(),
+      }),
+    )
+  }
+}
+
+export class CompleteLessonReview {
+  public constructor(
+    private readonly lessons: LessonRepositoryPort,
+    private readonly clock: ClockPort,
+  ) {}
+
+  public async execute(input: CompleteLessonReviewInput): Promise<LessonSessionView> {
+    const session = await findLesson(this.lessons, input.lessonId)
+    if (session.status !== 'reviewing' || session.memory === undefined) {
+      throw invalidTransition()
+    }
+    const response = input.response.trim()
+    if (response.length === 0 || response.length > 8_000) {
+      throw validationError(new Error('Lesson review response is invalid'))
+    }
+    assertLifecycle('reviewing', 'completed')
+    const completedAt = this.clock.now()
+    return toView(
+      await saveLesson(this.lessons, {
+        ...session,
+        status: 'completed',
+        currentState: 'completed',
+        reviewResponse: response,
+        completedAt,
+        updatedAt: completedAt,
+      }),
+    )
+  }
+}
+
+export class ProviderLessonMemoryGenerator implements LessonMemoryGeneratorPort {
+  public constructor(
+    private readonly providers: ProviderRepositoryPort,
+    private readonly vault: SecretVaultPort,
+    private readonly gatewayFactory: ProviderGatewayFactoryPort,
+  ) {}
+
+  private parse(content: string, session: StoredLessonSession) {
+    const result = parseLessonMemoryCandidate(content)
+    const sourceIds = new Set(session.sourceAnchors.map((anchor) => anchor.id))
+    const figureIds = new Set(
+      session.messages.flatMap(
+        (message) => message.tutorTurn?.figureReferences.map((figure) => figure.figureId) ?? [],
+      ),
+    )
+    if (
+      result.lessonMemory.sourceAnchorIds.some((id) => !sourceIds.has(id)) ||
+      result.lessonMemory.figureIds.some((id) => !figureIds.has(id))
+    ) {
+      throw new LessonMemoryValidationError('Memory references unknown evidence.')
+    }
+    return result
+  }
+
+  public async generate(
+    input: Readonly<{
+      session: StoredLessonSession
+      previousDocumentMemory?: DocumentLearningMemory
+    }>,
+    token: CancellationToken,
+  ) {
+    let activeProvider
+    try {
+      activeProvider = (await this.providers.list()).find((provider) => provider.isActive)
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (activeProvider === undefined) throw providerRequiredError()
+
+    let apiKey: string | undefined
+    if (activeProvider.providerType !== 'mock') {
+      if (activeProvider.secretRef === undefined) throw internalError()
+      try {
+        apiKey = await this.vault.get(activeProvider.secretRef)
+      } catch (error) {
+        throw asInternalError(error)
+      }
+    }
+    const gateway = this.gatewayFactory.create(toProviderProfile(activeProvider))
+    const request = {
+      modelName: activeProvider.modelName,
+      ...(apiKey === undefined ? {} : { apiKey }),
+      session: toView(input.session),
+      ...(input.previousDocumentMemory === undefined
+        ? {}
+        : { previousDocumentMemory: input.previousDocumentMemory }),
+    }
+    const generated = await gateway.generateLessonMemory(request, token)
+    try {
+      return this.parse(generated.content, input.session)
+    } catch (error) {
+      if (!(error instanceof LessonMemoryValidationError)) throw error
+      const repaired = await gateway.generateLessonMemory(
+        { ...request, repair: { reason: 'Lesson memory failed validation.' } },
+        token,
+      )
+      try {
+        return this.parse(repaired.content, input.session)
+      } catch {
+        throw aiGenerationFailedError()
+      }
+    }
   }
 }
 

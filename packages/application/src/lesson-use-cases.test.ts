@@ -331,6 +331,9 @@ class FakeVault implements SecretVaultPort {
 class FakeGateway implements ProviderGatewayPort {
   public firstQuestionContents: string[] = []
   public replyContents: string[] = []
+  async generateLessonMemory(): Promise<{ content: string }> {
+    throw new Error('not used')
+  }
   public readonly calls: Array<{
     readonly input: {
       readonly modelName: string

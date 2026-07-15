@@ -20,7 +20,17 @@ const requiredTextSchema = z.string().refine((value) => value.trim().length > 0,
 })
 const timestampSchema = z.iso.datetime()
 
-export const lessonSessionStatusSchema = z.enum(['active', 'archived'])
+export const lessonSessionStatusSchema = z.enum([
+  'preparing',
+  'active',
+  'summarizing',
+  'pending_review',
+  'reviewing',
+  'completed',
+  'paused',
+  'error',
+  'archived',
+])
 export const lessonMessageRoleSchema = z.enum(['system', 'tutor', 'learner'])
 export const lessonModelRunStatusSchema = z.enum(['started', 'succeeded', 'failed', 'cancelled'])
 export const lessonStateSchema = z.enum([
@@ -194,6 +204,55 @@ export const lessonModelRunErrorSummarySchema = z
   })
   .strict()
 
+const lessonMemoryListSchema = z.array(z.string().trim().min(1).max(500)).max(24)
+
+export const lessonMemorySchema = z
+  .object({
+    lessonId: lessonIdSchema,
+    documentId: documentIdSchema,
+    topic: requiredTextSchema.max(240),
+    coverage: requiredTextSchema.max(500),
+    summaryMarkdown: requiredTextSchema.max(8_000),
+    mastered: lessonMemoryListSchema,
+    unstable: lessonMemoryListSchema,
+    misconceptions: lessonMemoryListSchema,
+    sourceAnchorIds: z.array(z.string().uuid()).max(24),
+    figureIds: z.array(requiredTextSchema.max(200)).max(24),
+    unresolvedQuestions: lessonMemoryListSchema,
+    reviewPrompts: z.array(requiredTextSchema.max(500)).max(8),
+    nextLessonStart: requiredTextSchema.max(1_000),
+    createdAt: timestampSchema,
+  })
+  .strict()
+
+export const lessonEndJobSchema = z
+  .object({
+    operationId: z.string().uuid(),
+    status: lessonModelRunStatusSchema,
+    errorSummary: lessonModelRunErrorSummarySchema.nullable(),
+    startedAt: timestampSchema,
+    finishedAt: timestampSchema.nullable(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.status !== 'started' || (value.errorSummary === null && value.finishedAt === null),
+    { message: 'started lesson end job must not have completion fields' },
+  )
+  .refine(
+    (value) =>
+      value.status !== 'succeeded' || (value.errorSummary === null && value.finishedAt !== null),
+    { message: 'succeeded lesson end job must have success fields only' },
+  )
+  .refine(
+    (value) =>
+      !['failed', 'cancelled'].includes(value.status) ||
+      (value.errorSummary !== null && value.finishedAt !== null),
+    { message: 'failed lesson end job must have an error and finishedAt' },
+  )
+
+export const postLessonActionSchema = z.enum(['immediate_review', 'rest'])
+
 export const lessonModelRunSchema = z
   .object({
     id: z.string().uuid(),
@@ -328,6 +387,11 @@ export const lessonSessionSchema = z
     paperProfile: paperLessonProfileSchema.nullable().default(null),
     tutorSnapshot: lessonTutorSnapshotSchema.optional(),
     pace: lessonPaceSchema.optional(),
+    memory: lessonMemorySchema.optional(),
+    endJob: lessonEndJobSchema.optional(),
+    postLessonAction: postLessonActionSchema.optional(),
+    completedAt: timestampSchema.optional(),
+    reviewResponse: requiredTextSchema.max(8_000).optional(),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -386,6 +450,9 @@ export const lessonBusinessErrorCodeSchema = z.enum([
   'LESSON_SOURCE_NOT_FOUND',
   'LESSON_NOT_FOUND',
   'LESSON_TUTOR_NOT_FOUND',
+  'LESSON_INVALID_TRANSITION',
+  'LESSON_END_IN_PROGRESS',
+  'LESSON_MEMORY_CONFLICT',
 ])
 
 const lessonSharedErrorCodeSchema = appErrorCodeSchema.extract([
@@ -441,6 +508,27 @@ export const recordReviewRequestSchema = z
     response: requiredTextSchema.max(1_000),
   })
   .strict()
+export const endLessonRequestSchema = z
+  .object({
+    requestId: requestIdSchema,
+    lessonId: lessonIdSchema,
+    operationId: z.string().uuid(),
+  })
+  .strict()
+export const choosePostLessonActionRequestSchema = z
+  .object({
+    requestId: requestIdSchema,
+    lessonId: lessonIdSchema,
+    action: postLessonActionSchema,
+  })
+  .strict()
+export const completeLessonReviewRequestSchema = z
+  .object({
+    requestId: requestIdSchema,
+    lessonId: lessonIdSchema,
+    response: requiredTextSchema.max(8_000),
+  })
+  .strict()
 
 const lessonErrorSchema = z
   .object({
@@ -485,6 +573,9 @@ export type LessonMisconceptionSignalDto = z.infer<typeof lessonMisconceptionSig
 export type LessonReviewItemDto = z.infer<typeof lessonReviewItemSchema>
 export type LessonReviewEventDto = z.infer<typeof lessonReviewEventSchema>
 export type LessonSessionDto = z.infer<typeof lessonSessionSchema>
+export type LessonMemoryDto = z.infer<typeof lessonMemorySchema>
+export type LessonEndJobDto = z.infer<typeof lessonEndJobSchema>
+export type PostLessonActionDto = z.infer<typeof postLessonActionSchema>
 export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
 export type LessonReplyDraftDto = z.infer<typeof lessonReplyDraftSchema>
 export type LessonRunRetryDraftDto = z.infer<typeof lessonRunRetryDraftSchema>
@@ -496,6 +587,9 @@ export type ReplyToLessonRequest = z.infer<typeof replyToLessonRequestSchema>
 export type RetryLessonRunRequest = z.infer<typeof retryLessonRunRequestSchema>
 export type CancelLessonRunRequest = z.infer<typeof cancelLessonRunRequestSchema>
 export type RecordReviewRequest = z.infer<typeof recordReviewRequestSchema>
+export type EndLessonRequest = z.infer<typeof endLessonRequestSchema>
+export type ChoosePostLessonActionRequest = z.infer<typeof choosePostLessonActionRequestSchema>
+export type CompleteLessonReviewRequest = z.infer<typeof completeLessonReviewRequestSchema>
 export type LessonSessionsResult = z.infer<typeof lessonSessionsResultSchema>
 export type LessonSessionResult = z.infer<typeof lessonSessionResultSchema>
 export type CancelLessonRunResult = z.infer<typeof cancelLessonRunResultSchema>

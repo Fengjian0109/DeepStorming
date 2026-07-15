@@ -1,10 +1,30 @@
 import { expect, test } from 'vitest'
 
 import { ProviderUseCaseError, type CancellationToken } from '@deepstorming/application'
+import type { LessonSession } from '@deepstorming/domain'
 
 import { MockProviderGateway } from './mock-provider-gateway'
 
 const liveToken = (): CancellationToken => ({ cancelled: false, onCancel: () => () => undefined })
+
+test('returns deterministic structured lesson memory through the mock provider', async () => {
+  const session = {
+    id: 'lesson-1',
+    title: 'Attention',
+    documentId: 'document-1',
+    documentTitle: 'Deep Learning',
+    messages: [{ role: 'learner', content: 'answer' }],
+    sourceAnchors: [],
+  } as unknown as LessonSession
+  const result = await new MockProviderGateway().generateLessonMemory(
+    { modelName: 'mock-success', session },
+    liveToken(),
+  )
+  expect(JSON.parse(result.content)).toMatchObject({
+    lessonMemory: { topic: 'Attention' },
+    documentMemory: { nextLessonStart: '从Attention的未解决问题继续。' },
+  })
+})
 
 test.each([
   ['mock-success', undefined],

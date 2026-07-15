@@ -10,6 +10,13 @@ import {
   lessonStepSchema,
   lessonSessionResultSchema,
   lessonSessionSchema,
+  lessonSessionStatusSchema,
+  lessonMemorySchema,
+  lessonEndJobSchema,
+  endLessonRequestSchema,
+  choosePostLessonActionRequestSchema,
+  completeLessonReviewRequestSchema,
+  lessonErrorCodeSchema,
   lessonSessionsResultSchema,
   cancelLessonRunRequestSchema,
   cancelLessonRunResultSchema,
@@ -199,6 +206,89 @@ describe('lesson contracts', () => {
       cancelRun: 'lessons:cancel-run',
       recordReview: 'lessons:record-review',
     })
+  })
+
+  it('strictly validates lifecycle statuses, memory, jobs, and transition requests', () => {
+    expect(lessonSessionStatusSchema.options).toEqual([
+      'preparing',
+      'active',
+      'summarizing',
+      'pending_review',
+      'reviewing',
+      'completed',
+      'paused',
+      'error',
+      'archived',
+    ])
+    const memory = {
+      lessonId,
+      documentId,
+      topic: 'Attention',
+      coverage: 'Pages 1–4',
+      summaryMarkdown: '**Summary**',
+      mastered: ['mapping'],
+      unstable: ['scaling'],
+      misconceptions: [],
+      sourceAnchorIds: [anchorId],
+      figureIds: [],
+      unresolvedQuestions: ['why scale?'],
+      reviewPrompts: ['请解释缩放。'],
+      nextLessonStart: 'derive scaling',
+      createdAt: '2026-07-15T00:00:00.000Z',
+    }
+    expect(lessonMemorySchema.safeParse(memory).success).toBe(true)
+    expect(
+      lessonEndJobSchema.safeParse({
+        operationId: modelRunId,
+        status: 'succeeded',
+        errorSummary: null,
+        startedAt: '2026-07-15T00:00:00.000Z',
+        finishedAt: '2026-07-15T00:01:00.000Z',
+      }).success,
+    ).toBe(true)
+    expect(
+      lessonSessionSchema.safeParse({
+        ...session,
+        status: 'pending_review',
+        memory,
+        endJob: {
+          operationId: modelRunId,
+          status: 'succeeded',
+          errorSummary: null,
+          startedAt: '2026-07-15T00:00:00.000Z',
+          finishedAt: '2026-07-15T00:01:00.000Z',
+        },
+        postLessonAction: 'rest',
+      }).success,
+    ).toBe(true)
+
+    expect(
+      endLessonRequestSchema.safeParse({ requestId, lessonId, operationId: modelRunId }).success,
+    ).toBe(true)
+    expect(
+      choosePostLessonActionRequestSchema.safeParse({
+        requestId,
+        lessonId,
+        action: 'immediate_review',
+      }).success,
+    ).toBe(true)
+    expect(
+      completeLessonReviewRequestSchema.safeParse({
+        requestId,
+        lessonId,
+        response: '缩放避免点积过大。',
+      }).success,
+    ).toBe(true)
+    expect(
+      completeLessonReviewRequestSchema.safeParse({
+        requestId,
+        lessonId,
+        response: ' ',
+      }).success,
+    ).toBe(false)
+    expect(lessonErrorCodeSchema.safeParse('LESSON_INVALID_TRANSITION').success).toBe(true)
+    expect(lessonErrorCodeSchema.safeParse('LESSON_END_IN_PROGRESS').success).toBe(true)
+    expect(lessonErrorCodeSchema.safeParse('LESSON_MEMORY_CONFLICT').success).toBe(true)
   })
 
   it('strictly validates start and get requests', () => {

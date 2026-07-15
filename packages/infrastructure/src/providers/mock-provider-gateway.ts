@@ -3,6 +3,7 @@ import {
   type CancellationToken,
   type ProviderGatewayPort,
 } from '@deepstorming/application'
+import type { DocumentLearningMemory, LessonSession } from '@deepstorming/domain'
 
 export class MockProviderGateway implements ProviderGatewayPort {
   public constructor(private readonly options: Readonly<{ delayMs?: number }> = {}) {}
@@ -104,6 +105,50 @@ export class MockProviderGateway implements ProviderGatewayPort {
         responseMarkdown: `我们先从《${input.documentTitle}》的这段证据开始：${input.sourceSnippet}\n\n结合这些上下文片段，你觉得它想解决的核心问题是什么？`,
         citations: [],
         figureReferences: [],
+      }),
+    }
+  }
+
+  public async generateLessonMemory(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      session: LessonSession
+      previousDocumentMemory?: DocumentLearningMemory
+      repair?: Readonly<{ reason: string }>
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>> {
+    await this.testConnection({ modelName: input.modelName }, token)
+    const learnerMessages = input.session.messages.filter((message) => message.role === 'learner')
+    const topic = input.session.title.trim() || input.session.documentTitle
+    const summary = `本节围绕${topic}完成了 ${learnerMessages.length} 次学习者回应。`
+    return {
+      content: JSON.stringify({
+        lessonMemory: {
+          topic,
+          coverage:
+            input.session.sourceAnchors.map((anchor) => anchor.snippet).join('；') || '课堂对话',
+          summaryMarkdown: summary,
+          mastered: [],
+          unstable: [],
+          misconceptions: [],
+          sourceAnchorIds: input.session.sourceAnchors.map((anchor) => anchor.id),
+          figureIds: [],
+          unresolvedQuestions: [],
+          reviewPrompts: [`请用自己的话总结${topic}。`],
+          nextLessonStart: `从${topic}的未解决问题继续。`,
+        },
+        documentMemory: {
+          summaryMarkdown: [input.previousDocumentMemory?.summaryMarkdown, summary]
+            .filter(Boolean)
+            .join('\n\n'),
+          mastered: input.previousDocumentMemory?.mastered ?? [],
+          unstable: input.previousDocumentMemory?.unstable ?? [],
+          misconceptions: input.previousDocumentMemory?.misconceptions ?? [],
+          unresolvedQuestions: input.previousDocumentMemory?.unresolvedQuestions ?? [],
+          nextLessonStart: `从${topic}的未解决问题继续。`,
+        },
       }),
     }
   }

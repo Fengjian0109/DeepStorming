@@ -1,4 +1,6 @@
 import type {
+  DocumentLearningMemory,
+  LessonSession,
   LessonPace,
   LessonTutorSnapshot,
   PaperReadingStage,
@@ -164,6 +166,16 @@ export interface ProviderGatewayPort {
       learnerReply: string
       tutorSnapshot?: LessonTutorSnapshot
       pace?: LessonPace
+      repair?: Readonly<{ reason: string }>
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>>
+  generateLessonMemory(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      session: LessonSession
+      previousDocumentMemory?: DocumentLearningMemory
       repair?: Readonly<{ reason: string }>
     }>,
     token: CancellationToken,

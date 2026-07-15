@@ -202,10 +202,10 @@
 - Modify: `packages/infrastructure/src/database/sqlite-lesson-repository.ts`
 - Test: matching layer tests
 
-- [ ] Write failing tests for `preparing/active/summarizing/pending_review/reviewing/completed/paused/error` transitions.
-- [ ] Write failing tests for slow/standard/fast prompt constraints, AI-only end summary, cumulative document memory, immediate-review/rest choice, and completion only after saved review.
-- [ ] Add migration 20 for lifecycle, summaries, memories, and operation idempotency; implement `EndLesson`, `ChoosePostLessonAction`, and `CompleteLessonReview`.
-- [ ] Run focused tests and commit `feat(lessons): complete lesson lifecycle`.
+- [x] Write failing tests for `preparing/active/summarizing/pending_review/reviewing/completed/paused/error` transitions.
+- [x] Write failing tests for slow/standard/fast prompt constraints, AI-only end summary, cumulative document memory, immediate-review/rest choice, and completion only after saved review.
+- [x] Add migration 20 for lifecycle, summaries, memories, and operation idempotency; implement `EndLesson`, `ChoosePostLessonAction`, and `CompleteLessonReview`.
+- [x] Run focused tests and commit `feat(lessons): complete lesson lifecycle`.
 
 ### Task 12: Lifecycle controls and hierarchical history UI
 

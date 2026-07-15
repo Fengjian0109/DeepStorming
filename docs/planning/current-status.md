@@ -5,6 +5,19 @@
 - 当前阶段：AI-first workspace redesign — Stage 4 lesson lifecycle and export
 - 状态：Stage 1–3 已完成；正在推进完整下课/复习生命周期与聊天记录导出
 
+## AI-first workspace redesign — Stage 4（进行中）
+
+已完成 Task 11 的领域、应用与持久化底座：
+
+- 课程状态扩展为 `preparing → active → summarizing → pending_review → reviewing → completed`，并保留 `paused/error/archived` 恢复语义；非法跳转返回稳定 `LESSON_INVALID_TRANSITION`。
+- 下课操作会先持久化 `summarizing` 与 operation ID，再调用当前激活 Provider 生成严格结构化课程记忆；同一 operation 可安全重放，进行中的其他 operation 会被拒绝。
+- AI 总结没有本地语义兜底。未配置 Provider 时返回 `AI_PROVIDER_REQUIRED`；结构无效时仅允许同一 Provider 修复一次，仍无效则安全失败并保留可重试结束任务。
+- 课程记忆包括掌握点、不稳定点、误解、未决问题、复习提示和下节课起点；证据与图片 ID 必须来自本节课堂真实白名单。
+- 教材累计记忆按 revision 乐观并发保存并记录来源课程；Migration 20 扩展课程生命周期字段并创建 `document_learning_memories`，升级后执行外键完整性检查。
+- “立即复习”进入 `reviewing`；“休息”保持 `pending_review`；只有保存非空复习回答后才成为 `completed`。
+
+Task 11 仓库门禁：`pnpm check` 通过，72 个测试文件、685 个测试通过，类型检查和生产构建通过。Task 12 的显式 IPC、取消/重试与课程结束界面仍在继续。
+
 ## AI-first workspace redesign — Stage 3
 
 已完成的结构化回复基础：
@@ -50,7 +63,7 @@ Stage 1 将桌面端从功能卡片堆叠页重构为“分层侧栏 + 对话主
 
 当前仍未完成：
 
-- 下课保存记忆、课后复习/休息分流、课程完成语义和聊天记录 MD/PDF 导出。
+- 下课/复习生命周期的桌面 IPC 与界面，以及聊天记录 MD/PDF 导出。
 - 剩余上下文低于阈值时的自动压缩、token 统计与默认 30% 阈值设置。
 
 ## 已完成
@@ -197,7 +210,7 @@ Stage 1 将桌面端从功能卡片堆叠页重构为“分层侧栏 + 对话主
 ## 当前范围与非目标
 
 - 已完成范围：既有文本/PDF 文档、Provider、课堂、诊断、复习和论文模式能力，以及 Stage 1 的 chat-first 工作空间界面基础。
-- 当前非目标：OCR、扫描 PDF、严格 AI-only 导师、Markdown/LaTeX 与图像引用渲染、课程结束/记忆/复习分流、聊天导出、自动上下文压缩、embeddings、语义检索、通知/日历提醒和后台导入任务。
+- 当前非目标：OCR、扫描 PDF、聊天导出界面、自动上下文压缩、embeddings、语义检索、通知/日历提醒和后台导入任务。AI-only 导师、Markdown/LaTeX、图像引用以及课程结束/记忆领域底座已进入已完成范围。
 
 ## 当前门禁
 

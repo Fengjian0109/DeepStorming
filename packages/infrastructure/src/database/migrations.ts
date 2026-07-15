@@ -3,7 +3,12 @@ import { mkdir, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { databaseError, type SqliteDatabase } from './database'
 
-export type Migration = Readonly<{ version: number; name: string; sql: string }>
+export type Migration = Readonly<{
+  version: number
+  name: string
+  sql: string
+  foreignKeysOff?: boolean
+}>
 
 const INITIAL_SQL = `
 CREATE TABLE app_settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -378,6 +383,43 @@ CREATE TABLE document_figures (
 );
 CREATE INDEX document_figures_document_page ON document_figures(document_id, page_number, id);`
 
+const LESSON_MEMORY_LIFECYCLE_SQL = `
+PRAGMA legacy_alter_table=ON;
+PRAGMA defer_foreign_keys=ON;
+ALTER TABLE lesson_sessions RENAME TO lesson_sessions_legacy;
+CREATE TABLE lesson_sessions (
+ id TEXT PRIMARY KEY,
+ title TEXT NOT NULL,
+ status TEXT NOT NULL CHECK (status IN ('preparing','active','summarizing','pending_review','reviewing','completed','paused','error','archived')),
+ document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE CASCADE,
+ document_title TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ current_state TEXT NOT NULL DEFAULT 'opening'
+  CHECK (current_state IN ('opening','probing','hinting','explaining','reflecting','summarizing','completed','paused','error')),
+ lesson_mode TEXT NOT NULL DEFAULT 'standard' CHECK (lesson_mode IN ('standard','paper')),
+ paper_profile_json TEXT,
+ lesson_pace TEXT CHECK (lesson_pace IN ('slow','standard','fast')),
+ tutor_snapshot_json TEXT,
+ lesson_memory_json TEXT,
+ lesson_end_job_json TEXT,
+ post_lesson_action TEXT CHECK (post_lesson_action IN ('immediate_review','rest')),
+ completed_at TEXT,
+ review_response TEXT
+);
+INSERT INTO lesson_sessions
+ (id,title,status,document_id,document_title,created_at,updated_at,current_state,lesson_mode,paper_profile_json,lesson_pace,tutor_snapshot_json)
+SELECT id,title,status,document_id,document_title,created_at,updated_at,current_state,lesson_mode,paper_profile_json,lesson_pace,tutor_snapshot_json
+FROM lesson_sessions_legacy;
+DROP TABLE lesson_sessions_legacy;
+PRAGMA legacy_alter_table=OFF;
+CREATE TABLE document_learning_memories (
+ document_id TEXT PRIMARY KEY REFERENCES learning_documents(id) ON DELETE CASCADE,
+ revision INTEGER NOT NULL CHECK (revision > 0),
+ memory_json TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -398,9 +440,19 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 17, name: 'lesson_tutor_configuration', sql: LESSON_TUTOR_CONFIGURATION_SQL },
   { version: 18, name: 'structured_tutor_turn', sql: STRUCTURED_TUTOR_TURN_SQL },
   { version: 19, name: 'document_figure_assets', sql: DOCUMENT_FIGURE_ASSETS_SQL },
+  {
+    version: 20,
+    name: 'lesson_memory_lifecycle',
+    sql: LESSON_MEMORY_LIFECYCLE_SQL,
+    foreignKeysOff: true,
+  },
 ])
 const checksum = (migration: Migration): string =>
-  createHash('sha256').update(`${migration.name}\n${migration.sql}`).digest('hex')
+  createHash('sha256')
+    .update(
+      `${migration.name}\n${migration.sql}${migration.foreignKeysOff === true ? '\nforeign_keys_off' : ''}`,
+    )
+    .digest('hex')
 
 export const migrateDatabase = async (
   db: SqliteDatabase,
@@ -465,12 +517,22 @@ export const migrateDatabase = async (
       )
     }
     for (const migration of pending) {
-      db.transaction(() => {
-        db.exec(migration.sql)
-        db.prepare(
-          'INSERT INTO schema_migrations(version,name,checksum,applied_at) VALUES (?,?,?,?)',
-        ).run(migration.version, migration.name, checksum(migration), new Date().toISOString())
-      })()
+      if (migration.foreignKeysOff === true) db.pragma('foreign_keys = OFF')
+      try {
+        db.transaction(() => {
+          db.exec(migration.sql)
+          db.prepare(
+            'INSERT INTO schema_migrations(version,name,checksum,applied_at) VALUES (?,?,?,?)',
+          ).run(migration.version, migration.name, checksum(migration), new Date().toISOString())
+        })()
+      } finally {
+        if (migration.foreignKeysOff === true) db.pragma('foreign_keys = ON')
+      }
+      if (
+        migration.foreignKeysOff === true &&
+        (db.pragma('foreign_key_check') as readonly unknown[]).length > 0
+      )
+        throw new Error('foreign key check failed')
     }
   } catch {
     throw databaseError('DATABASE_MIGRATION_FAILED')

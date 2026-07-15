@@ -3,7 +3,12 @@ import {
   type CancellationToken,
   type ProviderGatewayPort,
 } from '@deepstorming/application'
-import type { LessonPace, LessonTutorSnapshot } from '@deepstorming/domain'
+import type {
+  DocumentLearningMemory,
+  LessonPace,
+  LessonSession,
+  LessonTutorSnapshot,
+} from '@deepstorming/domain'
 
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>
 
@@ -186,6 +191,41 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
       token,
       'The provider lesson generation timed out.',
       'The provider lesson generation could not reach the provider.',
+    )
+    const content = firstAssistantContent(body)
+    if (content === undefined) {
+      throw new ProviderUseCaseError(
+        'PROVIDER_RESPONSE_INVALID',
+        'The provider returned an invalid response.',
+        true,
+        { fieldName: 'choices.message.content' },
+      )
+    }
+    return { content }
+  }
+
+  public async generateLessonMemory(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      session: LessonSession
+      previousDocumentMemory?: DocumentLearningMemory
+      repair?: Readonly<{ reason: string }>
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>> {
+    if (token.cancelled) throw cancelledError()
+    const request = {
+      modelName: input.modelName,
+      ...(input.apiKey === undefined ? {} : { apiKey: input.apiKey }),
+      messages: lessonMemoryMessages(input),
+      maxTokens: 1_600,
+    }
+    const body = await this.postChatCompletion(
+      request,
+      token,
+      'The provider lesson memory generation timed out.',
+      'The provider lesson memory generation could not reach the provider.',
     )
     const content = firstAssistantContent(body)
     if (content === undefined) {
@@ -471,6 +511,52 @@ const lessonTutorMessages = (input: {
   {
     role: 'user',
     content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n扩展上下文：\n${formatContextChunks(input.contextChunks)}${formatAvailableFigures(input.availableFigures)}\n学习者回答：${input.learnerReply}\n请用中文提出一个简短追问，帮助学习者验证自己的判断。`,
+  },
+]
+
+const lessonMemoryMessages = (
+  input: Readonly<{
+    session: LessonSession
+    previousDocumentMemory?: DocumentLearningMemory
+    repair?: Readonly<{ reason: string }>
+  }>,
+): readonly Readonly<{ role: 'system' | 'user'; content: string }>[] => [
+  {
+    role: 'system',
+    content: [
+      '你是 DeepStorming 的课程记忆整理器。只依据课堂对话、证据锚点和已有教材记忆生成总结，不补造事实。',
+      '仅输出 JSON，不使用 Markdown 代码栅。根字段必须且只能是 lessonMemory、documentMemory。',
+      'lessonMemory 必须且只能包含 topic、coverage、summaryMarkdown、mastered、unstable、misconceptions、sourceAnchorIds、figureIds、unresolvedQuestions、reviewPrompts、nextLessonStart。',
+      'documentMemory 必须且只能包含 summaryMarkdown、mastered、unstable、misconceptions、unresolvedQuestions、nextLessonStart。',
+      '所有列表均为字符串数组；reviewPrompts 最多 8 项。sourceAnchorIds 与 figureIds 只能使用输入中真实出现的 ID。',
+      input.repair === undefined
+        ? ''
+        : `上一次输出无效：${input.repair.reason}这是唯一一次修复机会。`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  },
+  {
+    role: 'user',
+    content: JSON.stringify({
+      lesson: {
+        id: input.session.id,
+        title: input.session.title,
+        documentId: input.session.documentId,
+        documentTitle: input.session.documentTitle,
+        lessonMode: input.session.lessonMode,
+        sourceAnchors: input.session.sourceAnchors,
+        messages: input.session.messages.map((message) => ({
+          role: message.role,
+          content: message.content,
+          sourceAnchorIds: message.sourceAnchorIds,
+          figureReferences: message.tutorTurn?.figureReferences ?? [],
+        })),
+        masteryEvidence: input.session.masteryEvidence,
+        misconceptionSignals: input.session.misconceptionSignals,
+      },
+      previousDocumentMemory: input.previousDocumentMemory ?? null,
+    }),
   },
 ]
 
