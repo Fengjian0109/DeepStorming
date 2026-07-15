@@ -492,7 +492,9 @@ describe('LessonWorkspace', () => {
     render(<LessonWorkspace selectedLessonId={paperSession.id} />)
 
     expect(await screen.findByRole('heading', { name: 'Paper Map 论文课堂' })).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: '课堂信息' }))
+    const infoButton = screen.getByRole('button', { name: '课堂信息' })
+    expect(infoButton.querySelector('svg')).toBeTruthy()
+    await user.click(infoButton)
     await user.click(screen.getByRole('tab', { name: '进度' }))
     expect(screen.getByText(/论文阶段：问题定位/)).toBeTruthy()
     expect(screen.getByText('The learner is still orienting around the paper.')).toBeTruthy()

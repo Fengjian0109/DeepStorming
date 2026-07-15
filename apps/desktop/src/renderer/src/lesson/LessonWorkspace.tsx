@@ -2,6 +2,7 @@ import type { LessonSessionDto, LessonStateDto, UserProfileDto } from '@deepstor
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { WorkspaceContextual } from '../app/WorkspaceShell'
+import { UiIcon } from '../ui/UiIcon'
 import { LessonComposer } from './LessonComposer'
 import { LessonConversation } from './LessonConversation'
 import { LessonInfoDrawer } from './LessonInfoDrawer'
@@ -479,6 +480,7 @@ export const LessonWorkspace = ({
                   disabled={exportState.status === 'exporting'}
                   onClick={() => void exportTranscript('markdown')}
                 >
+                  <UiIcon name="download" />
                   导出 Markdown
                 </button>
                 <button
@@ -486,6 +488,7 @@ export const LessonWorkspace = ({
                   disabled={exportState.status === 'exporting'}
                   onClick={() => void exportTranscript('pdf')}
                 >
+                  <UiIcon name="download" />
                   导出 PDF
                 </button>
                 {exportState.status === 'exporting' && (
@@ -494,6 +497,7 @@ export const LessonWorkspace = ({
                   </button>
                 )}
                 <button type="button" onClick={() => setInfoDrawerOpen(true)}>
+                  <UiIcon name="info" />
                   课堂信息
                 </button>
               </div>

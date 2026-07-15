@@ -128,6 +128,10 @@ describe('SettingsCenter', () => {
     renderSettings()
 
     await user.click(await screen.findByRole('button', { name: '个人资料' }))
+    expect(screen.getByRole('button', { name: '选择个人头像' })).toBeTruthy()
+    expect(screen.getByLabelText('选择个人头像 文件输入').className).toContain(
+      'visually-hidden-file-input',
+    )
     const input = screen.getByLabelText('你的名称')
     await user.clear(input)
     await user.type(input, '何同学')
@@ -144,6 +148,9 @@ describe('SettingsCenter', () => {
     renderSettings()
 
     await user.click(await screen.findByRole('button', { name: '课堂设置' }))
+    const autoScroll = screen.getByRole('switch', { name: '自动滚动到新消息' })
+    expect(autoScroll.getAttribute('aria-checked')).toBe('true')
+    expect(screen.queryByRole('checkbox', { name: '自动滚动到新消息' })).toBeNull()
     await user.selectOptions(screen.getByLabelText('默认课堂节奏'), 'fast')
     await user.clear(screen.getByLabelText('剩余上下文压缩阈值（%）'))
     await user.type(screen.getByLabelText('剩余上下文压缩阈值（%）'), '25')

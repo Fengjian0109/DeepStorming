@@ -30,6 +30,7 @@ export const FilePickerButton = ({
           if (!file) return
           setFilename(file.name)
           onFile(file)
+          event.currentTarget.value = ''
         }}
       />
       <button

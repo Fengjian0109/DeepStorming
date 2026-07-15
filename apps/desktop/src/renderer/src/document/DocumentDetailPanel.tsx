@@ -1,6 +1,8 @@
 import type { DocumentDetailDto } from '@deepstorming/contracts'
 import React from 'react'
 
+import { UiIcon } from '../ui/UiIcon'
+
 type DocumentDetailPanelProps = Readonly<{
   document: DocumentDetailDto
   busy: boolean
@@ -47,6 +49,7 @@ export const DocumentDetailPanel = ({
       </div>
       <div className="document-detail-actions">
         <button type="button" disabled={busy} onClick={onStartLesson}>
+          <UiIcon name="lessons" />
           开始课堂
         </button>
         {readerOpen ? (
@@ -56,14 +59,17 @@ export const DocumentDetailPanel = ({
             disabled={busy}
             onClick={onCloseReader}
           >
+            <UiIcon name="x" />
             关闭阅读器
           </button>
         ) : (
           <button type="button" className="secondary-button" disabled={busy} onClick={onOpenReader}>
+            <UiIcon name="book-open" />
             打开阅读器
           </button>
         )}
         <button type="button" className="danger-button" disabled={busy} onClick={onDelete}>
+          <UiIcon name="trash" />
           删除文档
         </button>
       </div>

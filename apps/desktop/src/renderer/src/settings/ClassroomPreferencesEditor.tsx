@@ -1,22 +1,35 @@
 import type { ClassroomPreferencesDto, TutorProfileDto } from '@deepstorming/contracts'
 import React, { useEffect, useState } from 'react'
 
+import { Switch } from '../ui/Switch'
+
 type Props = Readonly<{
   preferences: ClassroomPreferencesDto
   tutors: readonly TutorProfileDto[]
   onSaved: (preferences: ClassroomPreferencesDto) => void
+  onDirtyChange?: (dirty: boolean) => void
 }>
+
+const noopDirtyChange = (_dirty: boolean) => undefined
 
 export const ClassroomPreferencesEditor = ({
   preferences,
   tutors,
   onSaved,
+  onDirtyChange = noopDirtyChange,
 }: Props): React.JSX.Element => {
   const [draft, setDraft] = useState(preferences)
   const [state, setState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
 
-  useEffect(() => setDraft(preferences), [preferences])
+  useEffect(() => {
+    setDraft(preferences)
+    onDirtyChange(false)
+  }, [onDirtyChange, preferences])
+
+  useEffect(() => {
+    onDirtyChange(JSON.stringify(draft) !== JSON.stringify(preferences))
+  }, [draft, onDirtyChange, preferences])
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -29,6 +42,7 @@ export const ClassroomPreferencesEditor = ({
     }
     setState('success')
     setMessage('课堂设置已保存。')
+    onDirtyChange(false)
     onSaved(result.data)
   }
 
@@ -114,14 +128,12 @@ export const ClassroomPreferencesEditor = ({
             }
           />
         </label>
-        <label className="settings-checkbox">
-          <input
-            type="checkbox"
-            checked={draft.autoScroll}
-            onChange={(event) => setDraft({ ...draft, autoScroll: event.target.checked })}
-          />
-          <span>自动滚动到新消息</span>
-        </label>
+        <Switch
+          label="自动滚动到新消息"
+          checked={draft.autoScroll}
+          disabled={state === 'saving'}
+          onCheckedChange={(autoScroll) => setDraft({ ...draft, autoScroll })}
+        />
         <button type="submit" disabled={state === 'saving'}>
           {state === 'saving' ? '正在保存…' : '保存课堂设置'}
         </button>

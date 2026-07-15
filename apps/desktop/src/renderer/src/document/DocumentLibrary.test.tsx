@@ -213,7 +213,10 @@ describe('DocumentLibrary', () => {
     render(<DocumentLibrary />)
 
     expect(await screen.findByRole('toolbar', { name: '添加学习资料' })).toBeTruthy()
-    expect(screen.getByLabelText('导入可选择文字的 PDF')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '导入 PDF' })).toBeTruthy()
+    expect(screen.getByLabelText('导入 PDF 文件输入').className).toContain(
+      'visually-hidden-file-input',
+    )
     expect(screen.getByText('第一版仅支持带可选择文字层的 PDF，不支持扫描件。')).toBeTruthy()
     expect(screen.queryByRole('dialog', { name: '添加文本资料' })).toBeNull()
   })
@@ -233,6 +236,7 @@ describe('DocumentLibrary', () => {
 
     expect(await screen.findByText('文档已创建。')).toBeTruthy()
     expect(await screen.findByRole('heading', { name: 'Notes' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '开始课堂' }).querySelector('svg')).toBeTruthy()
     expect(window.deepstorming.documents.createFromText).toHaveBeenCalledWith({
       title: 'Notes',
       plainText: 'body',
@@ -245,7 +249,7 @@ describe('DocumentLibrary', () => {
     render(<DocumentLibrary />)
     await user.click(await screen.findByRole('button', { name: '粘贴文本 / 导入 TXT、MD' }))
     const file = new File(['# Heading\nBody'], 'paper.md', { type: 'text/markdown' })
-    await user.upload(await screen.findByLabelText('导入 .txt 或 .md'), file)
+    await user.upload(await screen.findByLabelText('导入 .txt 或 .md 文件输入'), file)
     await user.click(await screen.findByRole('button', { name: '保存文档' }))
     expect(window.deepstorming.documents.createFromText).toHaveBeenCalledWith({
       title: 'paper.md',
@@ -320,7 +324,7 @@ describe('DocumentLibrary', () => {
     render(<DocumentLibrary />)
     const file = new File(['%PDF'], 'paper.pdf', { type: 'application/pdf' })
     Object.defineProperty(file, 'path', { value: '/tmp/paper.pdf' })
-    await user.upload(await screen.findByLabelText('导入可选择文字的 PDF'), file)
+    await user.upload(await screen.findByLabelText('导入 PDF 文件输入'), file)
 
     expect(await screen.findByText('PDF 已导入。')).toBeTruthy()
     expect(window.deepstorming.documents.importPdf).toHaveBeenCalledWith({
@@ -411,7 +415,7 @@ describe('DocumentLibrary', () => {
     render(<DocumentLibrary />)
     const file = new File(['%PDF'], 'locked.pdf', { type: 'application/pdf' })
     Object.defineProperty(file, 'path', { value: '/tmp/locked.pdf' })
-    await user.upload(await screen.findByLabelText('导入可选择文字的 PDF'), file)
+    await user.upload(await screen.findByLabelText('导入 PDF 文件输入'), file)
 
     expect((await screen.findByRole('alert')).textContent).toContain(
       'The PDF is password protected.',
@@ -520,7 +524,7 @@ describe('DocumentLibrary', () => {
       value: vi.fn().mockRejectedValue(new Error('read failed')),
     })
 
-    await user.upload(screen.getByLabelText('导入 .txt 或 .md'), file)
+    await user.upload(screen.getByLabelText('导入 .txt 或 .md 文件输入'), file)
 
     expect((await screen.findByRole('alert')).textContent).toContain('读取文件失败，请重试。')
     expect(window.deepstorming.documents.createFromText).not.toHaveBeenCalled()

@@ -1,6 +1,8 @@
 import type { DocumentDraftDto, DocumentSourceKindDto } from '@deepstorming/contracts'
 import React, { useState } from 'react'
 
+import { FilePickerButton } from '../ui/FilePickerButton'
+
 type DocumentFormProps = Readonly<{
   disabled?: boolean | undefined
   onSubmit: (draft: DocumentDraftDto) => Promise<boolean>
@@ -52,13 +54,8 @@ export const DocumentForm = ({
     }
   }
 
-  const importFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const input = event.currentTarget
-    const file = input.files?.[0]
-    if (!file) return
-
+  const importFile = async (file: File) => {
     if (!isAllowedTextFile(file)) {
-      input.value = ''
       onError('请选择 .txt 或 .md 文件。')
       return
     }
@@ -71,9 +68,7 @@ export const DocumentForm = ({
         sourceKind: 'text_file',
         originalFileName: file.name,
       })
-      input.value = ''
     } catch {
-      input.value = ''
       onError('读取文件失败，请重试。')
     }
   }
@@ -89,15 +84,12 @@ export const DocumentForm = ({
         >
           粘贴文本
         </button>
-        <label className="file-picker">
-          <span>导入 .txt 或 .md</span>
-          <input
-            type="file"
-            accept=".txt,.md,text/plain,text/markdown"
-            onChange={(event) => void importFile(event)}
-            disabled={disabled}
-          />
-        </label>
+        <FilePickerButton
+          label="导入 .txt 或 .md"
+          accept=".txt,.md,text/plain,text/markdown"
+          disabled={disabled}
+          onFile={(file) => void importFile(file)}
+        />
       </div>
 
       <div className="form-grid">

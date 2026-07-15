@@ -1,12 +1,21 @@
 import type { UserProfileDto } from '@deepstorming/contracts'
 import React, { useEffect, useState } from 'react'
 
+import { FilePickerButton } from '../ui/FilePickerButton'
+
 type Props = Readonly<{
   profile: UserProfileDto
   onSaved: (profile: UserProfileDto) => void
+  onDirtyChange?: (dirty: boolean) => void
 }>
 
-export const UserProfileEditor = ({ profile, onSaved }: Props): React.JSX.Element => {
+const noopDirtyChange = (_dirty: boolean) => undefined
+
+export const UserProfileEditor = ({
+  profile,
+  onSaved,
+  onDirtyChange = noopDirtyChange,
+}: Props): React.JSX.Element => {
   const [displayName, setDisplayName] = useState(profile.displayName)
   const [avatarAssetId, setAvatarAssetId] = useState(profile.avatarAssetId)
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
@@ -15,7 +24,12 @@ export const UserProfileEditor = ({ profile, onSaved }: Props): React.JSX.Elemen
   useEffect(() => {
     setDisplayName(profile.displayName)
     setAvatarAssetId(profile.avatarAssetId)
-  }, [profile])
+    onDirtyChange(false)
+  }, [onDirtyChange, profile])
+
+  useEffect(() => {
+    onDirtyChange(displayName !== profile.displayName || avatarAssetId !== profile.avatarAssetId)
+  }, [avatarAssetId, displayName, onDirtyChange, profile])
 
   const importAvatar = async (file: File | undefined) => {
     if (file === undefined) return
@@ -44,6 +58,7 @@ export const UserProfileEditor = ({ profile, onSaved }: Props): React.JSX.Elemen
     }
     setStatus('success')
     setMessage('个人资料已保存。')
+    onDirtyChange(false)
     onSaved(result.data)
   }
 
@@ -55,14 +70,15 @@ export const UserProfileEditor = ({ profile, onSaved }: Props): React.JSX.Elemen
           <span>你的名称</span>
           <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
         </label>
-        <label>
-          <span>你的头像</span>
-          <input
-            type="file"
+        <div className="settings-field-group">
+          <span className="settings-field-label">你的头像</span>
+          <FilePickerButton
+            label="选择个人头像"
             accept="image/png,image/jpeg,image/webp"
-            onChange={(event) => void importAvatar(event.currentTarget.files?.[0])}
+            disabled={status === 'saving'}
+            onFile={(file) => void importAvatar(file)}
           />
-        </label>
+        </div>
         {avatarAssetId !== undefined && <p className="field-help">头像已导入并安全保存。</p>}
         <button type="submit" disabled={status === 'saving' || displayName.trim().length === 0}>
           {status === 'saving' ? '正在保存…' : '保存个人资料'}

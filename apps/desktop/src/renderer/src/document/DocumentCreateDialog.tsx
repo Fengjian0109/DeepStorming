@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 
+import { UiIcon } from '../ui/UiIcon'
+
 import { DocumentForm } from './DocumentForm'
 
 type DocumentCreateDialogProps = Readonly<{
@@ -61,6 +63,7 @@ export const DocumentCreateDialog = ({
         <div className="panel-header">
           <h2 id="document-create-dialog-title">添加文本资料</h2>
           <button type="button" className="secondary-button" disabled={saving} onClick={onClose}>
+            <UiIcon name="x" />
             取消
           </button>
         </div>

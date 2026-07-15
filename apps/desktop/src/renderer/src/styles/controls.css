@@ -1,6 +1,10 @@
 button,
 .button,
 .file-picker-trigger {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
   min-height: var(--control-height);
   padding: 0 14px;
   border: 1px solid transparent;
@@ -123,12 +127,6 @@ textarea {
   clip-path: inset(50%);
   border: 0;
   white-space: nowrap;
-}
-
-.file-picker-trigger {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
 }
 
 .file-picker-name {

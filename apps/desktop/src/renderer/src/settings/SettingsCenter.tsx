@@ -103,6 +103,7 @@ export const SettingsCenter = (): React.JSX.Element => {
         <UserProfileEditor
           profile={settings.userProfile}
           onSaved={(userProfile) => setSettings({ ...settings, userProfile })}
+          onDirtyChange={setDirty}
         />
       )}
       {settings !== undefined && section === 'classroom' && (
@@ -110,6 +111,7 @@ export const SettingsCenter = (): React.JSX.Element => {
           preferences={settings.classroomPreferences}
           tutors={settings.tutorProfiles}
           onSaved={(classroomPreferences) => setSettings({ ...settings, classroomPreferences })}
+          onDirtyChange={setDirty}
         />
       )}
       {section === 'appearance' && <AppearanceEditor />}

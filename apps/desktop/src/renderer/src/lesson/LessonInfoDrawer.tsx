@@ -5,6 +5,8 @@ import type {
 } from '@deepstorming/contracts'
 import React, { useEffect, useRef, useState } from 'react'
 
+import { UiIcon } from '../ui/UiIcon'
+
 type LessonInfoDrawerProps = Readonly<{
   open: boolean
   session: LessonSessionDto
@@ -125,6 +127,7 @@ export const LessonInfoDrawer = ({
           课堂信息
         </h2>
         <button type="button" className="secondary-button" onClick={onClose}>
+          <UiIcon name="x" />
           关闭课堂信息
         </button>
       </header>

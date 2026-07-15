@@ -10,6 +10,7 @@ import type {
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { WorkspaceContextual } from '../app/WorkspaceShell'
+import { FilePickerButton } from '../ui/FilePickerButton'
 import { DocumentCreateDialog } from './DocumentCreateDialog'
 import { DocumentDetailPanel } from './DocumentDetailPanel'
 import { DocumentList } from './DocumentList'
@@ -344,11 +345,7 @@ export const DocumentLibrary = ({
     return true
   }
 
-  const importPdf = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0]
-    event.currentTarget.value = ''
-    if (!file) return
-
+  const importPdf = async (file: File) => {
     const filePath = window.deepstorming.documents.getPathForFile(file)
     if (filePath === undefined) {
       setAsyncState({
@@ -622,16 +619,12 @@ export const DocumentLibrary = ({
             <button type="button" onClick={() => setCreateDialogOpen(true)}>
               粘贴文本 / 导入 TXT、MD
             </button>
-            <label className="file-picker">
-              <span>{asyncState.status === 'loading' ? '处理中…' : '导入可选择文字的 PDF'}</span>
-              <input
-                type="file"
-                aria-label="导入可选择文字的 PDF"
-                accept=".pdf,application/pdf"
-                disabled={asyncState.status === 'loading'}
-                onChange={(event) => void importPdf(event)}
-              />
-            </label>
+            <FilePickerButton
+              label="导入 PDF"
+              accept=".pdf,application/pdf"
+              disabled={asyncState.status === 'loading'}
+              onFile={(file) => void importPdf(file)}
+            />
           </div>
           <p className="field-help">第一版仅支持带可选择文字层的 PDF，不支持扫描件。</p>
         </div>
