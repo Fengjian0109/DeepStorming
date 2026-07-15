@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,9 +44,25 @@ vi.mock('../provider/ProviderManager', async () => {
 })
 
 import { SettingsCenter } from './SettingsCenter'
+import { AppearanceProvider } from '../appearance/AppearanceProvider'
+
+const renderSettings = () =>
+  render(
+    <AppearanceProvider>
+      <SettingsCenter />
+    </AppearanceProvider>,
+  )
 
 beforeEach(() => {
   vi.stubGlobal('React', React)
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
+  )
   vi.stubGlobal('deepstorming', {
     learningSettings: {
       get: vi.fn().mockResolvedValue({
@@ -91,21 +107,25 @@ afterEach(() => {
 })
 
 describe('SettingsCenter', () => {
-  it('loads settings and exposes provider, tutor, profile, and classroom sections', async () => {
+  it('loads settings and exposes every progressive settings category', async () => {
     const user = userEvent.setup()
-    render(<SettingsCenter />)
+    renderSettings()
 
     expect(screen.getByText('正在加载学习设置…')).toBeTruthy()
+    const nav = await screen.findByRole('navigation', { name: '设置分类' })
+    for (const name of ['AI Provider', '导师 / 伙伴', '个人资料', '课堂设置', '外观']) {
+      expect(within(nav).getByRole('button', { name })).toBeTruthy()
+    }
     await user.click(await screen.findByRole('button', { name: '导师 / 伙伴' }))
     expect(screen.getByText('苏格拉底导师')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'AI Provider' }))
-    expect(screen.getByText('Provider 设置内容')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '外观' }))
+    expect(screen.getByRole('heading', { name: '外观' })).toBeTruthy()
   })
 
   it('saves the user display name with revision semantics', async () => {
     const user = userEvent.setup()
-    render(<SettingsCenter />)
+    renderSettings()
 
     await user.click(await screen.findByRole('button', { name: '个人资料' }))
     const input = screen.getByLabelText('你的名称')
@@ -121,7 +141,7 @@ describe('SettingsCenter', () => {
 
   it('saves classroom pace and compression threshold', async () => {
     const user = userEvent.setup()
-    render(<SettingsCenter />)
+    renderSettings()
 
     await user.click(await screen.findByRole('button', { name: '课堂设置' }))
     await user.selectOptions(screen.getByLabelText('默认课堂节奏'), 'fast')
@@ -137,7 +157,7 @@ describe('SettingsCenter', () => {
 
   it('imports and saves a tutor avatar through the controlled asset API', async () => {
     const user = userEvent.setup()
-    render(<SettingsCenter />)
+    renderSettings()
 
     await user.click(await screen.findByRole('button', { name: '导师 / 伙伴' }))
     await user.click(screen.getByRole('button', { name: '编辑' }))

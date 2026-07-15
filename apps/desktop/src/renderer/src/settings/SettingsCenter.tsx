@@ -3,23 +3,28 @@ import React, { useEffect, useState } from 'react'
 
 import { WorkspaceContextual } from '../app/WorkspaceShell'
 import { ProviderManager } from '../provider/ProviderManager'
+import { UiIcon, type UiIconName } from '../ui/UiIcon'
+import { AppearanceEditor } from './AppearanceEditor'
 import { ClassroomPreferencesEditor } from './ClassroomPreferencesEditor'
+import { canLeaveSettings } from './settings-navigation'
 import { TutorProfileEditor } from './TutorProfileEditor'
 import { UserProfileEditor } from './UserProfileEditor'
 
-type Section = 'provider' | 'tutors' | 'profile' | 'classroom'
+type Section = 'provider' | 'tutors' | 'profile' | 'classroom' | 'appearance'
 
-const sections: readonly Readonly<{ id: Section; label: string }>[] = [
-  { id: 'provider', label: 'AI Provider' },
-  { id: 'tutors', label: '导师 / 伙伴' },
-  { id: 'profile', label: '个人资料' },
-  { id: 'classroom', label: '课堂设置' },
+const sections: readonly Readonly<{ id: Section; label: string; icon: UiIconName }>[] = [
+  { id: 'provider', label: 'AI Provider', icon: 'provider' },
+  { id: 'tutors', label: '导师 / 伙伴', icon: 'tutor' },
+  { id: 'profile', label: '个人资料', icon: 'user' },
+  { id: 'classroom', label: '课堂设置', icon: 'lessons' },
+  { id: 'appearance', label: '外观', icon: 'appearance' },
 ]
 
 export const SettingsCenter = (): React.JSX.Element => {
   const [section, setSection] = useState<Section>('provider')
   const [settings, setSettings] = useState<LearningSettingsDto>()
   const [error, setError] = useState('')
+  const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -49,6 +54,13 @@ export const SettingsCenter = (): React.JSX.Element => {
     )
   }
 
+  const requestSection = (next: Section) => {
+    if (next === section) return
+    if (!canLeaveSettings(dirty, window.confirm)) return
+    setDirty(false)
+    setSection(next)
+  }
+
   return (
     <>
       <WorkspaceContextual>
@@ -58,9 +70,10 @@ export const SettingsCenter = (): React.JSX.Element => {
               key={item.id}
               type="button"
               aria-current={section === item.id ? 'page' : undefined}
-              onClick={() => setSection(item.id)}
+              onClick={() => requestSection(item.id)}
             >
-              {item.label}
+              <UiIcon name={item.icon} />
+              <span>{item.label}</span>
             </button>
           ))}
         </nav>
@@ -95,6 +108,7 @@ export const SettingsCenter = (): React.JSX.Element => {
           onSaved={(classroomPreferences) => setSettings({ ...settings, classroomPreferences })}
         />
       )}
+      {section === 'appearance' && <AppearanceEditor />}
     </>
   )
 }

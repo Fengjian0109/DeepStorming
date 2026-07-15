@@ -593,10 +593,107 @@ h2 {
 }
 
 .settings-contextual-navigation button {
+  display: flex;
+  gap: 10px;
+  align-items: center;
   width: 100%;
   text-align: left;
   background: transparent;
   color: inherit;
+}
+
+.settings-page-header {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  padding: 24px clamp(20px, 4vw, 56px) 18px;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-canvas) 92%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.settings-page-heading-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.settings-page-heading-copy {
+  min-width: 0;
+}
+
+.settings-breadcrumb {
+  margin-bottom: 7px;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.settings-page-heading-copy h1,
+.settings-page-heading-copy p {
+  margin: 0;
+}
+
+.settings-page-heading-copy h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+}
+
+.settings-page-heading-copy p {
+  margin-top: 6px;
+  color: var(--color-text-muted);
+}
+
+.settings-page-action {
+  margin-inline-start: auto;
+}
+
+.appearance-editor {
+  height: 100%;
+  padding: clamp(24px, 5vw, 64px);
+  overflow: auto;
+}
+
+.appearance-editor > h1 {
+  font-family: var(--font-display);
+}
+
+.appearance-editor > p {
+  color: var(--color-text-muted);
+}
+
+.appearance-options {
+  display: grid;
+  max-width: 720px;
+  gap: 10px;
+  margin-top: 28px;
+  padding: 0;
+  border: 0;
+}
+
+.appearance-options legend {
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+.appearance-option {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.appearance-option:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.appearance-option input {
+  width: 18px;
+  min-height: 18px;
+  accent-color: var(--color-accent);
 }
 
 .settings-contextual-navigation button[aria-current='page'] {
