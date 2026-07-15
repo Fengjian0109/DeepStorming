@@ -62,6 +62,16 @@ export class LocalDocumentAssetStore implements DocumentAssetStorePort {
     await rm(resolve(this.rootDirectory, 'figures', documentId, `${assetId}.png`), { force: true })
   }
 
+  public async readFigure(documentId: string, assetId: string): Promise<Uint8Array> {
+    validateId(documentId)
+    validateId(assetId)
+    const data = await readFile(
+      resolve(this.rootDirectory, 'figures', documentId, `${assetId}.png`),
+    )
+    if (!isPng(data)) throw new Error('Stored document figure asset is not PNG data')
+    return Uint8Array.from(data)
+  }
+
   private async assertSameContent(path: string, data: Uint8Array): Promise<void> {
     if (!(await readFile(path)).equals(Buffer.from(data))) {
       throw new Error('Document figure retry contains different content')

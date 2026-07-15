@@ -189,6 +189,7 @@ export interface DocumentAssetStorePort {
       data: Uint8Array
     }>,
   ): Promise<Readonly<{ assetId: string; storedPath: string }>>
+  readFigure(documentId: string, assetId: string): Promise<Uint8Array>
   deleteFigure(documentId: string, assetId: string): Promise<void>
 }
 

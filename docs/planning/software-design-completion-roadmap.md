@@ -1,6 +1,6 @@
 # DeepStorming 软件设计收敛路线图
 
-- 日期：2026-07-14
+- 日期：2026-07-15
 - 目标：把当前已完成的 Provider / 文本文档 / LessonSession 基线，收敛到可发布 MVP 所需的剩余软件设计与实施顺序。
 - 状态：Phase 5 Provider-backed lesson loop、Phase 6 PDF 文档底座、D3 文档阅读器/证据定位、D4 检索上下文、D5 TutorAction / LessonState 状态机、D6 Review Scheduler MVP、D7 Paper Lesson Mode MVP，以及 D1 DeepSeek 真实云 Provider 手动验收已完成；D8 已推进到自用版发布候选阶段，并保留更完整的论文工作流扩展与公开发布工作。
 
@@ -14,8 +14,8 @@
 | 阶段                                         | 状态                 | 范围                                                                                                                                              |
 | -------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Stage 1：interface foundation                | 已完成（2026-07-14） | 分层双侧栏、拖拽/收起、文档导入工具栏、紧凑详情与延迟阅读器、按教材分组的课程历史、纯对话课堂、固定输入框、信息抽屉、响应式/无障碍和 Electron E2E |
-| Stage 2：AI-only tutor contract and settings | 待开始               | 去除本地教学兜底；导师/伙伴提示词、性格、领域、头像和 Provider 设置；稳定 AI 错误与恢复语义                                                       |
-| Stage 3：rich chat and citation pipeline     | 待开始               | Markdown/LaTeX、强调引用、可选择文本 PDF 的图像提取与引用匹配、用户公式渲染                                                                       |
+| Stage 2：AI-only tutor contract and settings | 已完成（2026-07-14） | 去除本地教学兜底；导师/伙伴提示词、性格、领域、头像和 Provider 设置；稳定 AI 错误与恢复语义                                                       |
+| Stage 3：rich chat and citation pipeline     | 已完成（2026-07-15） | Markdown/LaTeX、强调引用、可选择文本 PDF 的图像提取与引用匹配、用户公式渲染                                                                       |
 | Stage 4：lesson lifecycle and export         | 待开始               | 三档节奏、下课保存记忆、总结复习或休息、按教材保存多节完整课程、MD/PDF 聊天导出                                                                   |
 | Stage 5：context compression and hardening   | 待开始               | 可配置阈值（默认剩余 30%）、AI 上下文精炼、token 统计、故障与长会话加固                                                                           |
 

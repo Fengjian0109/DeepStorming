@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { LessonSessionDto } from '@deepstorming/contracts'
+import type { DeepStormingBootstrapApi, LessonSessionDto } from '@deepstorming/contracts'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
@@ -143,6 +143,66 @@ describe('LessonConversation', () => {
       blockId: 'block-4',
     })
     expect(scroller.scrollTop).toBe(180)
+  })
+
+  it('loads verified figure references and returns to their PDF page', async () => {
+    const documentId = '00000000-0000-4000-8000-000000000201'
+    const figureId = '00000000-0000-4000-8000-000000000301'
+    const getFigureAsset = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        figure: {
+          id: figureId,
+          documentId,
+          pageNumber: 5,
+          label: '图 3',
+          caption: '模型结构',
+          assetId: '00000000-0000-4000-8000-000000000401',
+          assetKind: 'page_render',
+          width: 612,
+          height: 792,
+          createdAt: '2026-07-14T00:00:00.000Z',
+        },
+        mediaType: 'image/png',
+        dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+      },
+      requestId: '00000000-0000-4000-8000-000000000001',
+    })
+    Object.defineProperty(window, 'deepstorming', {
+      configurable: true,
+      value: { documents: { getFigureAsset } } as unknown as DeepStormingBootstrapApi,
+    })
+    const onReturnToEvidence = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <LessonConversation
+        session={
+          {
+            ...baseSession,
+            documentId,
+            messages: [
+              {
+                ...baseSession.messages[1],
+                tutorTurn: {
+                  narration: null,
+                  responseMarkdown: '观察这张结构图。',
+                  citations: [],
+                  figureReferences: [{ figureId, rationale: '用于定位模块关系' }],
+                },
+              },
+            ],
+          } as LessonSessionDto
+        }
+        onRetryRun={vi.fn()}
+        onCancelRetry={vi.fn()}
+        onReturnToEvidence={onReturnToEvidence}
+      />,
+    )
+
+    expect(await screen.findByRole('img', { name: '图 3：模型结构' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '回到图片来源' }))
+    expect(onReturnToEvidence).toHaveBeenCalledWith({ documentId, pageNumber: 5 })
   })
 
   it('renders a useful empty state', () => {

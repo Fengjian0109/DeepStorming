@@ -28,6 +28,25 @@ describe('LocalDocumentAssetStore', () => {
 
     expect(second).toEqual(first)
     expect(await readFile(first.storedPath)).toEqual(Buffer.from(png))
+    await expect(store.readFigure(input.documentId, input.assetId)).resolves.toEqual(png)
+  })
+
+  it('does not read assets outside the requested document namespace', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'deepstorming-assets-'))
+    roots.push(root)
+    const store = new LocalDocumentAssetStore(root)
+    await store.writeFigure({
+      documentId: '00000000-0000-4000-8000-000000000201',
+      assetId: '00000000-0000-4000-8000-000000000301',
+      data: png,
+    })
+
+    await expect(
+      store.readFigure(
+        '00000000-0000-4000-8000-000000000202',
+        '00000000-0000-4000-8000-000000000301',
+      ),
+    ).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('rejects traversal, non-PNG data, and conflicting retries', async () => {

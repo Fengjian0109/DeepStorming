@@ -1,9 +1,9 @@
 # DeepStorming 当前开发状态
 
-- 更新时间：2026-07-14
+- 更新时间：2026-07-15
 - 当前分支：`codex/all-stages`
-- 当前阶段：AI-first workspace redesign — Stage 3 rich conversation
-- 状态：Stage 1–2 已完成；Stage 3 的结构化导师回复、单次修复与持久化已完成，正在推进 Markdown/LaTeX、引用卡片和 PDF 图片管线
+- 当前阶段：AI-first workspace redesign — Stage 4 lesson lifecycle and export
+- 状态：Stage 1–3 已完成；正在推进完整下课/复习生命周期与聊天记录导出
 
 ## AI-first workspace redesign — Stage 3
 
@@ -16,8 +16,10 @@
 - 导师与学习者消息统一使用安全 Markdown/GFM/LaTeX 管线；导师动作单独以弱化斜体显示，代码、表格、链接和行内/块级公式均可读，原始 HTML、事件属性和危险 URL 不进入 DOM。
 - 已验证文本引用显示为强调卡片，包含逐字 quote、页码范围和引用理由；可从聊天直接回到当前 PDF 的来源 block，点击本身不改写对话滚动锚点。
 - 可选择文本 PDF 导入会匹配 `Figure`、`Fig.` 与 `图` 图注：优先保存对应嵌入图片，无法匹配时保存受控页面渲染 PNG。Migration 19 记录图片元数据与抽取完成状态，空结果同样可幂等完成；取消/失败不会伪造完成记录。
+- Main/Preload 只通过 `documentId + figureId` 的显式 IPC 读取图片；Application 二次核对图片归属，未知和跨文档 ID 失败，Renderer 只收到受控 PNG data URL，不接触本地路径。
+- Provider 只收到当前文档可用图片的稳定 ID、页码与图题，结构化回复只能引用该白名单。聊天图片卡展示图片、图题、页码和理由，并可按页返回 PDF 阅读器。
 
-进行中：对话图片卡片与受控图片读取 IPC。
+Stage 3 仓库门禁：`pnpm check` 通过，68 个测试文件、652 个测试通过，类型检查和生产构建通过。
 
 ## AI-first workspace redesign — Stage 2
 
@@ -46,9 +48,8 @@ Stage 1 将桌面端从功能卡片堆叠页重构为“分层侧栏 + 对话主
 
 本阶段没有修改 Domain、Application、Infrastructure、IPC contract 或数据库 schema；它是现有能力的 Renderer 信息架构与交互重构。
 
-明确未完成：
+当前仍未完成：
 
-- Markdown/LaTeX、强调引用、PDF 图片提取与聊天中的自动图像匹配。
 - 下课保存记忆、课后复习/休息分流、课程完成语义和聊天记录 MD/PDF 导出。
 - 剩余上下文低于阈值时的自动压缩、token 统计与默认 30% 阈值设置。
 

@@ -7,6 +7,7 @@ import {
   ExtractDocumentFigures,
   GetDocument,
   GetDocumentPageBlocks,
+  GetDocumentFigureAsset,
   GetDocumentPages,
   ActivateProvider,
   AssembleLessonContext,
@@ -62,6 +63,7 @@ import type { App } from 'electron'
 
 import { ElectronAppInfoAdapter } from './app-info-adapter'
 import type { DocumentIpcDependencies } from './ipc/document-handlers'
+import type { DocumentAssetIpcDependencies } from './ipc/document-asset-handlers'
 import type { LessonIpcDependencies } from './ipc/lesson-handlers'
 import type { LearningSettingsIpcDependencies } from './ipc/learning-settings-handlers'
 import type { ProviderIpcDependencies } from './ipc/provider-handlers'
@@ -79,6 +81,7 @@ type LoggerLike = Readonly<{
 
 export type DesktopCompositionRoot = ProviderIpcDependencies &
   DocumentIpcDependencies &
+  DocumentAssetIpcDependencies &
   LessonIpcDependencies &
   LearningSettingsIpcDependencies &
   Readonly<{
@@ -141,6 +144,7 @@ export const createCompositionRoot = async (
       repository,
       vault,
       providerGatewayFactory,
+      documentImportRepository,
     )
 
     return {
@@ -170,6 +174,10 @@ export const createCompositionRoot = async (
       ),
       getDocumentPages: new GetDocumentPages(documentImportRepository),
       getDocumentPageBlocks: new GetDocumentPageBlocks(documentImportRepository),
+      getDocumentFigureAsset: new GetDocumentFigureAsset(
+        documentImportRepository,
+        documentAssetStore,
+      ),
       listLessonSessions: new ListLessonSessions(lessonRepository),
       startLessonFromDocument: new StartLessonFromDocument(
         documentRepository,

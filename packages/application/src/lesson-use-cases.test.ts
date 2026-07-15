@@ -4,7 +4,11 @@ import {
   type PaperReadingStage,
   type ProviderProfile,
 } from '@deepstorming/domain'
-import type { DocumentRepositoryPort, StoredDocumentDetail } from './document-ports'
+import type {
+  DocumentFigureRepositoryPort,
+  DocumentRepositoryPort,
+  StoredDocumentDetail,
+} from './document-ports'
 import type {
   DocumentSourceLocatorPort,
   LessonRepositoryPort,
@@ -343,6 +347,12 @@ class FakeGateway implements ProviderGatewayPort {
         readonly charCount: number
       }[]
       readonly learnerReply?: string
+      readonly availableFigures?: readonly Readonly<{
+        figureId: string
+        pageNumber: number
+        label: string
+        caption: string
+      }>[]
       readonly repair?: Readonly<{ reason: string }>
     }
     readonly token: CancellationToken
@@ -1329,6 +1339,7 @@ describe('lesson use cases', () => {
 
     expect(generator.calls).toEqual([
       {
+        documentId,
         documentTitle: 'Paper Map',
         sourceSnippet: 'Evidence',
         lessonMode: 'standard',
@@ -1686,6 +1697,7 @@ describe('lesson use cases', () => {
       factory,
     ).generateFollowUp(
       {
+        documentId,
         documentTitle: 'Paper Map',
         sourceSnippet: 'Evidence',
         lessonMode: 'standard',
@@ -1732,6 +1744,70 @@ describe('lesson use cases', () => {
     ])
   })
 
+  it('offers only current-document figures to the provider and accepts verified references', async () => {
+    const providers = new FakeProviderRepository()
+    const vault = new FakeVault()
+    const factory = new FakeGatewayFactory()
+    const figureId = '00000000-0000-4000-8000-000000000801'
+    factory.gateway.replyContents.push(
+      JSON.stringify({
+        narration: null,
+        responseMarkdown: '请观察图 2。',
+        citations: [],
+        figureReferences: [{ figureId, rationale: '展示结构关系' }],
+      }),
+    )
+    const figures: DocumentFigureRepositoryPort = {
+      isFigureExtractionComplete: async () => true,
+      completeFigureExtraction: async () => undefined,
+      listFigures: async (requestedDocumentId) =>
+        requestedDocumentId === documentId
+          ? [
+              {
+                id: figureId,
+                documentId,
+                pageNumber: 2,
+                label: 'Figure 2',
+                caption: 'Attention architecture',
+                assetId: '00000000-0000-4000-8000-000000000802',
+                assetKind: 'embedded_image',
+                width: 320,
+                height: 200,
+                createdAt: now,
+              },
+            ]
+          : [],
+    }
+
+    const result = await new ProviderLessonTutorReplyGenerator(
+      providers,
+      vault,
+      factory,
+      figures,
+    ).generateFollowUp(
+      {
+        documentId,
+        documentTitle: 'Paper Map',
+        sourceSnippet: 'Evidence',
+        lessonMode: 'paper',
+        paperStage: 'method_mechanics',
+        contextChunks: [],
+        learnerReply: '我需要看结构图。',
+      },
+      { cancelled: false, onCancel: () => () => undefined },
+    )
+
+    expect(result.tutorTurn?.figureReferences).toEqual([{ figureId, rationale: '展示结构关系' }])
+    expect(factory.gateway.calls[0]?.input.availableFigures).toEqual([
+      {
+        figureId,
+        pageNumber: 2,
+        label: 'Figure 2',
+        caption: 'Attention architecture',
+      },
+    ])
+  })
+
   it('repairs one invalid structured tutor turn and rejects a second invalid response', async () => {
     const providers = new FakeProviderRepository()
     const vault = new FakeVault()
@@ -1747,6 +1823,7 @@ describe('lesson use cases', () => {
     )
     const generator = new ProviderLessonTutorReplyGenerator(providers, vault, repairedFactory)
     const request = {
+      documentId,
       documentTitle: 'Paper Map',
       sourceSnippet: 'Evidence',
       lessonMode: 'standard' as const,
@@ -1787,6 +1864,7 @@ describe('lesson use cases', () => {
     await expect(
       generator.generateFirstQuestion(
         {
+          documentId,
           documentTitle: 'Paper Map',
           sourceSnippet: 'Evidence',
           lessonMode: 'paper',
@@ -1800,6 +1878,7 @@ describe('lesson use cases', () => {
     await expect(
       generator.generateFollowUp(
         {
+          documentId,
           documentTitle: 'Paper Map',
           sourceSnippet: 'Evidence',
           lessonMode: 'paper',

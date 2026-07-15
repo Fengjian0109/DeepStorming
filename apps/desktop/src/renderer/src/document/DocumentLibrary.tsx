@@ -59,7 +59,7 @@ const titleFromPdfName = (name: string): string => name.replace(/\.pdf$/iu, '').
 export type DocumentEvidenceFocus = Readonly<{
   documentId: string
   pageNumber: number
-  blockId: string
+  blockId?: string
 }>
 
 type LessonSourceSelection = Readonly<{
@@ -93,6 +93,7 @@ export const DocumentLibrary = ({
   const [readerOpen, setReaderOpen] = useState(false)
   const [selectedPdfTarget, setSelectedPdfTarget] =
     useState<Readonly<{ pageNumber: number; blockId: string }>>()
+  const [focusedPdfPageNumber, setFocusedPdfPageNumber] = useState<number>()
   const [searchQuery, setSearchQuery] = useState('')
   const [lessonPreparation, setLessonPreparation] = useState<
     Readonly<{
@@ -136,6 +137,7 @@ export const DocumentLibrary = ({
     readerRequestSequence.current += 1
     setSelectedDocumentId(document.id)
     setSelectedPdfTarget(undefined)
+    setFocusedPdfPageNumber(undefined)
     setReaderOpen(false)
     setDetailState({ status: 'loading', documentId: document.id })
     setPagePreviewState({ status: 'idle' })
@@ -206,6 +208,7 @@ export const DocumentLibrary = ({
     setReaderOpen(false)
     setPagePreviewState({ status: 'idle' })
     setSelectedPdfTarget(undefined)
+    setFocusedPdfPageNumber(undefined)
   }, [])
 
   useEffect(() => {
@@ -216,12 +219,17 @@ export const DocumentLibrary = ({
     if (listState.status !== 'ready') return
     const summary = listState.documents.find((document) => document.id === focusTarget.documentId)
     if (summary === undefined) return
-    const key = `${focusTarget.documentId}:${focusTarget.pageNumber}:${focusTarget.blockId}`
+    const key = `${focusTarget.documentId}:${focusTarget.pageNumber}:${focusTarget.blockId ?? 'page'}`
     if (consumedFocusKey.current === key) return
     void loadDetail(summary).then((document) => {
       if (document === undefined) return
       consumedFocusKey.current = key
-      setSelectedPdfTarget({ pageNumber: focusTarget.pageNumber, blockId: focusTarget.blockId })
+      setFocusedPdfPageNumber(focusTarget.pageNumber)
+      setSelectedPdfTarget(
+        focusTarget.blockId === undefined
+          ? undefined
+          : { pageNumber: focusTarget.pageNumber, blockId: focusTarget.blockId },
+      )
       void openReader(document)
       onFocusConsumed?.()
     })
@@ -421,6 +429,7 @@ export const DocumentLibrary = ({
       setPagePreviewState({ status: 'idle' })
       setReaderOpen(false)
       setSelectedPdfTarget(undefined)
+      setFocusedPdfPageNumber(undefined)
     }
     setDeleteTarget(undefined)
     setAsyncState({ status: 'success', message: '文档已删除。' })
@@ -464,6 +473,7 @@ export const DocumentLibrary = ({
           documentId={document.id}
           pages={pagePreviewState.pages}
           selectedTarget={selectedPdfTarget}
+          focusedPageNumber={focusedPdfPageNumber}
           onSelectTarget={setSelectedPdfTarget}
           onStartLesson={(input) =>
             void prepareLesson(

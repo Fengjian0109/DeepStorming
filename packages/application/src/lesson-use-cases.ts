@@ -24,7 +24,12 @@ import {
   type LessonPace,
   type LessonTutorSnapshot,
 } from '@deepstorming/domain'
-import type { ClockPort, DocumentRepositoryPort, IdGeneratorPort } from './document-ports'
+import type {
+  ClockPort,
+  DocumentFigureRepositoryPort,
+  DocumentRepositoryPort,
+  IdGeneratorPort,
+} from './document-ports'
 import { DocumentUseCaseError, type AssembleLessonContext } from './document-use-cases'
 import type {
   LessonRepositoryPort,
@@ -957,6 +962,7 @@ export class StartLessonFromDocument {
       this.tutorReplyGenerator,
       {
         documentTitle: draft.documentTitle,
+        documentId: draft.documentId,
         sourceSnippet: draft.source.snippet,
         lessonMode: draft.lessonMode,
         paperStage: draft.lessonMode === 'paper' ? 'orientation' : null,
@@ -1170,6 +1176,7 @@ export class SubmitLessonReply {
         this.tutorReplyGenerator,
         {
           documentTitle: session.documentTitle,
+          documentId: session.documentId,
           sourceSnippet: anchor.snippet,
           lessonMode: session.lessonMode,
           paperStage: currentPaperStage(session),
@@ -1372,6 +1379,7 @@ export class RetryLessonRun {
         this.tutorReplyGenerator,
         {
           documentTitle: session.documentTitle,
+          documentId: session.documentId,
           sourceSnippet: anchor.snippet,
           lessonMode: session.lessonMode,
           paperStage: currentPaperStage(session),
@@ -1568,7 +1576,22 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
     private readonly providers: ProviderRepositoryPort,
     private readonly vault: SecretVaultPort,
     private readonly gatewayFactory: ProviderGatewayFactoryPort,
+    private readonly figures?: DocumentFigureRepositoryPort,
   ) {}
+
+  private async availableFigures(documentId: string) {
+    if (this.figures === undefined) return []
+    try {
+      return (await this.figures.listFigures(documentId)).map((figure) => ({
+        figureId: figure.id,
+        pageNumber: figure.pageNumber,
+        label: figure.label,
+        caption: figure.caption,
+      }))
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+  }
 
   public async generateFirstQuestion(
     input: LessonTutorFirstQuestionRequest,
@@ -1595,6 +1618,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
     }
 
     const gateway = this.gatewayFactory.create(toProviderProfile(activeProvider))
+    const availableFigures = await this.availableFigures(input.documentId)
     const request = {
       modelName: activeProvider.modelName,
       ...(apiKey === undefined ? {} : { apiKey }),
@@ -1603,6 +1627,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       lessonMode: input.lessonMode,
       paperStage: input.paperStage,
       contextChunks: input.contextChunks,
+      ...(availableFigures.length === 0 ? {} : { availableFigures }),
       ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
       ...(input.pace === undefined ? {} : { pace: input.pace }),
     }
@@ -1611,7 +1636,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
     try {
       tutorTurn = parseTutorTurnCandidate(generated.content, {
         contextChunks: input.contextChunks,
-        allowedFigureIds: [],
+        allowedFigureIds: availableFigures.map((figure) => figure.figureId),
       })
     } catch (error) {
       if (!(error instanceof TutorTurnValidationError)) throw error
@@ -1622,7 +1647,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       try {
         tutorTurn = parseTutorTurnCandidate(repaired.content, {
           contextChunks: input.contextChunks,
-          allowedFigureIds: [],
+          allowedFigureIds: availableFigures.map((figure) => figure.figureId),
         })
       } catch {
         throw aiGenerationFailedError()
@@ -1661,6 +1686,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
     }
 
     const gateway = this.gatewayFactory.create(toProviderProfile(activeProvider))
+    const availableFigures = await this.availableFigures(input.documentId)
     const request = {
       modelName: activeProvider.modelName,
       ...(apiKey === undefined ? {} : { apiKey }),
@@ -1669,6 +1695,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       lessonMode: input.lessonMode,
       paperStage: input.paperStage,
       contextChunks: input.contextChunks,
+      ...(availableFigures.length === 0 ? {} : { availableFigures }),
       learnerReply: input.learnerReply,
       ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
       ...(input.pace === undefined ? {} : { pace: input.pace }),
@@ -1678,7 +1705,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
     try {
       tutorTurn = parseTutorTurnCandidate(generated.content, {
         contextChunks: input.contextChunks,
-        allowedFigureIds: [],
+        allowedFigureIds: availableFigures.map((figure) => figure.figureId),
       })
     } catch (error) {
       if (!(error instanceof TutorTurnValidationError)) throw error
@@ -1689,7 +1716,7 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       try {
         tutorTurn = parseTutorTurnCandidate(repaired.content, {
           contextChunks: input.contextChunks,
-          allowedFigureIds: [],
+          allowedFigureIds: availableFigures.map((figure) => figure.figureId),
         })
       } catch {
         throw aiGenerationFailedError()

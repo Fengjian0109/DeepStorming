@@ -11,6 +11,7 @@ export const DOCUMENT_CHANNELS = {
   importPdf: 'documents:import-pdf',
   getPages: 'documents:get-pages',
   getPageBlocks: 'documents:get-page-blocks',
+  getFigureAsset: 'documents:get-figure-asset',
 } as const
 
 const requestIdSchema = z.string().uuid()
@@ -34,6 +35,7 @@ export const documentBusinessErrorCodeSchema = z.enum([
   'DOCUMENT_VALIDATION_FAILED',
   'DOCUMENT_DUPLICATE',
   'DOCUMENT_NOT_FOUND',
+  'DOCUMENT_FIGURE_NOT_FOUND',
   'DOCUMENT_IMPORT_FAILED',
   'DOCUMENT_FILE_UNSUPPORTED',
   'DOCUMENT_FILE_TOO_LARGE',
@@ -47,6 +49,7 @@ const documentSharedErrorCodeSchema = appErrorCodeSchema.extract([
   'INTERNAL_ERROR',
   'IPC_RESPONSE_INVALID',
   'DATABASE_UNAVAILABLE',
+  'OPERATION_CANCELLED',
 ])
 
 export const documentErrorCodeSchema = z.union([
@@ -144,6 +147,21 @@ export const documentTextBlockSchema = z
   })
   .strict()
 
+export const documentFigureSchema = z
+  .object({
+    id: z.string().uuid(),
+    documentId: documentIdSchema,
+    pageNumber: z.number().int().positive(),
+    label: requiredTextSchema.max(120),
+    caption: requiredTextSchema.max(2_000),
+    assetId: z.string().uuid(),
+    assetKind: z.enum(['embedded_image', 'page_render']),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    createdAt: timestampSchema,
+  })
+  .strict()
+
 export const documentChunkSchema = z
   .object({
     id: z.string().uuid(),
@@ -201,6 +219,13 @@ export const getDocumentPageBlocksRequestSchema = z
     pageNumber: z.number().int().positive(),
   })
   .strict()
+export const getDocumentFigureAssetRequestSchema = z
+  .object({
+    requestId: requestIdSchema,
+    documentId: documentIdSchema,
+    figureId: z.string().uuid(),
+  })
+  .strict()
 
 const voidDataSchema = z.object({}).strict()
 const documentErrorSchema = z
@@ -242,6 +267,18 @@ export const documentPagesResultSchema = createDocumentResultSchema(z.array(docu
 export const documentTextBlocksResultSchema = createDocumentResultSchema(
   z.array(documentTextBlockSchema),
 )
+export const documentFigureAssetResultSchema = createDocumentResultSchema(
+  z
+    .object({
+      figure: documentFigureSchema,
+      mediaType: z.literal('image/png'),
+      dataUrl: z
+        .string()
+        .max(28_000_000)
+        .regex(/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/u),
+    })
+    .strict(),
+)
 
 export type DocumentTypeDto = z.infer<typeof documentTypeSchema>
 export type DocumentSourceKindDto = z.infer<typeof documentSourceKindSchema>
@@ -254,6 +291,7 @@ export type DocumentImportErrorDto = z.infer<typeof documentImportErrorSchema>
 export type DocumentImportJobDto = z.infer<typeof documentImportJobSchema>
 export type DocumentPageDto = z.infer<typeof documentPageSchema>
 export type DocumentTextBlockDto = z.infer<typeof documentTextBlockSchema>
+export type DocumentFigureDto = z.infer<typeof documentFigureSchema>
 export type DocumentChunkDto = z.infer<typeof documentChunkSchema>
 export type DocumentContextBudgetDto = z.infer<typeof documentContextBudgetSchema>
 export type ListDocumentsRequest = z.infer<typeof listDocumentsRequestSchema>
@@ -264,6 +302,7 @@ export type RemoveDocumentRequest = z.infer<typeof removeDocumentRequestSchema>
 export type ImportPdfDocumentRequest = z.infer<typeof importPdfDocumentRequestSchema>
 export type GetDocumentPagesRequest = z.infer<typeof getDocumentPagesRequestSchema>
 export type GetDocumentPageBlocksRequest = z.infer<typeof getDocumentPageBlocksRequestSchema>
+export type GetDocumentFigureAssetRequest = z.infer<typeof getDocumentFigureAssetRequestSchema>
 export type ListDocumentsResult = z.infer<typeof listDocumentsResultSchema>
 export type DocumentSummaryResult = z.infer<typeof documentSummaryResultSchema>
 export type DocumentDetailResult = z.infer<typeof documentDetailResultSchema>
@@ -272,3 +311,4 @@ export type RemoveDocumentResult = z.infer<typeof removeDocumentResultSchema>
 export type DocumentImportJobResult = z.infer<typeof documentImportJobResultSchema>
 export type DocumentPagesResult = z.infer<typeof documentPagesResultSchema>
 export type DocumentTextBlocksResult = z.infer<typeof documentTextBlocksResultSchema>
+export type DocumentFigureAssetResult = z.infer<typeof documentFigureAssetResultSchema>

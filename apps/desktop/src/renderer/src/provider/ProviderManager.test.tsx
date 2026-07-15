@@ -115,6 +115,7 @@ const installApi = (overrides: Partial<DeepStormingBootstrapApi['provider']> = {
       getPathForFile: vi.fn<DeepStormingBootstrapApi['documents']['getPathForFile']>(),
       getPages: vi.fn<DeepStormingBootstrapApi['documents']['getPages']>(),
       getPageBlocks: vi.fn<DeepStormingBootstrapApi['documents']['getPageBlocks']>(),
+      getFigureAsset: vi.fn<DeepStormingBootstrapApi['documents']['getFigureAsset']>(),
     },
     lessons: {
       list: vi

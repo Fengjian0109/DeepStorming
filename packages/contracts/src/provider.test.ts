@@ -395,6 +395,26 @@ describe('provider error and API contracts', () => {
           ],
           requestId,
         }),
+        getFigureAsset: async (_documentId: string, _figureId: string) => ({
+          ok: true as const,
+          data: {
+            figure: {
+              id: requestId,
+              documentId: providerId,
+              pageNumber: 1,
+              label: 'Figure 1',
+              caption: 'Architecture',
+              assetId: operationId,
+              assetKind: 'embedded_image' as const,
+              width: 320,
+              height: 200,
+              createdAt: '2026-07-12T00:01:00.000Z',
+            },
+            mediaType: 'image/png' as const,
+            dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+          },
+          requestId,
+        }),
       },
       lessons: {
         list: async () => ({ ok: true as const, data: [], requestId }),

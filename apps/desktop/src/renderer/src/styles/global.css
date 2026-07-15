@@ -1080,10 +1080,59 @@ h2 {
   padding-block: 4px;
 }
 
-.rich-message-citations {
+.rich-message-citations,
+.rich-message-figures {
   display: grid;
   gap: 9px;
   margin-top: 12px;
+}
+
+.figure-card {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid rgb(32 52 43 / 14%);
+  border-radius: 12px;
+  color: #20342b;
+  background: rgb(235 239 234 / 92%);
+}
+
+.figure-card img {
+  width: 100%;
+  height: auto;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.figure-card figcaption header {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.figure-card figcaption header span,
+.figure-card figcaption small {
+  color: #65766d;
+}
+
+.figure-card figcaption p,
+.figure-card-error p {
+  margin-block: 6px;
+}
+
+.figure-card-loading,
+.figure-card-error {
+  color: #65766d;
+}
+
+.pdf-page-focused {
+  outline: 3px solid rgb(76 138 109 / 46%);
+  outline-offset: 3px;
 }
 
 .citation-card {

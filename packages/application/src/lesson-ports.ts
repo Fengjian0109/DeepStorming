@@ -64,6 +64,7 @@ export type StoredLessonSession = Readonly<{
 export type LessonSessionView = LessonSession
 
 export type LessonTutorReplyRequest = Readonly<{
+  documentId: string
   documentTitle: string
   sourceSnippet: string
   lessonMode: LessonMode
@@ -75,6 +76,7 @@ export type LessonTutorReplyRequest = Readonly<{
 }>
 
 export type LessonTutorFirstQuestionRequest = Readonly<{
+  documentId: string
   documentTitle: string
   sourceSnippet: string
   lessonMode: LessonMode

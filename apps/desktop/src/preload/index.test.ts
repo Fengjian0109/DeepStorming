@@ -7,6 +7,7 @@ import {
   type DocumentDetailDto,
   type DocumentDraftDto,
   type DocumentImportJobDto,
+  type DocumentFigureDto,
   type DocumentPageDto,
   type DocumentSearchResultDto,
   type DocumentSummaryDto,
@@ -164,6 +165,18 @@ const documentTextBlock: DocumentTextBlockDto = {
   height: 16,
   createdAt: '2026-07-12T00:01:00.000Z',
 }
+const documentFigure: DocumentFigureDto = {
+  id: '00000000-0000-4000-8000-000000000302',
+  documentId: documentSummary.id,
+  pageNumber: 1,
+  label: 'Figure 1',
+  caption: 'Architecture',
+  assetId: '00000000-0000-4000-8000-000000000402',
+  assetKind: 'embedded_image',
+  width: 320,
+  height: 200,
+  createdAt: '2026-07-12T00:01:00.000Z',
+}
 
 const lessonDraft: LessonStartDraftDto = {
   documentId: documentSummary.id,
@@ -302,6 +315,7 @@ describe('preload API', () => {
       getPathForFile: expect.any(Function),
       getPages: expect.any(Function),
       getPageBlocks: expect.any(Function),
+      getFigureAsset: expect.any(Function),
     })
     expect(api.lessons).toEqual({
       list: expect.any(Function),
@@ -474,6 +488,26 @@ describe('preload API', () => {
       channel: DOCUMENT_CHANNELS.getPageBlocks,
       payload: { requestId: REQUEST_ID, documentId: PROVIDER_ID, pageNumber: 1 },
       response: { ok: true, data: [documentTextBlock], requestId: REQUEST_ID },
+    },
+    {
+      name: 'documents.getFigureAsset',
+      call: (api: DeepStormingApi) =>
+        api.documents.getFigureAsset(documentSummary.id, documentFigure.id),
+      channel: DOCUMENT_CHANNELS.getFigureAsset,
+      payload: {
+        requestId: REQUEST_ID,
+        documentId: documentSummary.id,
+        figureId: documentFigure.id,
+      },
+      response: {
+        ok: true,
+        data: {
+          figure: documentFigure,
+          mediaType: 'image/png',
+          dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+        },
+        requestId: REQUEST_ID,
+      },
     },
     {
       name: 'lessons.list',

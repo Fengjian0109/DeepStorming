@@ -340,6 +340,40 @@ test('marks a structured tutor retry as the only repair attempt', async () => {
   expect(systemPrompt).toContain('这是唯一一次修复机会')
 })
 
+test('offers verified current-document figure metadata to the tutor prompt', async () => {
+  await startServer((_request, response) => {
+    response.setHeader('content-type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: '{}' } }] }))
+  })
+
+  await new OpenAICompatibleGateway(baseUrl).generateLessonTutorFirstQuestion(
+    {
+      modelName: 'model-a',
+      documentTitle: 'Research Notes',
+      sourceSnippet: 'Evidence',
+      contextChunks: [],
+      availableFigures: [
+        {
+          figureId: '00000000-0000-4000-8000-000000000801',
+          pageNumber: 2,
+          label: 'Figure 2',
+          caption: 'Attention architecture',
+        },
+      ],
+    },
+    liveToken(),
+  )
+
+  const messages = JSON.parse(requests[0]?.body ?? '{}').messages as Array<{
+    role: string
+    content: string
+  }>
+  expect(messages[0]?.content).toContain('figureReferences 只能使用可用图片清单中的 figureId')
+  expect(messages[1]?.content).toContain(
+    '00000000-0000-4000-8000-000000000801 | 第 2 页 | Figure 2 | Attention architecture',
+  )
+})
+
 test('rejects empty lesson tutor content as invalid provider response', async () => {
   await startServer((_request, response) => {
     response.setHeader('content-type', 'application/json')

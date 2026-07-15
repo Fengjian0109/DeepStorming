@@ -7,6 +7,8 @@ import {
   documentBusinessErrorCodeSchema,
   documentDetailSchema,
   documentErrorCodeSchema,
+  documentFigureAssetResultSchema,
+  documentFigureSchema,
   documentImportJobResultSchema,
   documentImportJobSchema,
   documentPageSchema,
@@ -15,6 +17,7 @@ import {
   documentSummarySchema,
   documentTextBlockSchema,
   getDocumentPageBlocksRequestSchema,
+  getDocumentFigureAssetRequestSchema,
   getDocumentPagesRequestSchema,
   importPdfDocumentRequestSchema,
   listDocumentsRequestSchema,
@@ -35,6 +38,7 @@ describe('document contracts', () => {
       importPdf: 'documents:import-pdf',
       getPages: 'documents:get-pages',
       getPageBlocks: 'documents:get-page-blocks',
+      getFigureAsset: 'documents:get-figure-asset',
     })
   })
 
@@ -120,6 +124,7 @@ describe('document contracts', () => {
       'DOCUMENT_VALIDATION_FAILED',
       'DOCUMENT_DUPLICATE',
       'DOCUMENT_NOT_FOUND',
+      'DOCUMENT_FIGURE_NOT_FOUND',
       'DOCUMENT_IMPORT_FAILED',
       'DOCUMENT_FILE_UNSUPPORTED',
       'DOCUMENT_FILE_TOO_LARGE',
@@ -127,6 +132,57 @@ describe('document contracts', () => {
       'DOCUMENT_PDF_TEXT_MISSING',
       'DOCUMENT_PDF_PARSE_FAILED',
     ])
+  })
+
+  it('strictly validates controlled document figure asset requests and responses', () => {
+    const figureId = '00000000-0000-4000-8000-000000000301'
+    const figure = {
+      id: figureId,
+      documentId: requestId,
+      pageNumber: 2,
+      label: 'Figure 2',
+      caption: 'Attention architecture',
+      assetId: '00000000-0000-4000-8000-000000000401',
+      assetKind: 'embedded_image',
+      width: 320,
+      height: 200,
+      createdAt: '2026-07-14T00:00:00.000Z',
+    }
+
+    expect(
+      getDocumentFigureAssetRequestSchema.safeParse({
+        requestId,
+        documentId: requestId,
+        figureId,
+      }).success,
+    ).toBe(true)
+    expect(documentFigureSchema.safeParse(figure).success).toBe(true)
+    expect(
+      documentFigureAssetResultSchema.safeParse({
+        ok: true,
+        data: {
+          figure,
+          mediaType: 'image/png',
+          dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+        },
+        requestId,
+      }).success,
+    ).toBe(true)
+    expect(
+      documentFigureAssetResultSchema.safeParse({
+        ok: true,
+        data: { figure, mediaType: 'image/png', dataUrl: 'file:///private/figure.png' },
+        requestId,
+      }).success,
+    ).toBe(false)
+    expect(
+      getDocumentFigureAssetRequestSchema.safeParse({
+        requestId,
+        documentId: requestId,
+        figureId,
+        storedPath: '/private/figure.png',
+      }).success,
+    ).toBe(false)
   })
 
   it('accepts shared and document-specific error codes on document results', () => {

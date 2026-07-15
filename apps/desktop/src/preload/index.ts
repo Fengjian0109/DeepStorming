@@ -6,6 +6,7 @@ import {
   PROVIDER_CHANNELS,
   documentDetailResultSchema,
   documentImportJobResultSchema,
+  documentFigureAssetResultSchema,
   documentPagesResultSchema,
   documentSummaryResultSchema,
   documentTextBlocksResultSchema,
@@ -30,6 +31,7 @@ import {
   type DocumentDraftDto,
   type DocumentDetailResult,
   type DocumentImportJobResult,
+  type DocumentFigureAssetResult,
   type DocumentPagesResult,
   type DocumentSummaryResult,
   type DocumentTextBlocksResult,
@@ -171,6 +173,17 @@ const api: DeepStormingBootstrapApi = {
         DOCUMENT_CHANNELS.getPageBlocks,
         { requestId, documentId, pageNumber },
         documentTextBlocksResultSchema,
+      )
+    },
+    getFigureAsset: async (
+      documentId: string,
+      figureId: string,
+    ): Promise<DocumentFigureAssetResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        DOCUMENT_CHANNELS.getFigureAsset,
+        { requestId, documentId, figureId },
+        documentFigureAssetResultSchema,
       )
     },
   },

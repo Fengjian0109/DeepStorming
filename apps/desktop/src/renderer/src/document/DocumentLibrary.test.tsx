@@ -171,6 +171,7 @@ beforeEach(() => {
       getPageBlocks: vi
         .fn()
         .mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),
+      getFigureAsset: vi.fn(),
     },
     lessons: {
       list: vi.fn().mockResolvedValue({ ok: true, data: [], requestId: crypto.randomUUID() }),

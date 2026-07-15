@@ -6,7 +6,7 @@ import type {
   PdfFigureExtractorPort,
   StoredDocumentFigure,
 } from './document-ports'
-import { ExtractDocumentFigures } from './document-use-cases'
+import { ExtractDocumentFigures, GetDocumentFigureAsset } from './document-use-cases'
 
 const documentId = '00000000-0000-4000-8000-000000000201'
 const figureId = '00000000-0000-4000-8000-000000000301'
@@ -52,6 +52,7 @@ describe('ExtractDocumentFigures', () => {
     }
     const store: DocumentAssetStorePort = {
       writeFigure: vi.fn().mockResolvedValue({ assetId, storedPath: '/managed/figure.png' }),
+      readFigure: vi.fn(),
       deleteFigure: vi.fn(),
     }
     const ids = [figureId, assetId]
@@ -80,6 +81,7 @@ describe('ExtractDocumentFigures', () => {
     const extractor: PdfFigureExtractorPort = { extract: vi.fn() }
     const store: DocumentAssetStorePort = {
       writeFigure: vi.fn(),
+      readFigure: vi.fn(),
       deleteFigure: vi.fn(),
     }
     const useCase = new ExtractDocumentFigures(
@@ -98,5 +100,63 @@ describe('ExtractDocumentFigures', () => {
     ).rejects.toMatchObject({ code: 'OPERATION_CANCELLED' })
     expect(extractor.extract).not.toHaveBeenCalled()
     expect(repository.complete).toBe(false)
+  })
+})
+
+describe('GetDocumentFigureAsset', () => {
+  const storedFigure: StoredDocumentFigure = {
+    id: figureId,
+    documentId,
+    pageNumber: 2,
+    label: 'Figure 2',
+    caption: 'Attention architecture',
+    assetId,
+    assetKind: 'embedded_image',
+    width: 320,
+    height: 200,
+    createdAt: '2026-07-14T00:00:00.000Z',
+  }
+
+  it('reads a figure only after verifying ownership in the requested document', async () => {
+    const repository = new FigureRepository()
+    repository.figures = [storedFigure]
+    const store: DocumentAssetStorePort = {
+      writeFigure: vi.fn(),
+      readFigure: vi.fn().mockResolvedValue(png),
+      deleteFigure: vi.fn(),
+    }
+
+    const result = await new GetDocumentFigureAsset(repository, store).execute({
+      documentId,
+      figureId,
+    })
+
+    expect(result).toEqual({ figure: storedFigure, mediaType: 'image/png', data: png })
+    expect(store.readFigure).toHaveBeenCalledWith(documentId, assetId)
+  })
+
+  it('fails safely for unknown and cross-document figure identifiers without reading assets', async () => {
+    const repository = new FigureRepository()
+    repository.figures = [storedFigure]
+    const store: DocumentAssetStorePort = {
+      writeFigure: vi.fn(),
+      readFigure: vi.fn(),
+      deleteFigure: vi.fn(),
+    }
+    const useCase = new GetDocumentFigureAsset(repository, store)
+
+    await expect(
+      useCase.execute({
+        documentId: '00000000-0000-4000-8000-000000000202',
+        figureId,
+      }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_FIGURE_NOT_FOUND', retryable: false })
+    await expect(
+      useCase.execute({
+        documentId,
+        figureId: '00000000-0000-4000-8000-000000000302',
+      }),
+    ).rejects.toMatchObject({ code: 'DOCUMENT_FIGURE_NOT_FOUND', retryable: false })
+    expect(store.readFigure).not.toHaveBeenCalled()
   })
 })

@@ -9,6 +9,10 @@ import {
 import { ipcMain } from 'electron'
 
 import { createAppInfoHandler } from './app-info-handler'
+import {
+  createDocumentAssetIpcHandlers,
+  type DocumentAssetIpcDependencies,
+} from './document-asset-handlers'
 import { createDocumentIpcHandlers, type DocumentIpcDependencies } from './document-handlers'
 import { createLessonIpcHandlers, type LessonIpcDependencies } from './lesson-handlers'
 import {
@@ -20,6 +24,7 @@ import { createProviderIpcHandlers, type ProviderIpcDependencies } from './provi
 export const registerIpc = (
   dependencies: { getApplicationInfo: GetApplicationInfo } & ProviderIpcDependencies &
     DocumentIpcDependencies &
+    DocumentAssetIpcDependencies &
     LessonIpcDependencies &
     LearningSettingsIpcDependencies,
 ): void => {
@@ -39,6 +44,7 @@ export const registerIpc = (
 
   const handleAppInfo = createAppInfoHandler(dependencies.getApplicationInfo)
   const documentHandlers = createDocumentIpcHandlers(dependencies)
+  const documentAssetHandlers = createDocumentAssetIpcHandlers(dependencies)
   const lessonHandlers = createLessonIpcHandlers(dependencies)
   const providerHandlers = createProviderIpcHandlers(dependencies)
   const learningSettingsHandlers = createLearningSettingsIpcHandlers(dependencies)
@@ -63,6 +69,9 @@ export const registerIpc = (
   )
   ipcMain.handle(DOCUMENT_CHANNELS.getPageBlocks, (_event, input: unknown) =>
     documentHandlers.getPageBlocks(input),
+  )
+  ipcMain.handle(DOCUMENT_CHANNELS.getFigureAsset, (_event, input: unknown) =>
+    documentAssetHandlers.getFigureAsset(input),
   )
   ipcMain.handle(LESSON_CHANNELS.list, (_event, input: unknown) => lessonHandlers.list(input))
   ipcMain.handle(LESSON_CHANNELS.startFromDocument, (_event, input: unknown) =>

@@ -1,6 +1,6 @@
 import 'katex/dist/katex.min.css'
 
-import type { LessonTutorCitationDto } from '@deepstorming/contracts'
+import type { DocumentFigureDto, LessonTutorCitationDto } from '@deepstorming/contracts'
 import React from 'react'
 import Markdown, { type Components } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -10,6 +10,7 @@ import remarkMath from 'remark-math'
 
 import { richMessageSchema } from './rich-message-schema'
 import { CitationCard } from './CitationCard'
+import { FigureCard } from './FigureCard'
 
 type RichMessageProps = Readonly<{
   role: 'system' | 'tutor' | 'learner'
@@ -17,6 +18,9 @@ type RichMessageProps = Readonly<{
   narration?: string | null | undefined
   citations?: readonly LessonTutorCitationDto[] | undefined
   onReturnToCitation?: ((citation: LessonTutorCitationDto) => void) | undefined
+  documentId?: string | undefined
+  figureReferences?: readonly Readonly<{ figureId: string; rationale: string }>[] | undefined
+  onReturnToFigure?: ((figure: DocumentFigureDto) => void) | undefined
 }>
 
 const components: Components = {
@@ -31,6 +35,9 @@ export const RichMessage = ({
   narration,
   citations = [],
   onReturnToCitation,
+  documentId,
+  figureReferences = [],
+  onReturnToFigure,
 }: RichMessageProps): React.JSX.Element => (
   <div className={`rich-message rich-message-${role}`}>
     {narration && (
@@ -57,6 +64,19 @@ export const RichMessage = ({
             key={citation.chunkId}
             citation={citation}
             onReturnToSource={onReturnToCitation ? () => onReturnToCitation(citation) : undefined}
+          />
+        ))}
+      </div>
+    )}
+    {documentId !== undefined && figureReferences.length > 0 && (
+      <div className="rich-message-figures">
+        {figureReferences.map((reference) => (
+          <FigureCard
+            key={reference.figureId}
+            documentId={documentId}
+            figureId={reference.figureId}
+            rationale={reference.rationale}
+            {...(onReturnToFigure === undefined ? {} : { onReturnToSource: onReturnToFigure })}
           />
         ))}
       </div>

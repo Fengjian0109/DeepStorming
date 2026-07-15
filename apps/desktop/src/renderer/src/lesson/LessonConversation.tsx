@@ -9,7 +9,7 @@ type LessonConversationProps = Readonly<{
   onRetryRun: (modelRunId: string) => void
   onCancelRetry: () => void
   onReturnToEvidence?: (
-    target: Readonly<{ documentId: string; pageNumber: number; blockId: string }>,
+    target: Readonly<{ documentId: string; pageNumber: number; blockId?: string }>,
   ) => void
 }>
 
@@ -88,6 +88,10 @@ export const LessonConversation = ({
                 markdown={message.tutorTurn?.responseMarkdown ?? message.content}
                 narration={message.role === 'tutor' ? message.tutorTurn?.narration : null}
                 citations={message.role === 'tutor' ? message.tutorTurn?.citations : []}
+                documentId={session.documentId}
+                figureReferences={
+                  message.role === 'tutor' ? message.tutorTurn?.figureReferences : []
+                }
                 onReturnToCitation={
                   pdfAnchor && pdfTarget && onReturnToEvidence
                     ? () =>
@@ -95,6 +99,15 @@ export const LessonConversation = ({
                           documentId: pdfAnchor.documentId,
                           pageNumber: pdfTarget.pageNumber,
                           blockId: pdfTarget.blockId,
+                        })
+                    : undefined
+                }
+                onReturnToFigure={
+                  onReturnToEvidence
+                    ? (figure) =>
+                        onReturnToEvidence({
+                          documentId: figure.documentId,
+                          pageNumber: figure.pageNumber,
                         })
                     : undefined
                 }

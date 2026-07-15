@@ -128,6 +128,12 @@ export interface ProviderGatewayPort {
         pageNumberEnd: number
         charCount: number
       }>[]
+      availableFigures?: readonly Readonly<{
+        figureId: string
+        pageNumber: number
+        label: string
+        caption: string
+      }>[]
       tutorSnapshot?: LessonTutorSnapshot
       pace?: LessonPace
       repair?: Readonly<{ reason: string }>
@@ -148,6 +154,12 @@ export interface ProviderGatewayPort {
         pageNumberStart: number
         pageNumberEnd: number
         charCount: number
+      }>[]
+      availableFigures?: readonly Readonly<{
+        figureId: string
+        pageNumber: number
+        label: string
+        caption: string
       }>[]
       learnerReply: string
       tutorSnapshot?: LessonTutorSnapshot

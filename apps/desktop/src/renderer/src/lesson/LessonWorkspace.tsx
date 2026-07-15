@@ -53,7 +53,7 @@ export const LessonWorkspace = ({
 }: {
   selectedLessonId: string | undefined
   onReturnToEvidence?: (
-    target: Readonly<{ documentId: string; pageNumber: number; blockId: string }>,
+    target: Readonly<{ documentId: string; pageNumber: number; blockId?: string }>,
   ) => void
 }): React.JSX.Element => {
   const [listState, setListState] = useState<LessonListState>({ status: 'loading' })

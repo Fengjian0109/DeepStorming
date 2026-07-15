@@ -73,4 +73,35 @@ describe('PdfReaderPanel', () => {
     )
     expect(screen.getByText('证据文本不可定位')).toBeTruthy()
   })
+
+  it('highlights and scrolls to a page-level figure source', () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    })
+    const secondPage = {
+      ...page,
+      id: '00000000-0000-4000-8000-000000000202',
+      pageNumber: 2,
+      text: 'Figure source',
+    }
+
+    render(
+      <PdfReaderPanel
+        documentId={page.documentId}
+        pages={[
+          { page, blocks: [block] },
+          { page: secondPage, blocks: [] },
+        ]}
+        focusedPageNumber={2}
+        onStartLesson={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('article', { name: 'PDF 页面 2' }).className).toContain(
+      'pdf-page-focused',
+    )
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+  })
 })

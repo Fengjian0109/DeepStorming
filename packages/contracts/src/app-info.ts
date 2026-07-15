@@ -5,6 +5,7 @@ import type {
   DocumentDetailResult,
   DocumentDraftDto,
   DocumentImportJobResult,
+  DocumentFigureAssetResult,
   DocumentPagesResult,
   DocumentTextBlocksResult,
   ImportPdfDocumentRequest,
@@ -80,6 +81,7 @@ export type DeepStormingApi = {
     getPathForFile: (file: File) => string | undefined
     getPages: (documentId: string) => Promise<DocumentPagesResult>
     getPageBlocks: (documentId: string, pageNumber: number) => Promise<DocumentTextBlocksResult>
+    getFigureAsset: (documentId: string, figureId: string) => Promise<DocumentFigureAssetResult>
   }
   lessons: {
     list: () => Promise<LessonSessionsResult>

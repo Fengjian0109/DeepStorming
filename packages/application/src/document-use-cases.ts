@@ -45,6 +45,7 @@ export type DocumentUseCaseErrorCode =
   | 'DOCUMENT_VALIDATION_FAILED'
   | 'DOCUMENT_DUPLICATE'
   | 'DOCUMENT_NOT_FOUND'
+  | 'DOCUMENT_FIGURE_NOT_FOUND'
   | 'DOCUMENT_IMPORT_FAILED'
   | 'DOCUMENT_FILE_UNSUPPORTED'
   | 'DOCUMENT_FILE_TOO_LARGE'
@@ -84,6 +85,15 @@ export type ExtractDocumentFiguresInput = Readonly<{
   documentId: string
   filePath: string
   pages: readonly Readonly<{ pageNumber: number; text: string }>[]
+}>
+export type GetDocumentFigureAssetInput = Readonly<{
+  documentId: string
+  figureId: string
+}>
+export type DocumentFigureAsset = Readonly<{
+  figure: DocumentFigure
+  mediaType: 'image/png'
+  data: Uint8Array
 }>
 export type GetDocumentPageBlocksInput = Readonly<{ documentId: string; pageNumber: number }>
 export type RebuildDocumentChunksInput = Readonly<{ documentId: string }>
@@ -665,6 +675,46 @@ export class ExtractDocumentFigures {
       )
       if (error instanceof DocumentUseCaseError) throw error
       throw asImportFailure(error)
+    }
+  }
+}
+
+export class GetDocumentFigureAsset {
+  public constructor(
+    private readonly repository: DocumentFigureRepositoryPort,
+    private readonly assetStore: DocumentAssetStorePort,
+  ) {}
+
+  public async execute(input: GetDocumentFigureAssetInput): Promise<DocumentFigureAsset> {
+    let figure: DocumentFigure | undefined
+    try {
+      figure = (await this.repository.listFigures(input.documentId)).find(
+        (candidate) => candidate.id === input.figureId && candidate.documentId === input.documentId,
+      )
+    } catch (error) {
+      throw asDatabaseError(error)
+    }
+    if (figure === undefined) {
+      throw new DocumentUseCaseError(
+        'DOCUMENT_FIGURE_NOT_FOUND',
+        'The document figure was not found.',
+        false,
+      )
+    }
+
+    try {
+      return {
+        figure,
+        mediaType: 'image/png',
+        data: await this.assetStore.readFigure(figure.documentId, figure.assetId),
+      }
+    } catch (error) {
+      if (isDocumentUseCaseError(error)) throw error
+      throw new DocumentUseCaseError(
+        'DOCUMENT_FIGURE_NOT_FOUND',
+        'The document figure asset is unavailable.',
+        true,
+      )
     }
   }
 }

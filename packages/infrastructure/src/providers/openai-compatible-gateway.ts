@@ -95,6 +95,12 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
         pageNumberEnd: number
         charCount: number
       }>[]
+      availableFigures?: readonly Readonly<{
+        figureId: string
+        pageNumber: number
+        label: string
+        caption: string
+      }>[]
       learnerReply: string
       lessonMode?: 'standard' | 'paper'
       tutorSnapshot?: LessonTutorSnapshot
@@ -147,6 +153,12 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
         pageNumberStart: number
         pageNumberEnd: number
         charCount: number
+      }>[]
+      availableFigures?: readonly Readonly<{
+        figureId: string
+        pageNumber: number
+        label: string
+        caption: string
       }>[]
       lessonMode?: 'standard' | 'paper'
       tutorSnapshot?: LessonTutorSnapshot
@@ -331,6 +343,23 @@ const formatContextChunks = (
         )
         .join('\n')
 
+type AvailableFigure = Readonly<{
+  figureId: string
+  pageNumber: number
+  label: string
+  caption: string
+}>
+
+const formatAvailableFigures = (figures: readonly AvailableFigure[] | undefined): string =>
+  figures === undefined || figures.length === 0
+    ? ''
+    : `\n可用图片：\n${figures
+        .map(
+          (figure) =>
+            `${figure.figureId} | 第 ${figure.pageNumber} 页 | ${figure.label} | ${figure.caption}`,
+        )
+        .join('\n')}`
+
 const tutorSystemInstruction = (
   input: Readonly<{
     lessonMode?: 'standard' | 'paper'
@@ -362,11 +391,17 @@ const tutorSystemInstruction = (
     .join('\n')
 }
 
-const structuredTutorOutputInstruction = (repair?: Readonly<{ reason: string }>): string =>
+const structuredTutorOutputInstruction = (
+  repair?: Readonly<{ reason: string }>,
+  hasAvailableFigures = false,
+): string =>
   [
     '仅输出一个 JSON 对象，不要使用 Markdown 代码栅。字段必须且只能是 narration、responseMarkdown、citations、figureReferences。',
     'narration 是简短动作描写或 null；responseMarkdown 是对学习者展示的 Markdown/LaTeX 正文。',
     'citations 是 {chunkId,quote,rationale} 数组，quote 必须逐字来自对应上下文；figureReferences 是 {figureId,rationale} 数组。没有可验证项时使用空数组。',
+    hasAvailableFigures
+      ? 'figureReferences 只能使用可用图片清单中的 figureId，不得猜测或编造图片。'
+      : '',
     repair === undefined
       ? ''
       : `上一次输出无效：${repair.reason}这是唯一一次修复机会，请严格返回合法 JSON。`,
@@ -384,6 +419,7 @@ const lessonTutorFirstQuestionMessages = (input: {
     pageNumberEnd: number
     charCount: number
   }>[]
+  readonly availableFigures?: readonly AvailableFigure[]
   readonly lessonMode?: 'standard' | 'paper'
   readonly tutorSnapshot?: LessonTutorSnapshot
   readonly pace?: LessonPace
@@ -394,11 +430,14 @@ const lessonTutorFirstQuestionMessages = (input: {
     content: `${tutorSystemInstruction(
       input,
       '只基于用户提供的证据片段和扩展上下文提出开场问题，不编造来源。',
-    )}\n${structuredTutorOutputInstruction(input.repair)}`,
+    )}\n${structuredTutorOutputInstruction(
+      input.repair,
+      (input.availableFigures?.length ?? 0) > 0,
+    )}`,
   },
   {
     role: 'user',
-    content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n扩展上下文：\n${formatContextChunks(input.contextChunks)}\n请用中文提出一个简短开场问题，帮助学习者先判断这段证据想解决的核心问题。`,
+    content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n扩展上下文：\n${formatContextChunks(input.contextChunks)}${formatAvailableFigures(input.availableFigures)}\n请用中文提出一个简短开场问题，帮助学习者先判断这段证据想解决的核心问题。`,
   },
 ]
 
@@ -412,6 +451,7 @@ const lessonTutorMessages = (input: {
     pageNumberEnd: number
     charCount: number
   }>[]
+  readonly availableFigures?: readonly AvailableFigure[]
   readonly learnerReply: string
   readonly lessonMode?: 'standard' | 'paper'
   readonly tutorSnapshot?: LessonTutorSnapshot
@@ -423,11 +463,14 @@ const lessonTutorMessages = (input: {
     content: `${tutorSystemInstruction(
       input,
       '只基于用户提供的证据片段、扩展上下文和学习者回答继续追问，不编造来源。',
-    )}\n${structuredTutorOutputInstruction(input.repair)}`,
+    )}\n${structuredTutorOutputInstruction(
+      input.repair,
+      (input.availableFigures?.length ?? 0) > 0,
+    )}`,
   },
   {
     role: 'user',
-    content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n扩展上下文：\n${formatContextChunks(input.contextChunks)}\n学习者回答：${input.learnerReply}\n请用中文提出一个简短追问，帮助学习者验证自己的判断。`,
+    content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n扩展上下文：\n${formatContextChunks(input.contextChunks)}${formatAvailableFigures(input.availableFigures)}\n学习者回答：${input.learnerReply}\n请用中文提出一个简短追问，帮助学习者验证自己的判断。`,
   },
 ]
 

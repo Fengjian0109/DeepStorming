@@ -1,5 +1,5 @@
 import type { DocumentPageDto, DocumentTextBlockDto } from '@deepstorming/contracts'
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 export type PdfReaderPage = Readonly<{
   page: DocumentPageDto
@@ -10,6 +10,7 @@ type PdfReaderPanelProps = Readonly<{
   documentId: string
   pages: readonly PdfReaderPage[]
   selectedTarget?: Readonly<{ pageNumber: number; blockId: string }> | undefined
+  focusedPageNumber?: number | undefined
   onSelectTarget?: (target: Readonly<{ pageNumber: number; blockId: string }>) => void
   onStartLesson: (input: {
     documentId: string
@@ -28,12 +29,14 @@ export const PdfReaderPanel = ({
   documentId,
   pages,
   selectedTarget,
+  focusedPageNumber,
   onSelectTarget,
   onStartLesson,
 }: PdfReaderPanelProps): React.JSX.Element => {
   const [query, setQuery] = useState('')
   const [localTarget, setLocalTarget] = useState<{ pageNumber: number; blockId: string }>()
   const activeTarget = selectedTarget ?? localTarget
+  const focusedPageRef = useRef<HTMLElement>(null)
   const offsets = useMemo(() => {
     let pageOffset = 0
     const result = new Map<string, { startOffset: number; endOffset: number }>()
@@ -50,6 +53,13 @@ export const PdfReaderPanel = ({
     return result
   }, [pages])
   const normalizedQuery = normalize(query)
+
+  useEffect(() => {
+    const pageElement = focusedPageRef.current
+    if (focusedPageNumber !== undefined && typeof pageElement?.scrollIntoView === 'function') {
+      pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [focusedPageNumber, pages])
 
   const select = (pageNumber: number, blockId: string) => {
     const target = { pageNumber, blockId }
@@ -72,12 +82,18 @@ export const PdfReaderPanel = ({
       {pages.length === 0 && <p className="muted-state">暂无可读的 PDF 页面。</p>}
       <div className="pdf-reader-pages">
         {pages.map(({ page, blocks }) => {
+          const isFocusedPage = page.pageNumber === focusedPageNumber
           const visibleBlocks = blocks.filter(
             (block) =>
               normalizedQuery.length === 0 || normalize(block.text).includes(normalizedQuery),
           )
           return (
-            <article key={page.id} className="pdf-page-card">
+            <article
+              key={page.id}
+              ref={isFocusedPage ? focusedPageRef : undefined}
+              aria-label={`PDF 页面 ${page.pageNumber}`}
+              className={`pdf-page-card${isFocusedPage ? ' pdf-page-focused' : ''}`}
+            >
               <h4>PDF 页面 {page.pageNumber}</h4>
               <p className="field-help">
                 {Math.round(page.width)} × {Math.round(page.height)}
