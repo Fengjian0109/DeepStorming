@@ -7,12 +7,12 @@
 ## 1. 启动
 
 ```bash
-cd /Users/hezhendong/Desktop/deepstorming
+cd /Users/hezhendong/Desktop/deepstorming/.worktrees/codex-all-stages
 pnpm install
 pnpm dev
 ```
 
-若终端显示 `DATABASE_UNAVAILABLE`，先退出残留 DeepStorming/Electron 进程，再确认当前目录可写；不要删除已有数据库。开发环境的 `corepack enable` 权限错误不影响已经可用的 `pnpm`。
+`pnpm dev` 会在启动前自动为 Electron 重建 SQLite 原生模块，并在退出后恢复 Node 测试所需版本。若终端仍显示 `DATABASE_UNAVAILABLE`，先退出残留 DeepStorming/Electron 进程，再确认当前目录可写；不要删除已有数据库。开发环境的 `corepack enable` 权限错误不影响已经可用的 `pnpm`。
 
 ## 2. 设置 Provider、个人资料与导师
 

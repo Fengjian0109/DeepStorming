@@ -9,7 +9,7 @@
     "pnpm": ">=11.7.0 <12"
   },
   "scripts": {
-    "dev": "pnpm --filter @deepstorming/desktop dev",
+    "dev": "node scripts/dev.mjs",
     "build": "pnpm --filter @deepstorming/desktop build",
     "package:dir": "node scripts/package-dir.mjs",
     "lint": "eslint .",

@@ -21,3 +21,17 @@ test('restores the Node ABI after Electron E2E rebuild fails', () => {
   expect(calls).toEqual(['build', 'rebuild', 'restore'])
   expect(status).toBe(24)
 })
+
+test('restores the Node ABI after the Electron development process exits', async () => {
+  const devModule = await import('../../../../scripts/dev.mjs').catch(() => undefined)
+  expect(devModule?.runDevWithRestore).toBeTypeOf('function')
+  if (devModule === undefined) return
+
+  const calls: string[] = []
+  const status = await devModule.runDevWithRestore((phase) => {
+    calls.push(phase)
+    return phase === 'dev' ? 25 : 0
+  })
+  expect(calls).toEqual(['clean', 'rebuild', 'dev', 'restore'])
+  expect(status).toBe(25)
+})
