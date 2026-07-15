@@ -25,6 +25,21 @@ export const TutorProfileEditor = ({ tutors, onChanged }: Props): React.JSX.Elem
   const [state, setState] = useState<'idle' | 'saving' | 'error'>('idle')
   const [message, setMessage] = useState('')
 
+  const importAvatar = async (file: File | undefined) => {
+    if (file === undefined) return
+    setState('saving')
+    setMessage('')
+    const result = await window.deepstorming.learningSettings.importAvatar(file)
+    if (!result.ok) {
+      setState('error')
+      setMessage(result.error.message)
+      return
+    }
+    setDraft((current) => ({ ...current, avatarAssetId: result.data.assetId }))
+    setState('idle')
+    setMessage('头像导入成功，可保存导师档案。')
+  }
+
   const edit = (profile: TutorProfileDto) => {
     setEditing(profile)
     setDraft({
@@ -123,6 +138,18 @@ export const TutorProfileEditor = ({ tutors, onChanged }: Props): React.JSX.Elem
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
             />
           </label>
+          <label>
+            <span>导师头像</span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              disabled={state === 'saving'}
+              onChange={(event) => void importAvatar(event.currentTarget.files?.[0])}
+            />
+          </label>
+          {draft.avatarAssetId !== undefined && (
+            <p className="field-help">导师头像已导入并安全保存。</p>
+          )}
           <label>
             <span>性格</span>
             <textarea

@@ -23,6 +23,9 @@ importers:
       globals:
         specifier: 17.7.0
         version: 17.7.0
+      pdf-lib:
+        specifier: 1.17.1
+        version: 1.17.1
       prettier:
         specifier: 3.9.5
         version: 3.9.5

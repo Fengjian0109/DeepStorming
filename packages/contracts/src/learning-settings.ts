@@ -10,6 +10,7 @@ export const LEARNING_SETTINGS_CHANNELS = {
   archiveTutor: 'learning-settings:archive-tutor',
   saveClassroomPreferences: 'learning-settings:save-classroom-preferences',
   importAvatar: 'learning-settings:import-avatar',
+  getAvatar: 'learning-settings:get-avatar',
 } as const
 
 const requiredTextSchema = z.string().trim().min(1)
@@ -125,8 +126,18 @@ export const importAvatarRequestSchema = z
   .object({ requestId: requestIdSchema, sourcePath: requiredTextSchema })
   .strict()
 
-export const avatarAssetSchema = z
-  .object({ assetId: z.string().regex(/^[a-f\d]{64}\.(?:png|jpg|jpeg|webp)$/u) })
+const avatarAssetIdSchema = z.string().regex(/^[a-f\d]{64}\.(?:png|jpg|jpeg|webp)$/u)
+export const getAvatarRequestSchema = z
+  .object({ requestId: requestIdSchema, assetId: avatarAssetIdSchema })
+  .strict()
+
+export const avatarAssetSchema = z.object({ assetId: avatarAssetIdSchema }).strict()
+export const avatarDataSchema = z
+  .object({
+    assetId: avatarAssetIdSchema,
+    mediaType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+    dataUrl: z.string().regex(/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z\d+/]+=*$/u),
+  })
   .strict()
 
 export const learningSettingsResultSchema = createAppResultSchema(learningSettingsSchema)
@@ -134,6 +145,7 @@ export const tutorProfileResultSchema = createAppResultSchema(tutorProfileSchema
 export const userProfileResultSchema = createAppResultSchema(userProfileSchema)
 export const classroomPreferencesResultSchema = createAppResultSchema(classroomPreferencesSchema)
 export const avatarAssetResultSchema = createAppResultSchema(avatarAssetSchema)
+export const avatarDataResultSchema = createAppResultSchema(avatarDataSchema)
 
 export type TutorProfileDraftDto = z.infer<typeof tutorProfileDraftSchema>
 export type TutorProfileDto = z.infer<typeof tutorProfileSchema>
@@ -146,6 +158,7 @@ export type TutorProfileResult = z.infer<typeof tutorProfileResultSchema>
 export type UserProfileResult = z.infer<typeof userProfileResultSchema>
 export type ClassroomPreferencesResult = z.infer<typeof classroomPreferencesResultSchema>
 export type AvatarAssetResult = z.infer<typeof avatarAssetResultSchema>
+export type AvatarDataResult = z.infer<typeof avatarDataResultSchema>
 export type GetLearningSettingsRequest = z.infer<typeof getLearningSettingsRequestSchema>
 export type SaveUserProfileRequest = z.infer<typeof saveUserProfileRequestSchema>
 export type CreateTutorProfileRequest = z.infer<typeof createTutorProfileRequestSchema>
@@ -153,3 +166,4 @@ export type UpdateTutorProfileRequest = z.infer<typeof updateTutorProfileRequest
 export type ArchiveTutorProfileRequest = z.infer<typeof archiveTutorProfileRequestSchema>
 export type SaveClassroomPreferencesRequest = z.infer<typeof saveClassroomPreferencesRequestSchema>
 export type ImportAvatarRequest = z.infer<typeof importAvatarRequestSchema>
+export type GetAvatarRequest = z.infer<typeof getAvatarRequestSchema>

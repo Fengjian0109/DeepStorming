@@ -165,6 +165,7 @@ const installApi = (overrides: Partial<DeepStormingBootstrapApi['provider']> = {
       saveClassroomPreferences:
         vi.fn<DeepStormingBootstrapApi['learningSettings']['saveClassroomPreferences']>(),
       importAvatar: vi.fn<DeepStormingBootstrapApi['learningSettings']['importAvatar']>(),
+      getAvatar: vi.fn<DeepStormingBootstrapApi['learningSettings']['getAvatar']>(),
     },
   }
 

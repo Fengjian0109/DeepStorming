@@ -12,7 +12,7 @@ export type ContextBudget = Readonly<{
 
 export const contextWindowForModel = (modelName: string): number => {
   const normalized = modelName.trim().toLowerCase()
-  if (normalized.includes('mock-4k')) return 4_096
+  if (normalized.startsWith('mock-') && normalized.endsWith('-4k')) return 4_096
   if (normalized.includes('deepseek')) return 65_536
   if (normalized.includes('claude')) return 200_000
   if (normalized.includes('gpt-4.1')) return 1_047_576

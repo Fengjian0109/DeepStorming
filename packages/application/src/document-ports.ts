@@ -130,7 +130,12 @@ export type PdfFileDescription = Readonly<{
   contentHash: string
 }>
 
-export type StoredPdfFile = Readonly<{ storedPath: string }>
+export type StoredPdfFile = Readonly<{
+  /** Relocatable path persisted as metadata. */
+  storedPath: string
+  /** App-private absolute path used only by main-process processing adapters. */
+  processingPath: string
+}>
 
 export interface PdfFileStorePort {
   describe(filePath: string): Promise<PdfFileDescription>

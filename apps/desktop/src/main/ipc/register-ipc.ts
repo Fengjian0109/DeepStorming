@@ -141,4 +141,7 @@ export const registerIpc = (
   ipcMain.handle(LEARNING_SETTINGS_CHANNELS.importAvatar, (_event, input: unknown) =>
     learningSettingsHandlers.importAvatar(input),
   )
+  ipcMain.handle(LEARNING_SETTINGS_CHANNELS.getAvatar, (_event, input: unknown) =>
+    learningSettingsHandlers.getAvatar(input),
+  )
 }

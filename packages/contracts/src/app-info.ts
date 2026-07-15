@@ -37,6 +37,7 @@ import type {
 } from './lesson'
 import type {
   AvatarAssetResult,
+  AvatarDataResult,
   ClassroomPreferencesDto,
   ClassroomPreferencesResult,
   LearningSettingsResult,
@@ -128,6 +129,7 @@ export type DeepStormingApi = {
       preferences: ClassroomPreferencesDto,
     ) => Promise<ClassroomPreferencesResult>
     importAvatar: (file: File) => Promise<AvatarAssetResult>
+    getAvatar: (assetId: string) => Promise<AvatarDataResult>
   }
 }
 

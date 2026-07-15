@@ -424,6 +424,18 @@ const saveLesson = async (
   }
 }
 
+const saveAndReloadLesson = async (
+  lessons: LessonRepositoryPort,
+  session: StoredLessonSession,
+): Promise<StoredLessonSession> => {
+  const saved = await saveLesson(lessons, session)
+  try {
+    return (await lessons.findById(session.id)) ?? saved
+  } catch (error) {
+    throw asDatabaseError(error)
+  }
+}
+
 const toContextChunkSummary = (chunk: {
   id: string
   pageNumberStart: number
@@ -858,7 +870,7 @@ const updatePaperProfileAfterReply = (
   return {
     ...session.paperProfile,
     currentStage: nextPaperStageForReply(session.paperProfile.currentStage, reply),
-    stageSummary: reply.trim(),
+    stageSummary: reply.trim().slice(0, 500),
   }
 }
 
@@ -1326,7 +1338,7 @@ export class SubmitLessonReply {
       updatedAt: createdAt,
     }
 
-    return toView(await saveLesson(this.lessons, updated))
+    return toView(await saveAndReloadLesson(this.lessons, updated))
   }
 }
 
@@ -1569,7 +1581,7 @@ export class RetryLessonRun {
       updatedAt: createdAt,
     }
 
-    return toView(await saveLesson(this.lessons, updated))
+    return toView(await saveAndReloadLesson(this.lessons, updated))
   }
 }
 

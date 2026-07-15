@@ -299,7 +299,7 @@
 - Modify: `docs/planning/provider-cloud-release-acceptance.md`
 - Create: `docs/testing/ai-first-workspace-manual-test.md`
 
-- [ ] Add E2E for settings/profile/avatar, AI-only start, rich LaTeX/citation/figure chat, multi-session lesson completion, restart recovery, both exports, and forced context compression.
-- [ ] Add a real-DeepSeek opt-in acceptance path that reads the key only through the existing secure UI/Vault path and redacts all artifacts.
-- [ ] Run `pnpm check`, `pnpm test:e2e`, `pnpm package:dir`, and packaged persistence E2E; repair only evidence-backed failures.
-- [ ] Perform requirement-by-requirement audit against the design acceptance criteria, update planning docs, request code review, and integrate only after all gates pass.
+- [x] Add E2E for settings/profile/avatar, AI-only start, rich LaTeX/citation/figure chat, multi-session lesson completion, restart recovery, both exports, and forced context compression.
+- [x] Add a real-DeepSeek opt-in acceptance path that reads the key only through the existing secure UI/Vault path and redacts all artifacts.
+- [x] Run `pnpm check`, `pnpm test:e2e`, `pnpm package:dir`, and packaged persistence E2E; repair only evidence-backed failures.
+- [x] Perform requirement-by-requirement audit against the design acceptance criteria, update planning docs, request code review, and integrate only after all gates pass.

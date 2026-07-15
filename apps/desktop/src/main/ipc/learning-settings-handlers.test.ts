@@ -56,6 +56,13 @@ const dependencies = (): LearningSettingsIpcDependencies => ({
   archiveTutorProfile: { execute: vi.fn(() => tutor) },
   saveClassroomPreferences: { execute: vi.fn(() => preferences) },
   importAvatar: { execute: vi.fn(() => ({ assetId: `${'a'.repeat(64)}.png` })) },
+  getAvatarAsset: {
+    execute: vi.fn(() => ({
+      assetId: `${'a'.repeat(64)}.png`,
+      mediaType: 'image/png' as const,
+      data: new Uint8Array([137, 80, 78, 71]),
+    })),
+  },
 })
 
 describe('learning settings IPC handlers', () => {
@@ -101,5 +108,23 @@ describe('learning settings IPC handlers', () => {
     expect(deps.importAvatar.execute).toHaveBeenCalledWith('/tmp/avatar.png')
     expect(JSON.stringify(result)).not.toContain('/tmp/avatar.png')
     expect(result).toMatchObject({ ok: true, data: { assetId: `${'a'.repeat(64)}.png` } })
+  })
+
+  it('returns avatar bytes only as a controlled data URL', async () => {
+    const deps = dependencies()
+    const handlers = createLearningSettingsIpcHandlers(deps)
+    const assetId = `${'a'.repeat(64)}.png`
+    const result = await handlers.getAvatar({ requestId: REQUEST_ID, assetId })
+
+    expect(deps.getAvatarAsset.execute).toHaveBeenCalledWith(assetId)
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        assetId,
+        mediaType: 'image/png',
+        dataUrl: 'data:image/png;base64,iVBORw==',
+      },
+      requestId: REQUEST_ID,
+    })
   })
 })

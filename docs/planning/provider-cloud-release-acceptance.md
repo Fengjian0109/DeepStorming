@@ -66,6 +66,20 @@ Evidence links a claim to observable behavior. A learner should explain what the
   - 未在文档、仓库文件、终端输出中记录真实 API Key、Authorization header、原始响应正文或完整 prompt。
   - 本轮未额外执行错误 Key / 错误模型破坏性验证，避免对真实 key 流程引入不必要风险。
 
+## 4.2 DeepSeek opt-in 自动验收入口
+
+常规 `pnpm test:e2e` 永远不会访问真实 DeepSeek。需要复验时，显式提供只含 Key 的本地文件和当次要验证的模型名：
+
+```bash
+DEEPSTORMING_REAL_DEEPSEEK_KEY_FILE=/absolute/private/path/deepseek_api.txt \
+DEEPSTORMING_REAL_DEEPSEEK_MODEL=your-current-model \
+pnpm test:e2e:deepseek
+```
+
+该入口执行创建、启用、连接测试、真实首问、真实追问和重启恢复。Key 由测试进程从指定文件读取后填写到应用密码框，随后沿正式 Provider use case 和 Secret Vault 保存；不会作为命令参数、环境变量值或数据库字段传递。
+
+专用 Playwright 配置关闭 trace、截图、视频、HTML 报告和失败产物保留。测试使用临时 `userData` 并在结束后删除。运行者仍不得把 Key 文件放入仓库，也不得在失败时添加打印 Key 的临时诊断。
+
 ## 5. OpenAI-compatible 手动验收矩阵
 
 | 编号 | 场景              | 操作                                            | 期望                                             |
@@ -106,10 +120,10 @@ Evidence links a claim to observable behavior. A learner should explain what the
 
 ### 6.1 包体与原生模块
 
-- `pnpm package:dir` 成功。
-- `apps/desktop/release/mac-arm64/DeepStorming.app` 可启动。
-- `better_sqlite3.node` 位于 `app.asar.unpacked`，并能在 Electron runtime 中读写临时 SQLite。
-- 打包或 E2E 后重新运行 `pnpm check`，确认 Node ABI 已恢复。
+- [x] `pnpm package:dir` 成功。
+- [x] `apps/desktop/release/mac-arm64/DeepStorming.app` 可启动。
+- [x] `better_sqlite3.node` 位于 `app.asar.unpacked`，并通过打包应用重启持久化测试完成 Electron runtime 读写。
+- [x] 打包脚本与 E2E 脚本结束后恢复 Node ABI；最终 `pnpm check` 已通过。
 
 ### 6.2 品牌与 macOS 发布
 

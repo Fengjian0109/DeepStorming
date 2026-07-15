@@ -18,6 +18,7 @@
 | Stage 3：rich chat and citation pipeline     | 已完成（2026-07-15） | Markdown/LaTeX、强调引用、可选择文本 PDF 的图像提取与引用匹配、用户公式渲染                                                                       |
 | Stage 4：lesson lifecycle and export         | 已完成               | 三档节奏、下课保存记忆、总结复习或休息、按教材保存多节完整课程、MD/PDF 聊天导出                                                                   |
 | Stage 5：context compression and hardening   | 已完成               | 可配置阈值（默认剩余 30%）、AI 上下文精炼、token 统计、故障与长会话加固                                                                           |
+| Final acceptance                             | 已完成（2026-07-15） | AI-first 全旅程 E2E、真实 DeepSeek 可选安全验收入口、MD/PDF 导出、双课次、重启恢复、目录包与发布文档                                              |
 
 Stage 1 只改变 Renderer 信息架构与交互，没有修改 Domain、Application、Infrastructure、IPC contract 或数据库 schema。完成 Stage 1 不代表 Stage 2–5 的 AI 教学能力已经交付。
 
@@ -43,7 +44,7 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 7. D6 Review Scheduler MVP：`suggestedReview` 的诊断会自动生成 lesson-scoped `ReviewItem`，课堂页可记录 `ReviewEvent` 并更新下一次复习时间。
 8. D7 Paper Lesson Mode MVP：PDF 导入文档默认进入 `lessonMode='paper'`，课堂可展示论文阶段卡片、使用 paper tutor prompts，并在回答后推进/恢复 `paperProfile`。
 
-## 2. 剩余软件设计队列
+## 2. 软件设计队列与发布边界
 
 ### D1. 真实云 Provider 手动验收与发布前收尾
 
@@ -69,6 +70,7 @@ DeepStorming 已经具备以下可继续扩展的架构边界：
 当前状态：
 
 - DeepSeek 手动验收已完成并记录，使用 `deepseek-v4-flash` 成功通过创建、启用、连接测试、一次真实课堂生成与重启恢复验证。
+- 已提供独立 opt-in 自动验收入口；只有显式执行 `pnpm test:e2e:deepseek` 并提供本地 Key 文件和模型名时才访问真实服务，且不保留 Playwright trace、截图、视频或失败工件。
 - OpenAI-compatible 真实端点验收仍待真实 `HTTPS base URL + model + API key`，当前已补齐恢复执行设计与完成定义，但未把 mock 或文档推断当作真实验收结论。
 
 ### D2. PDF 文档底座

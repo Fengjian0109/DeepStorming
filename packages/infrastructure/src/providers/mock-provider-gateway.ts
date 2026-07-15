@@ -15,6 +15,8 @@ export class MockProviderGateway implements ProviderGatewayPort {
     if (token.cancelled) throw cancelledError()
     switch (input.modelName) {
       case 'mock-success':
+      case 'mock-rich':
+      case 'mock-rich-4k':
         return
       case 'mock-auth':
         throw new ProviderUseCaseError(
@@ -65,12 +67,19 @@ export class MockProviderGateway implements ProviderGatewayPort {
         pageNumberEnd: number
         charCount: number
       }>[]
+      availableFigures?: readonly Readonly<{
+        figureId: string
+        pageNumber: number
+        label: string
+        caption: string
+      }>[]
       learnerReply: string
     }>,
     token: CancellationToken,
   ): Promise<Readonly<{ content: string }>> {
     await this.testConnection({ modelName: input.modelName }, token)
     if (input.modelName === 'mock-delay') await waitForDelay(this.options.delayMs ?? 1_000, token)
+    if (input.modelName.startsWith('mock-rich')) return richTutorTurn(input)
     return {
       content: JSON.stringify({
         narration: null,
@@ -94,11 +103,18 @@ export class MockProviderGateway implements ProviderGatewayPort {
         pageNumberEnd: number
         charCount: number
       }>[]
+      availableFigures?: readonly Readonly<{
+        figureId: string
+        pageNumber: number
+        label: string
+        caption: string
+      }>[]
     }>,
     token: CancellationToken,
   ): Promise<Readonly<{ content: string }>> {
     await this.testConnection({ modelName: input.modelName }, token)
     if (input.modelName === 'mock-delay') await waitForDelay(this.options.delayMs ?? 1_000, token)
+    if (input.modelName.startsWith('mock-rich')) return richTutorTurn(input)
     return {
       content: JSON.stringify({
         narration: null,
@@ -184,6 +200,34 @@ export class MockProviderGateway implements ProviderGatewayPort {
         ],
       }),
     }
+  }
+}
+
+const richTutorTurn = (input: {
+  contextChunks: readonly Readonly<{ chunkId: string; text: string }>[]
+  availableFigures?: readonly Readonly<{ figureId: string }>[]
+}): Readonly<{ content: string }> => {
+  const chunk = input.contextChunks[0]
+  const figure = input.availableFigures?.[0]
+  return {
+    content: JSON.stringify({
+      narration: '导师指向证据与图表，等待你的推导。',
+      responseMarkdown: '用公式 $E=mc^2$ 表达后，你会怎样检验这条结论？',
+      citations:
+        chunk === undefined
+          ? []
+          : [
+              {
+                chunkId: chunk.chunkId,
+                quote: chunk.text.slice(0, 240),
+                rationale: '这段原文给出了判断与可观察证据之间的关系。',
+              },
+            ],
+      figureReferences:
+        figure === undefined
+          ? []
+          : [{ figureId: figure.figureId, rationale: '图表提供了可对照的结果。' }],
+    }),
   }
 }
 

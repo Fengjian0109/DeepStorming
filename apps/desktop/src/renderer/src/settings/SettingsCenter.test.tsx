@@ -64,14 +64,22 @@ beforeEach(() => {
         requestId,
       })),
       createTutor: vi.fn(),
-      updateTutor: vi.fn(),
+      updateTutor: vi.fn().mockImplementation(async (_id, _revision, draft) => ({
+        ok: true,
+        data: { ...tutor, ...draft, revision: 2, updatedAt: timestamp },
+        requestId,
+      })),
       archiveTutor: vi.fn(),
       saveClassroomPreferences: vi.fn().mockImplementation(async (value) => ({
         ok: true,
         data: value,
         requestId,
       })),
-      importAvatar: vi.fn(),
+      importAvatar: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { assetId: 'avatar-asset-1' },
+        requestId,
+      }),
     },
   })
 })
@@ -124,6 +132,27 @@ describe('SettingsCenter', () => {
     expect(await screen.findByText('课堂设置已保存。')).toBeTruthy()
     expect(window.deepstorming.learningSettings.saveClassroomPreferences).toHaveBeenCalledWith(
       expect.objectContaining({ defaultPace: 'fast', contextCompressionRemainingPercent: 25 }),
+    )
+  })
+
+  it('imports and saves a tutor avatar through the controlled asset API', async () => {
+    const user = userEvent.setup()
+    render(<SettingsCenter />)
+
+    await user.click(await screen.findByRole('button', { name: '导师 / 伙伴' }))
+    await user.click(screen.getByRole('button', { name: '编辑' }))
+    const avatar = new File([new Uint8Array([137, 80, 78, 71])], 'tutor.png', {
+      type: 'image/png',
+    })
+    await user.upload(screen.getByLabelText('导师头像'), avatar)
+    expect(await screen.findByText('导师头像已导入并安全保存。')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '保存导师' }))
+
+    expect(window.deepstorming.learningSettings.importAvatar).toHaveBeenCalledWith(avatar)
+    expect(window.deepstorming.learningSettings.updateTutor).toHaveBeenCalledWith(
+      tutorId,
+      1,
+      expect.objectContaining({ avatarAssetId: 'avatar-asset-1' }),
     )
   })
 })

@@ -56,7 +56,11 @@ const main = () => {
       )
     }
     if (phase === 'test')
-      return run('run Playwright desktop tests', [pnpmCli, 'exec', 'playwright', 'test'], root)
+      return run(
+        'run Playwright desktop tests',
+        [pnpmCli, 'exec', 'playwright', 'test', ...process.argv.slice(2)],
+        root,
+      )
     cleanNativeBuild()
     return run(
       'restore native modules for Node',

@@ -339,6 +339,7 @@ describe('preload API', () => {
       archiveTutor: expect.any(Function),
       saveClassroomPreferences: expect.any(Function),
       importAvatar: expect.any(Function),
+      getAvatar: expect.any(Function),
     })
   })
 

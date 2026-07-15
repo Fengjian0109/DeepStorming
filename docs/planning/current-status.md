@@ -2,10 +2,20 @@
 
 - 更新时间：2026-07-15
 - 当前分支：`codex/all-stages`
-- 当前阶段：AI-first workspace redesign — Stage 5 context compression and hardening
-- 状态：Stage 1–4 已完成；正在推进 token 预算、上下文快照与 AI 自动压缩
+- 当前阶段：AI-first workspace redesign — 最终发布验收
+- 状态：Stage 1–5 功能实现完成；最终 E2E、真实 Provider 可选验收入口、打包与文档收敛已补齐
 
-## AI-first workspace redesign — Stage 4（进行中）
+## AI-first workspace redesign — 最终验收
+
+- 新增一条发布级 Electron 旅程，覆盖设置、学习者/导师头像、三档节奏、可选择文本 PDF、图片提取、Markdown/LaTeX、逐字引用、图像引用、强制上下文压缩、Markdown/PDF 导出、下课记忆、立即复习、同教材第二节课和重启恢复。
+- 修复真实流水线中发现的三个缺陷：PDF 图片抽取误用相对路径、论文长回答导致 `stageSummary` 超过契约上限、导出反馈作为额外 grid child 被挤出可见区域。
+- 头像读取只接受受管资产引用，经 Application 所有权检查和显式 IPC 返回受控 data URL；Renderer 不接触文件路径。
+- 新增独立 `pnpm test:e2e:deepseek` 真实 DeepSeek 验收入口。它必须显式提供本地 Key 文件与模型名，密钥仍从 UI 密码输入框进入 Vault；独立配置关闭 trace、截图、视频和失败产物保留，常规 E2E 不运行该用例。
+- 手动测试教程见 `docs/testing/ai-first-workspace-manual-test.md`。
+- 最终自动门禁：`pnpm check` 通过（82 个测试文件、734 个测试）；`pnpm test:e2e` 通过（AI-first 与既有开发包旅程 3 个通过）；`pnpm package:dir` 成功；新生成目录包的独立持久化 E2E 通过。
+- 当前目录包仍使用 Electron 默认图标且未签名/未公证，符合个人自用候选边界，不等同于公开分发版本。
+
+## AI-first workspace redesign — Stage 4（已完成）
 
 已完成 Task 11 的领域、应用与持久化底座：
 

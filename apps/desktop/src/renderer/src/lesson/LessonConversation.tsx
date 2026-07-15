@@ -1,10 +1,12 @@
-import type { LessonSessionDto } from '@deepstorming/contracts'
+import type { LessonSessionDto, UserProfileDto } from '@deepstorming/contracts'
 import React, { useLayoutEffect, useRef, useState } from 'react'
 
 import { RichMessage } from './RichMessage'
+import { MessageAvatar } from './MessageAvatar'
 
 type LessonConversationProps = Readonly<{
   session: LessonSessionDto
+  learnerProfile?: UserProfileDto | undefined
   retryingModelRunId?: string | undefined
   onRetryRun: (modelRunId: string) => void
   onCancelRetry: () => void
@@ -23,6 +25,7 @@ const BOTTOM_THRESHOLD = 96
 
 export const LessonConversation = ({
   session,
+  learnerProfile,
   retryingModelRunId,
   onRetryRun,
   onCancelRetry,
@@ -77,43 +80,60 @@ export const LessonConversation = ({
               message.sourceAnchorIds.includes(anchor.id) && anchor.target?.kind === 'pdf_block',
           )
           const pdfTarget = pdfAnchor?.target?.kind === 'pdf_block' ? pdfAnchor.target : undefined
+          const participantName =
+            message.role === 'tutor'
+              ? (session.tutorSnapshot?.name ?? '导师')
+              : message.role === 'learner'
+                ? (learnerProfile?.displayName ?? '学习者')
+                : '系统'
+          const participantAvatar =
+            message.role === 'tutor'
+              ? session.tutorSnapshot?.avatarAssetId
+              : message.role === 'learner'
+                ? learnerProfile?.avatarAssetId
+                : undefined
           return (
-            <article
+            <div
               key={message.id}
-              className={`lesson-message-bubble lesson-message-${message.role}`}
-              aria-label={`${label}消息`}
+              className={`lesson-message-row lesson-message-row-${message.role}`}
             >
-              <RichMessage
-                role={message.role}
-                markdown={message.tutorTurn?.responseMarkdown ?? message.content}
-                narration={message.role === 'tutor' ? message.tutorTurn?.narration : null}
-                citations={message.role === 'tutor' ? message.tutorTurn?.citations : []}
-                documentId={session.documentId}
-                figureReferences={
-                  message.role === 'tutor' ? message.tutorTurn?.figureReferences : []
-                }
-                onReturnToCitation={
-                  pdfAnchor && pdfTarget && onReturnToEvidence
-                    ? () =>
-                        onReturnToEvidence({
-                          documentId: pdfAnchor.documentId,
-                          pageNumber: pdfTarget.pageNumber,
-                          blockId: pdfTarget.blockId,
-                        })
-                    : undefined
-                }
-                onReturnToFigure={
-                  onReturnToEvidence
-                    ? (figure) =>
-                        onReturnToEvidence({
-                          documentId: figure.documentId,
-                          pageNumber: figure.pageNumber,
-                        })
-                    : undefined
-                }
-              />
-              <footer>{label}</footer>
-            </article>
+              <MessageAvatar name={participantName} assetId={participantAvatar} />
+              <article
+                className={`lesson-message-bubble lesson-message-${message.role}`}
+                aria-label={`${label}消息`}
+              >
+                <RichMessage
+                  role={message.role}
+                  markdown={message.tutorTurn?.responseMarkdown ?? message.content}
+                  narration={message.role === 'tutor' ? message.tutorTurn?.narration : null}
+                  citations={message.role === 'tutor' ? message.tutorTurn?.citations : []}
+                  documentId={session.documentId}
+                  figureReferences={
+                    message.role === 'tutor' ? message.tutorTurn?.figureReferences : []
+                  }
+                  onReturnToCitation={
+                    pdfAnchor && pdfTarget && onReturnToEvidence
+                      ? () =>
+                          onReturnToEvidence({
+                            documentId: pdfAnchor.documentId,
+                            pageNumber: pdfTarget.pageNumber,
+                            blockId: pdfTarget.blockId,
+                          })
+                      : undefined
+                  }
+                  onReturnToFigure={
+                    onReturnToEvidence
+                      ? (figure) =>
+                          onReturnToEvidence({
+                            documentId: figure.documentId,
+                            pageNumber: figure.pageNumber,
+                          })
+                      : undefined
+                  }
+                />
+                <footer>{label}</footer>
+              </article>
+            </div>
           )
         })}
         {recoveryRun && (

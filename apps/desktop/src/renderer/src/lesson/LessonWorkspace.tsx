@@ -1,4 +1,4 @@
-import type { LessonSessionDto, LessonStateDto } from '@deepstorming/contracts'
+import type { LessonSessionDto, LessonStateDto, UserProfileDto } from '@deepstorming/contracts'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { WorkspaceContextual } from '../app/WorkspaceShell'
@@ -84,6 +84,7 @@ export const LessonWorkspace = ({
   const [lifecycleState, setLifecycleState] = useState<LifecycleOperationState>({ status: 'idle' })
   const [postLessonReview, setPostLessonReview] = useState('')
   const [exportState, setExportState] = useState<ExportState>({ status: 'idle' })
+  const [learnerProfile, setLearnerProfile] = useState<UserProfileDto>()
   const listRequestSequence = useRef(0)
   const detailRequestSequence = useRef(0)
   const replyRequestSequence = useRef(0)
@@ -386,6 +387,18 @@ export const LessonWorkspace = ({
   }, [exportState])
 
   useEffect(() => {
+    let active = true
+    const getSettings = window.deepstorming.learningSettings?.get
+    if (getSettings === undefined) return () => undefined
+    void getSettings().then((result) => {
+      if (active && result.ok) setLearnerProfile(result.data.userProfile)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
     void loadLessons()
     return () => {
       listRequestSequence.current += 1
@@ -459,45 +472,47 @@ export const LessonWorkspace = ({
               <h1>{detailState.session.title}</h1>
               <span>当前阶段：{lessonStateLabels[detailState.session.currentState]}</span>
             </div>
-            <div className="lesson-header-actions" role="toolbar" aria-label="课堂操作">
-              <button
-                type="button"
-                disabled={exportState.status === 'exporting'}
-                onClick={() => void exportTranscript('markdown')}
-              >
-                导出 Markdown
-              </button>
-              <button
-                type="button"
-                disabled={exportState.status === 'exporting'}
-                onClick={() => void exportTranscript('pdf')}
-              >
-                导出 PDF
-              </button>
-              {exportState.status === 'exporting' && (
-                <button type="button" onClick={() => void cancelExport()}>
-                  取消导出
+            <div className="lesson-header-controls">
+              <div className="lesson-header-actions" role="toolbar" aria-label="课堂操作">
+                <button
+                  type="button"
+                  disabled={exportState.status === 'exporting'}
+                  onClick={() => void exportTranscript('markdown')}
+                >
+                  导出 Markdown
                 </button>
+                <button
+                  type="button"
+                  disabled={exportState.status === 'exporting'}
+                  onClick={() => void exportTranscript('pdf')}
+                >
+                  导出 PDF
+                </button>
+                {exportState.status === 'exporting' && (
+                  <button type="button" onClick={() => void cancelExport()}>
+                    取消导出
+                  </button>
+                )}
+                <button type="button" onClick={() => setInfoDrawerOpen(true)}>
+                  课堂信息
+                </button>
+              </div>
+              {exportState.status === 'success' && (
+                <p role="status" className="lesson-export-status success-state">
+                  {exportState.message}
+                </p>
               )}
-              <button type="button" onClick={() => setInfoDrawerOpen(true)}>
-                课堂信息
-              </button>
+              {exportState.status === 'error' && (
+                <p role="alert" className="lesson-export-status error-state">
+                  {exportState.message}
+                </p>
+              )}
             </div>
           </header>
 
-          {exportState.status === 'success' && (
-            <p role="status" className="lesson-export-status success-state">
-              {exportState.message}
-            </p>
-          )}
-          {exportState.status === 'error' && (
-            <p role="alert" className="lesson-export-status error-state">
-              {exportState.message}
-            </p>
-          )}
-
           <LessonConversation
             session={detailState.session}
+            learnerProfile={learnerProfile}
             retryingModelRunId={
               runRetryState.status === 'retrying' ? runRetryState.modelRunId : undefined
             }

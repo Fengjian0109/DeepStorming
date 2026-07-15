@@ -224,7 +224,10 @@ describe('document use cases', () => {
   const hasher: DocumentTextHasherPort = { hash: async (input) => `hash:${input}` }
   const fileStore: PdfFileStorePort = {
     describe: async () => ({ fileSizeBytes: 4096, contentHash: 'a'.repeat(64) }),
-    copyIntoLibrary: async () => ({ storedPath: 'documents/00/paper.pdf' }),
+    copyIntoLibrary: async () => ({
+      storedPath: 'documents/00/paper.pdf',
+      processingPath: '/managed/documents/00/paper.pdf',
+    }),
   }
   let extractor: PdfTextExtractorPort
   const clock = { now: () => now }
@@ -498,7 +501,7 @@ describe('document use cases', () => {
     expect(figurePipeline.execute).toHaveBeenCalledWith(
       {
         documentId: result.documentId,
-        filePath: 'documents/00/paper.pdf',
+        filePath: '/managed/documents/00/paper.pdf',
         pages: [{ pageNumber: 1, text: 'Paper text.' }],
       },
       expect.objectContaining({ cancelled: false }),

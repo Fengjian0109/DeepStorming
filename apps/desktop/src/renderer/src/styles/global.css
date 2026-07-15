@@ -480,6 +480,42 @@ h2 {
   min-width: 0;
 }
 
+.lesson-message-row {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.lesson-message-row-learner {
+  flex-direction: row-reverse;
+}
+
+.lesson-message-row-learner .lesson-message-learner {
+  margin-inline-start: 0;
+}
+
+.lesson-message-row-system {
+  justify-content: center;
+}
+
+.lesson-message-avatar {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border: 1px solid rgb(32 52 43 / 14%);
+  border-radius: 13px;
+  object-fit: cover;
+  background: #e7eee9;
+}
+
+.lesson-message-avatar-fallback {
+  display: grid;
+  place-items: center;
+  color: #315f4a;
+  font-weight: 700;
+}
+
 .document-detail-summary h2 {
   font-size: 1.3rem;
 }
@@ -1265,8 +1301,15 @@ h2 {
   gap: 8px;
 }
 
+.lesson-header-controls {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
 .lesson-export-status {
-  margin: 8px 24px 0;
+  margin: 0;
+  font-size: 0.78rem;
 }
 
 .lesson-context-diagnostics {

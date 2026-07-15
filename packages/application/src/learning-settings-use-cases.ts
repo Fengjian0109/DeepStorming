@@ -27,6 +27,7 @@ export type LearningSettingsErrorCode =
   | 'DATABASE_UNAVAILABLE'
   | 'INTERNAL_ERROR'
   | 'AVATAR_IMPORT_FAILED'
+  | 'AVATAR_LOAD_FAILED'
 
 export class LearningSettingsUseCaseError extends Error {
   public override readonly name = 'LearningSettingsUseCaseError'
@@ -340,6 +341,39 @@ export class ImportAvatar {
         'The avatar could not be imported. Choose a PNG, JPEG, or WebP image under 5 MB.',
         false,
       )
+    }
+  }
+}
+
+const AVATAR_ASSET_ID = /^[a-f\d]{64}\.(?:png|jpg|jpeg|webp)$/u
+
+const avatarLoadError = () =>
+  new LearningSettingsUseCaseError('AVATAR_LOAD_FAILED', 'The avatar could not be loaded.', false)
+
+export class GetAvatarAsset {
+  public constructor(
+    private readonly store: AvatarAssetStorePort,
+    private readonly repository: LearningSettingsRepositoryPort,
+  ) {}
+
+  public async execute(assetId: string): Promise<
+    Readonly<{
+      assetId: string
+      mediaType: 'image/png' | 'image/jpeg' | 'image/webp'
+      data: Uint8Array
+    }>
+  > {
+    if (!AVATAR_ASSET_ID.test(assetId)) throw invalidError()
+    try {
+      const settings = await this.repository.getSnapshot()
+      const referenced =
+        settings?.userProfile.avatarAssetId === assetId ||
+        settings?.tutorProfiles.some((profile) => profile.avatarAssetId === assetId) === true
+      if (!referenced) throw avatarLoadError()
+      return await this.store.readAvatar(assetId)
+    } catch (error) {
+      if (error instanceof LearningSettingsUseCaseError) throw error
+      throw avatarLoadError()
     }
   }
 }

@@ -6,6 +6,12 @@ import type { AvatarAssetStorePort } from '@deepstorming/application'
 
 const SUPPORTED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp'])
 const ASSET_ID = /^[a-f\d]{64}\.(?:png|jpg|jpeg|webp)$/u
+const mediaTypeFor = (assetId: string): 'image/png' | 'image/jpeg' | 'image/webp' => {
+  const extension = extname(assetId).toLowerCase()
+  if (extension === '.png') return 'image/png'
+  if (extension === '.webp') return 'image/webp'
+  return 'image/jpeg'
+}
 
 export class LocalAvatarStore implements AvatarAssetStorePort {
   private readonly maxBytes: number
@@ -43,5 +49,18 @@ export class LocalAvatarStore implements AvatarAssetStorePort {
   public async removeAvatar(assetId: string): Promise<void> {
     if (!ASSET_ID.test(assetId)) throw new Error('Avatar asset id is invalid')
     await rm(join(this.rootDir, 'avatars', assetId), { force: true })
+  }
+
+  public async readAvatar(assetId: string): Promise<
+    Readonly<{
+      assetId: string
+      mediaType: 'image/png' | 'image/jpeg' | 'image/webp'
+      data: Uint8Array
+    }>
+  > {
+    if (!ASSET_ID.test(assetId)) throw new Error('Avatar asset id is invalid')
+    const data = await readFile(join(this.rootDir, 'avatars', assetId))
+    if (data.byteLength > this.maxBytes) throw new Error('Avatar file is too large')
+    return { assetId, mediaType: mediaTypeFor(assetId), data: new Uint8Array(data) }
   }
 }

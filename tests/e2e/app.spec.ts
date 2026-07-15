@@ -64,6 +64,15 @@ const openSettings = async (page: Page): Promise<void> => {
   await expect(page.getByRole('heading', { name: 'Provider 管理' })).toBeVisible()
 }
 
+const createAndActivateMockProvider = async (page: Page): Promise<void> => {
+  await page.getByLabel('Provider 类型').selectOption('mock')
+  await page.getByLabel('显示名称').fill('Offline Tutor')
+  await page.getByLabel('模型名称').fill('mock-success')
+  await page.getByRole('button', { name: '添加 Provider' }).click()
+  await page.getByRole('button', { name: '设为启用 Offline Tutor' }).click()
+  await expect(page.getByText('Provider 已启用。')).toBeVisible()
+}
+
 test('boots securely and covers the mock provider lifecycle from Settings', async () => {
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-e2e-user-'))
   const app = await launchDevApp(userDataDir)
@@ -88,12 +97,7 @@ test('boots securely and covers the mock provider lifecycle from Settings', asyn
     })
     expect(preferences).toEqual({ contextIsolation: true, nodeIntegration: false, sandbox: true })
 
-    await page.getByLabel('Provider 类型').selectOption('mock')
-    await page.getByLabel('显示名称').fill('Offline Tutor')
-    await page.getByLabel('模型名称').fill('mock-success')
-    await page.getByRole('button', { name: '添加 Provider' }).click()
-    await page.getByRole('button', { name: '设为启用 Offline Tutor' }).click()
-    await expect(page.getByText('Provider 已启用。')).toBeVisible()
+    await createAndActivateMockProvider(page)
     await page.getByRole('button', { name: '测试 Offline Tutor' }).click()
     await expect(page.getByText('Provider 测试成功。')).toBeVisible()
   } finally {
@@ -114,6 +118,9 @@ test('covers the chat-first document and classroom journey', async () => {
   try {
     const page = await app.firstWindow()
     await expect(page.getByTestId('app-version')).toBeVisible()
+    await openSettings(page)
+    await createAndActivateMockProvider(page)
+    await page.getByRole('button', { name: '文档库' }).click()
     await expect(page.getByRole('toolbar', { name: '添加学习资料' })).toBeVisible()
     await expect(page.getByLabel('导入可选择文字的 PDF')).toBeVisible()
 
@@ -130,6 +137,8 @@ test('covers the chat-first document and classroom journey', async () => {
     await expect(page.getByText(hiddenTail, { exact: true })).toHaveCount(0)
 
     await page.getByRole('button', { name: '开始课堂' }).click()
+    await expect(page.getByRole('dialog', { name: '课堂准备' })).toBeVisible()
+    await page.getByRole('button', { name: '进入课堂' }).click()
     await expect(page.getByRole('region', { name: '课堂对话' })).toBeVisible()
     await expect(page.getByRole('button', { name: /Chat First Notes 课堂 · 进行中/ })).toBeVisible()
     await page.getByLabel('你的回答').fill('我会用证据解释并检验这个判断。')
@@ -155,6 +164,8 @@ test('covers the chat-first document and classroom journey', async () => {
     await expect(page.getByText(`Block 1 · ${pdfText}`)).toBeVisible()
     await page.getByRole('button', { name: '选择 Block 1' }).click()
     await page.getByRole('button', { name: '用此 block 开始课堂' }).click()
+    await expect(page.getByRole('dialog', { name: '课堂准备' })).toBeVisible()
+    await page.getByRole('button', { name: '进入课堂' }).click()
     await page.getByRole('button', { name: '课堂信息' }).click()
     await expect(page.getByText('第 1 页 · Block 1')).toBeVisible()
     await page.getByRole('button', { name: '回到证据' }).click()

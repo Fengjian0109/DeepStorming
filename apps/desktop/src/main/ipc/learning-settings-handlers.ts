@@ -12,10 +12,12 @@ import type {
 import {
   archiveTutorProfileRequestSchema,
   avatarAssetResultSchema,
+  avatarDataResultSchema,
   classroomPreferencesResultSchema,
   createTutorProfileRequestSchema,
   getLearningSettingsRequestSchema,
   importAvatarRequestSchema,
+  getAvatarRequestSchema,
   learningSettingsResultSchema,
   saveClassroomPreferencesRequestSchema,
   saveUserProfileRequestSchema,
@@ -24,9 +26,11 @@ import {
   userProfileResultSchema,
   type AppResult,
   type AvatarAssetResult,
+  type AvatarDataResult,
   type ClassroomPreferencesResult,
   type CreateTutorProfileRequest,
   type ImportAvatarRequest,
+  type GetAvatarRequest,
   type LearningSettingsResult,
   type SaveClassroomPreferencesRequest,
   type SaveUserProfileRequest,
@@ -66,6 +70,15 @@ export type LearningSettingsIpcDependencies = Readonly<{
     execute(input: ClassroomPreferences): Awaitable<ClassroomPreferences>
   }
   importAvatar: { execute(sourcePath: string): Awaitable<Readonly<{ assetId: string }>> }
+  getAvatarAsset: {
+    execute(assetId: string): Awaitable<
+      Readonly<{
+        assetId: string
+        mediaType: 'image/png' | 'image/jpeg' | 'image/webp'
+        data: Uint8Array
+      }>
+    >
+  }
 }>
 
 const toTutorDraft = (profile: CreateTutorProfileRequest['profile']): TutorProfileDraft => ({
@@ -95,6 +108,7 @@ export type LearningSettingsIpcHandlers = Readonly<{
   archiveTutor(input: unknown): Promise<TutorProfileResult>
   savePreferences(input: unknown): Promise<ClassroomPreferencesResult>
   importAvatar(input: unknown): Promise<AvatarAssetResult>
+  getAvatar(input: unknown): Promise<AvatarDataResult>
 }>
 
 const requestIdFrom = (input: unknown): string => {
@@ -204,5 +218,19 @@ export const createLearningSettingsIpcHandlers = (
       importAvatarRequestSchema,
       avatarAssetResultSchema,
       (request: ImportAvatarRequest) => dependencies.importAvatar.execute(request.sourcePath),
+    ),
+  getAvatar: (input) =>
+    handle(
+      input,
+      getAvatarRequestSchema,
+      avatarDataResultSchema,
+      async (request: GetAvatarRequest) => {
+        const asset = await dependencies.getAvatarAsset.execute(request.assetId)
+        return {
+          assetId: asset.assetId,
+          mediaType: asset.mediaType,
+          dataUrl: `data:${asset.mediaType};base64,${Buffer.from(asset.data).toString('base64')}`,
+        }
+      },
     ),
 })

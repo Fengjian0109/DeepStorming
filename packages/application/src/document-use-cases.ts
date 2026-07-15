@@ -489,7 +489,7 @@ export class ImportPdfDocument {
         await this.extractDocumentFigures.execute(
           {
             documentId,
-            filePath: storedFile.storedPath,
+            filePath: storedFile.processingPath,
             pages: extracted.pages.map((page) => ({
               pageNumber: page.pageNumber,
               text: page.text,

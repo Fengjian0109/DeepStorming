@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { calculateContextBudget, selectRecentMessageIds } from './context-budget'
+import {
+  calculateContextBudget,
+  contextWindowForModel,
+  selectRecentMessageIds,
+} from './context-budget'
 
 describe('context budget', () => {
+  it('recognizes the rich 4k mock model used by acceptance tests', () => {
+    expect(contextWindowForModel('mock-rich-4k')).toBe(4_096)
+  })
+
   it('uses model-aware windows and triggers at the default remaining 30 percent threshold', () => {
     const result = calculateContextBudget({
       modelName: 'mock-4k',

@@ -22,6 +22,6 @@ export class LocalPdfFileStore implements PdfFileStorePort {
     const absolutePath = join(this.rootDir, storedPath)
     await mkdir(join(this.rootDir, 'documents', prefix), { recursive: true })
     await copyFile(input.filePath, absolutePath)
-    return { storedPath }
+    return { storedPath, processingPath: absolutePath }
   }
 }

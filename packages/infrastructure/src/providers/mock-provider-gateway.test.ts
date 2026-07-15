@@ -28,6 +28,8 @@ test('returns deterministic structured lesson memory through the mock provider',
 
 test.each([
   ['mock-success', undefined],
+  ['mock-rich', undefined],
+  ['mock-rich-4k', undefined],
   ['mock-auth', 'PROVIDER_AUTH_FAILED'],
   ['mock-rate-limit', 'PROVIDER_RATE_LIMITED'],
   ['mock-model-not-found', 'PROVIDER_MODEL_NOT_FOUND'],
@@ -147,5 +149,51 @@ test('generates deterministic first questions from source evidence and chunk con
       citations: [],
       figureReferences: [],
     }),
+  })
+})
+
+test('generates verified rich tutor turns for desktop acceptance', async () => {
+  const result = await new MockProviderGateway().generateLessonTutorFirstQuestion(
+    {
+      modelName: 'mock-rich',
+      documentTitle: 'Research Notes',
+      sourceSnippet: 'Evidence',
+      contextChunks: [
+        {
+          chunkId: '00000000-0000-4000-8000-000000000901',
+          text: 'Evidence connects claims to observations.',
+          pageNumberStart: 1,
+          pageNumberEnd: 1,
+          charCount: 41,
+        },
+      ],
+      availableFigures: [
+        {
+          figureId: '00000000-0000-4000-8000-000000000902',
+          pageNumber: 1,
+          label: 'Fig. 2',
+          caption: 'Embedded result',
+        },
+      ],
+    },
+    liveToken(),
+  )
+
+  expect(JSON.parse(result.content)).toEqual({
+    narration: '导师指向证据与图表，等待你的推导。',
+    responseMarkdown: '用公式 $E=mc^2$ 表达后，你会怎样检验这条结论？',
+    citations: [
+      {
+        chunkId: '00000000-0000-4000-8000-000000000901',
+        quote: 'Evidence connects claims to observations.',
+        rationale: '这段原文给出了判断与可观察证据之间的关系。',
+      },
+    ],
+    figureReferences: [
+      {
+        figureId: '00000000-0000-4000-8000-000000000902',
+        rationale: '图表提供了可对照的结果。',
+      },
+    ],
   })
 })

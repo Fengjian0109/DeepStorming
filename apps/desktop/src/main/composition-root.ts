@@ -18,6 +18,7 @@ import {
   GetLessonSession,
   ImportPdfDocument,
   ImportAvatar,
+  GetAvatarAsset,
   ListDocuments,
   ListLessonSessions,
   GetLearningSettings,
@@ -289,6 +290,7 @@ export const createCompositionRoot = async (
       archiveTutorProfile: new ArchiveTutorProfile(learningSettingsRepository, clock),
       saveClassroomPreferences: new SaveClassroomPreferences(learningSettingsRepository),
       importAvatar: new ImportAvatar(avatarStore),
+      getAvatarAsset: new GetAvatarAsset(avatarStore, learningSettingsRepository),
       databasePath,
       secretsDir,
       dispose: () => {

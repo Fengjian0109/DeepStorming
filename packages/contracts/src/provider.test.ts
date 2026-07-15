@@ -875,6 +875,15 @@ describe('provider error and API contracts', () => {
           data: { assetId: `${'a'.repeat(64)}.png` },
           requestId,
         }),
+        getAvatar: async (assetId) => ({
+          ok: true as const,
+          data: {
+            assetId,
+            mediaType: 'image/png' as const,
+            dataUrl: 'data:image/png;base64,iVBORw==',
+          },
+          requestId,
+        }),
       },
     } satisfies DeepStormingApi
 

@@ -37,5 +37,6 @@ test('describes and copies PDF files into an app-private relative path', async (
     'documents/d1/d1cb546b102fab8362de413fdacc187b05be10df72b72db3b3e50b4953f6a555.pdf',
   )
   expect(copied.storedPath).not.toContain(dir)
+  expect(copied.processingPath).toBe(join(dir, 'library', copied.storedPath))
   await expect(readFile(join(dir, 'library', copied.storedPath), 'utf8')).resolves.toBe('pdf bytes')
 })

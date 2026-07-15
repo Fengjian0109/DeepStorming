@@ -28,6 +28,7 @@ import {
   userProfileResultSchema,
   classroomPreferencesResultSchema,
   avatarAssetResultSchema,
+  avatarDataResultSchema,
   type CancelProviderTestResult,
   type DocumentDraftDto,
   type DocumentDetailResult,
@@ -63,6 +64,7 @@ import {
   type ClassroomPreferencesDto,
   type ClassroomPreferencesResult,
   type AvatarAssetResult,
+  type AvatarDataResult,
 } from '@deepstorming/contracts'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
@@ -420,6 +422,14 @@ const api: DeepStormingBootstrapApi = {
         LEARNING_SETTINGS_CHANNELS.importAvatar,
         { requestId, sourcePath },
         avatarAssetResultSchema,
+      )
+    },
+    getAvatar: async (assetId: string): Promise<AvatarDataResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LEARNING_SETTINGS_CHANNELS.getAvatar,
+        { requestId, assetId },
+        avatarDataResultSchema,
       )
     },
   },

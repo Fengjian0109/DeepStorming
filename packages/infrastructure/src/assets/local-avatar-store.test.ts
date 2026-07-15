@@ -37,6 +37,19 @@ describe('LocalAvatarStore', () => {
     )
   })
 
+  it('reads an imported avatar without exposing its managed path', async () => {
+    const source = join(sourceDirectory, 'avatar.webp')
+    await writeFile(source, Buffer.from('webp-image'))
+    const imported = await store.importAvatar(source)
+
+    await expect(store.readAvatar(imported.assetId)).resolves.toEqual({
+      assetId: imported.assetId,
+      mediaType: 'image/webp',
+      data: new Uint8Array(Buffer.from('webp-image')),
+    })
+    await expect(store.readAvatar('../secret.png')).rejects.toThrow('Avatar asset id is invalid')
+  })
+
   it('rejects unsupported and oversized files', async () => {
     const text = join(sourceDirectory, 'avatar.txt')
     const large = join(sourceDirectory, 'large.webp')

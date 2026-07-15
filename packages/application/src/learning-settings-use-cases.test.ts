@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ClassroomPreferences, TutorProfile, UserProfile } from '@deepstorming/domain'
 
 import type {
+  AvatarAssetStorePort,
   LearningSettingsRepositoryPort,
   LearningSettingsSnapshot,
   SettingsWriteResult,
@@ -10,6 +11,7 @@ import type {
 import {
   ArchiveTutorProfile,
   CreateTutorProfile,
+  GetAvatarAsset,
   GetLearningSettings,
   LearningSettingsUseCaseError,
   SaveClassroomPreferences,
@@ -192,5 +194,84 @@ describe('learning settings use cases', () => {
         defaultBookTutorId: settings.tutorProfiles[0]!.id,
       }),
     ).resolves.toMatchObject({ defaultBookTutorId: settings.tutorProfiles[0]!.id })
+  })
+
+  it('loads avatar bytes through a validated application use case', async () => {
+    const assetId = `${'a'.repeat(64)}.png`
+    const repository = new MemorySettingsRepository()
+    const settings = await new GetLearningSettings(repository, clock, ids).execute()
+    await new SaveUserProfile(repository, clock).execute({
+      expectedRevision: settings.userProfile.revision,
+      profile: { displayName: settings.userProfile.displayName, avatarAssetId: assetId },
+    })
+    const store: AvatarAssetStorePort = {
+      importAvatar: async () => ({ assetId }),
+      readAvatar: async () => ({
+        assetId,
+        mediaType: 'image/png',
+        data: new Uint8Array([137, 80, 78, 71]),
+      }),
+      removeAvatar: async () => undefined,
+    }
+
+    await expect(new GetAvatarAsset(store, repository).execute(assetId)).resolves.toEqual({
+      assetId,
+      mediaType: 'image/png',
+      data: new Uint8Array([137, 80, 78, 71]),
+    })
+    await expect(
+      new GetAvatarAsset(store, repository).execute('../secret.png'),
+    ).rejects.toMatchObject({
+      code: 'LEARNING_SETTINGS_INVALID',
+      retryable: false,
+    })
+  })
+
+  it('loads an avatar referenced by a tutor profile', async () => {
+    const assetId = `${'c'.repeat(64)}.webp`
+    const repository = new MemorySettingsRepository()
+    const settings = await new GetLearningSettings(repository, clock, ids).execute()
+    const tutor = settings.tutorProfiles[0]!
+    await new UpdateTutorProfile(repository, clock).execute({
+      id: tutor.id,
+      expectedRevision: tutor.revision,
+      profile: {
+        ...draft,
+        avatarAssetId: assetId,
+      },
+    })
+    const store: AvatarAssetStorePort = {
+      importAvatar: async () => ({ assetId }),
+      readAvatar: async () => ({
+        assetId,
+        mediaType: 'image/webp',
+        data: new Uint8Array([82, 73, 70, 70]),
+      }),
+      removeAvatar: async () => undefined,
+    }
+
+    await expect(new GetAvatarAsset(store, repository).execute(assetId)).resolves.toMatchObject({
+      assetId,
+      mediaType: 'image/webp',
+    })
+  })
+
+  it('refuses to load an avatar that is not referenced by the learning settings', async () => {
+    const assetId = `${'b'.repeat(64)}.png`
+    const repository = new MemorySettingsRepository()
+    await new GetLearningSettings(repository, clock, ids).execute()
+    const store: AvatarAssetStorePort = {
+      importAvatar: async () => ({ assetId }),
+      readAvatar: async () => ({
+        assetId,
+        mediaType: 'image/png',
+        data: new Uint8Array([137, 80, 78, 71]),
+      }),
+      removeAvatar: async () => undefined,
+    }
+    await expect(new GetAvatarAsset(store, repository).execute(assetId)).rejects.toMatchObject({
+      code: 'AVATAR_LOAD_FAILED',
+      retryable: false,
+    })
   })
 })

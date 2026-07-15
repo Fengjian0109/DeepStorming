@@ -729,6 +729,35 @@ describe('lesson use cases', () => {
     expect(updated.paperProfile?.currentStage).toBe('problem_framing')
   })
 
+  it('bounds a paper stage summary when the learner sends a long valid reply', async () => {
+    documents.document = { ...documentRecord, documentType: 'paper' }
+    const created = await new StartLessonFromDocument(
+      documents,
+      lessons,
+      clock,
+      idGenerator,
+      undefined,
+      createContextAssembler(),
+      createTutorGenerator(),
+    ).execute({
+      documentId,
+      documentTitle: 'Paper Map',
+      source: { startOffset: 13, endOffset: 21, snippet: 'Evidence' },
+    })
+
+    let replyIndex = 0
+    const replyIds = [learnerMessageId, followUpRunId, followUpMessageId, evidenceId]
+    const updated = await new SubmitLessonReply(
+      lessons,
+      clock,
+      { generate: () => replyIds[replyIndex++]! },
+      createContextAssembler(),
+      createTutorGenerator(),
+    ).execute({ lessonId: created.id, content: '证据'.repeat(300) })
+
+    expect(updated.paperProfile?.stageSummary).toHaveLength(500)
+  })
+
   it('requires a PDF block to belong to the source document', async () => {
     const locator = new FakeSourceLocator()
     await expect(

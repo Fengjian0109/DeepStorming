@@ -29,5 +29,12 @@ export interface LearningSettingsRepositoryPort {
 
 export interface AvatarAssetStorePort {
   importAvatar(sourcePath: string): Promise<Readonly<{ assetId: string }>>
+  readAvatar(assetId: string): Promise<
+    Readonly<{
+      assetId: string
+      mediaType: 'image/png' | 'image/jpeg' | 'image/webp'
+      data: Uint8Array
+    }>
+  >
   removeAvatar(assetId: string): Promise<void>
 }
