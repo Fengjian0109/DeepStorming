@@ -14,6 +14,7 @@ import {
   lessonSessionResultSchema,
   lessonSessionsResultSchema,
   cancelLessonRunResultSchema,
+  lessonExportResultSchema,
   removeDocumentResultSchema,
   searchDocumentsResultSchema,
   type DeepStormingBootstrapApi,
@@ -46,6 +47,8 @@ import {
   type LessonEndDraftDto,
   type LessonPostActionDraftDto,
   type LessonCompleteReviewDraftDto,
+  type LessonExportDraftDto,
+  type LessonExportResult,
   type RemoveDocumentResult,
   type SearchDocumentsResult,
   type ListProvidersResult,
@@ -275,6 +278,23 @@ const api: DeepStormingBootstrapApi = {
         LESSON_CHANNELS.completeReview,
         { requestId, ...review },
         lessonSessionResultSchema,
+      )
+    },
+    exportTranscript: async (draft: LessonExportDraftDto): Promise<LessonExportResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      const operationId = draft.operationId ?? globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LESSON_CHANNELS.exportTranscript,
+        { requestId, lessonId: draft.lessonId, format: draft.format, operationId },
+        lessonExportResultSchema,
+      )
+    },
+    cancelExport: async (operationId: string): Promise<CancelLessonRunResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LESSON_CHANNELS.cancelExport,
+        { requestId, operationId },
+        cancelLessonRunResultSchema,
       )
     },
   },

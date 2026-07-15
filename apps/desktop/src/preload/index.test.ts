@@ -328,6 +328,8 @@ describe('preload API', () => {
       end: expect.any(Function),
       choosePostLessonAction: expect.any(Function),
       completeReview: expect.any(Function),
+      exportTranscript: expect.any(Function),
+      cancelExport: expect.any(Function),
     })
     expect(api.learningSettings).toEqual({
       get: expect.any(Function),

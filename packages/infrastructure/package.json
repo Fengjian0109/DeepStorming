@@ -13,6 +13,7 @@
     "@deepstorming/application": "workspace:*",
     "@deepstorming/domain": "workspace:*",
     "better-sqlite3": "12.11.1",
+    "katex": "0.17.0",
     "pdf-parse": "2.4.5"
   },
   "devDependencies": {

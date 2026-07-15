@@ -10,6 +10,8 @@ import type {
   EndLesson,
   ChoosePostLessonAction,
   CompleteLessonReview,
+  ExportLessonTranscript,
+  CancelLessonExport,
 } from '@deepstorming/application'
 import { LessonUseCaseError } from '@deepstorming/application'
 import {
@@ -26,6 +28,9 @@ import {
   endLessonRequestSchema,
   choosePostLessonActionRequestSchema,
   completeLessonReviewRequestSchema,
+  exportLessonTranscriptRequestSchema,
+  cancelLessonExportRequestSchema,
+  lessonExportResultSchema,
   type LessonSessionResult,
   type LessonSessionsResult,
   type CancelLessonRunRequest,
@@ -37,6 +42,9 @@ import {
   type EndLessonRequest,
   type ChoosePostLessonActionRequest,
   type CompleteLessonReviewRequest,
+  type ExportLessonTranscriptRequest,
+  type CancelLessonExportRequest,
+  type LessonExportResult,
 } from '@deepstorming/contracts'
 
 type Awaitable<T> = T | Promise<T>
@@ -47,7 +55,8 @@ type Schema<T> = Readonly<{ safeParse(input: unknown): SafeParseResult<T> }>
 type ResultSchema<T> = Readonly<{
   safeParse(input: unknown): Readonly<{ success: true; data: T }> | Readonly<{ success: false }>
 }>
-type LessonIpcResult = LessonSessionsResult | LessonSessionResult | CancelLessonRunResult
+type LessonIpcResult =
+  LessonSessionsResult | LessonSessionResult | CancelLessonRunResult | LessonExportResult
 type LessonIpcError = Extract<LessonIpcResult, { ok: false }>['error']
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[1-5][\da-f]{3}-[89ab][\da-f]{12}$/u
@@ -63,6 +72,8 @@ export type LessonIpcHandlers = Readonly<{
   end(input: unknown): Promise<LessonSessionResult>
   choosePostLessonAction(input: unknown): Promise<LessonSessionResult>
   completeReview(input: unknown): Promise<LessonSessionResult>
+  exportTranscript(input: unknown): Promise<LessonExportResult>
+  cancelExport(input: unknown): Promise<CancelLessonRunResult>
 }>
 
 export type LessonIpcDependencies = Readonly<{
@@ -76,6 +87,8 @@ export type LessonIpcDependencies = Readonly<{
   endLesson: EndLesson
   choosePostLessonAction: ChoosePostLessonAction
   completeLessonReview: CompleteLessonReview
+  exportLessonTranscript: ExportLessonTranscript
+  cancelLessonExport: CancelLessonExport
 }>
 
 const requestIdFrom = (input: unknown): string => {
@@ -257,5 +270,25 @@ export const createLessonIpcHandlers = (
           lessonId: request.lessonId,
           response: request.response,
         }),
+    ),
+  exportTranscript: (input) =>
+    handle(
+      input,
+      exportLessonTranscriptRequestSchema,
+      lessonExportResultSchema,
+      (request: ExportLessonTranscriptRequest) =>
+        dependencies.exportLessonTranscript.execute({
+          lessonId: request.lessonId,
+          operationId: request.operationId,
+          format: request.format,
+        }),
+    ),
+  cancelExport: (input) =>
+    handle(
+      input,
+      cancelLessonExportRequestSchema,
+      cancelLessonRunResultSchema,
+      (request: CancelLessonExportRequest) =>
+        dependencies.cancelLessonExport.execute({ operationId: request.operationId }),
     ),
 })

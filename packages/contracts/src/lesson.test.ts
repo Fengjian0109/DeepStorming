@@ -208,6 +208,8 @@ describe('lesson contracts', () => {
       end: 'lessons:end',
       choosePostLessonAction: 'lessons:choose-post-lesson-action',
       completeReview: 'lessons:complete-review',
+      exportTranscript: 'lessons:export-transcript',
+      cancelExport: 'lessons:cancel-export',
     })
   })
 

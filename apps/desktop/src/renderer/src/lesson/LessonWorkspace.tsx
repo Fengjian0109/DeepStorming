@@ -38,6 +38,12 @@ type LifecycleOperationState =
   | { status: 'completing_review' }
   | { status: 'error'; message: string }
 
+type ExportState =
+  | { status: 'idle' }
+  | { status: 'exporting'; operationId: string; format: 'markdown' | 'pdf' }
+  | { status: 'success'; message: string }
+  | { status: 'error'; message: string }
+
 const lessonStateLabels: Record<LessonStateDto, string> = {
   opening: '开场提问',
   probing: '苏格拉底追问',
@@ -77,6 +83,7 @@ export const LessonWorkspace = ({
   const [endConfirmationOpen, setEndConfirmationOpen] = useState(false)
   const [lifecycleState, setLifecycleState] = useState<LifecycleOperationState>({ status: 'idle' })
   const [postLessonReview, setPostLessonReview] = useState('')
+  const [exportState, setExportState] = useState<ExportState>({ status: 'idle' })
   const listRequestSequence = useRef(0)
   const detailRequestSequence = useRef(0)
   const replyRequestSequence = useRef(0)
@@ -105,6 +112,7 @@ export const LessonWorkspace = ({
     setEndConfirmationOpen(false)
     setLifecycleState({ status: 'idle' })
     setPostLessonReview('')
+    setExportState({ status: 'idle' })
     setDetailState({ status: 'loading', lessonId })
     const result = await window.deepstorming.lessons.get(lessonId)
     if (detailRequestSequence.current !== requestSequence) return
@@ -341,6 +349,42 @@ export const LessonWorkspace = ({
     setLifecycleState({ status: 'error', message: result.error.message })
   }, [detailState, postLessonReview, updateSession])
 
+  const exportTranscript = useCallback(
+    async (format: 'markdown' | 'pdf') => {
+      if (detailState.status !== 'ready') return
+      const operationId = globalThis.crypto.randomUUID()
+      setExportState({ status: 'exporting', operationId, format })
+      const result = await window.deepstorming.lessons.exportTranscript({
+        lessonId: detailState.session.id,
+        format,
+        operationId,
+      })
+      if (result.ok) {
+        setExportState({
+          status: 'success',
+          message: result.data.outcome === 'dialog_cancelled' ? '已取消导出。' : '课堂记录已导出。',
+        })
+        return
+      }
+      if (result.error.code === 'OPERATION_CANCELLED') {
+        setExportState({ status: 'success', message: '已取消导出。' })
+        return
+      }
+      setExportState({ status: 'error', message: result.error.message })
+    },
+    [detailState],
+  )
+
+  const cancelExport = useCallback(async () => {
+    if (exportState.status !== 'exporting') return
+    const result = await window.deepstorming.lessons.cancelExport(exportState.operationId)
+    setExportState(
+      result.ok && result.data.cancelled
+        ? { status: 'success', message: '已取消导出。' }
+        : { status: 'error', message: result.ok ? '取消请求未生效。' : result.error.message },
+    )
+  }, [exportState])
+
   useEffect(() => {
     void loadLessons()
     return () => {
@@ -415,10 +459,42 @@ export const LessonWorkspace = ({
               <h1>{detailState.session.title}</h1>
               <span>当前阶段：{lessonStateLabels[detailState.session.currentState]}</span>
             </div>
-            <button type="button" onClick={() => setInfoDrawerOpen(true)}>
-              课堂信息
-            </button>
+            <div className="lesson-header-actions" role="toolbar" aria-label="课堂操作">
+              <button
+                type="button"
+                disabled={exportState.status === 'exporting'}
+                onClick={() => void exportTranscript('markdown')}
+              >
+                导出 Markdown
+              </button>
+              <button
+                type="button"
+                disabled={exportState.status === 'exporting'}
+                onClick={() => void exportTranscript('pdf')}
+              >
+                导出 PDF
+              </button>
+              {exportState.status === 'exporting' && (
+                <button type="button" onClick={() => void cancelExport()}>
+                  取消导出
+                </button>
+              )}
+              <button type="button" onClick={() => setInfoDrawerOpen(true)}>
+                课堂信息
+              </button>
+            </div>
           </header>
+
+          {exportState.status === 'success' && (
+            <p role="status" className="lesson-export-status success-state">
+              {exportState.message}
+            </p>
+          )}
+          {exportState.status === 'error' && (
+            <p role="alert" className="lesson-export-status error-state">
+              {exportState.message}
+            </p>
+          )}
 
           <LessonConversation
             session={detailState.session}

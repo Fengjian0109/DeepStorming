@@ -143,6 +143,9 @@ importers:
       better-sqlite3:
         specifier: 12.11.1
         version: 12.11.1
+      katex:
+        specifier: 0.17.0
+        version: 0.17.0
       pdf-parse:
         specifier: 2.4.5
         version: 2.4.5

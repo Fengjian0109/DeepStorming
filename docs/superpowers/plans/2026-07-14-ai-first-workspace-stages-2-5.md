@@ -236,9 +236,9 @@
 - Modify: `apps/desktop/src/renderer/src/lesson/LessonWorkspace.tsx`
 - Test: focused unit/integration/Renderer tests
 
-- [ ] Write failing tests for complete message order, tutor/user labels, LaTeX source, citation/figure assets, UTF-8 Chinese, and secret/debug-prompt exclusion.
-- [ ] Write failing tests for save-dialog cancellation, persisted job state, idempotent retry, and safe errors.
-- [ ] Implement explicit save dialogs, Markdown resource directory, rendered PDF, progress/cancel UI, and commit `feat(export): add lesson markdown and pdf export`.
+- [x] Write failing tests for complete message order, tutor/user labels, LaTeX source, citation/figure assets, UTF-8 Chinese, and secret/debug-prompt exclusion.
+- [x] Write failing tests for save-dialog cancellation, persisted job state, idempotent retry, and safe errors.
+- [x] Implement explicit save dialogs, Markdown resource directory, rendered PDF, progress/cancel UI, and commit `feat(export): add lesson markdown and pdf export`.
 
 ## Stage 5 — Context compression and hardening
 
@@ -254,7 +254,7 @@
 - Test: focused Domain/Application/Infrastructure tests
 
 - [ ] Write failing tests for model-aware estimates, default remaining-30% trigger, configurable 10–50% bounds, recent-turn preservation, and full raw-history retention.
-- [ ] Add migration 21 for immutable `context_snapshots` and active snapshot pointers.
+- [ ] Add migration 22 for immutable `context_snapshots` and active snapshot pointers (migration 21 is reserved for durable lesson export jobs).
 - [ ] Implement deterministic budget calculations and auditable snapshot persistence.
 - [ ] Run focused tests and commit `feat(context): add token budgets and snapshots`.
 

@@ -13,6 +13,8 @@ export const LESSON_CHANNELS = {
   end: 'lessons:end',
   choosePostLessonAction: 'lessons:choose-post-lesson-action',
   completeReview: 'lessons:complete-review',
+  exportTranscript: 'lessons:export-transcript',
+  cancelExport: 'lessons:cancel-export',
 } as const
 
 const requestIdSchema = z.string().uuid()
@@ -541,6 +543,18 @@ export const completeLessonReviewRequestSchema = z
     response: requiredTextSchema.max(8_000),
   })
   .strict()
+export const lessonExportFormatSchema = z.enum(['markdown', 'pdf'])
+export const exportLessonTranscriptRequestSchema = z
+  .object({
+    requestId: requestIdSchema,
+    lessonId: lessonIdSchema,
+    operationId: z.string().uuid(),
+    format: lessonExportFormatSchema,
+  })
+  .strict()
+export const cancelLessonExportRequestSchema = z
+  .object({ requestId: requestIdSchema, operationId: z.string().uuid() })
+  .strict()
 
 const lessonErrorSchema = z
   .object({
@@ -563,6 +577,19 @@ export const lessonSessionsResultSchema = createLessonResultSchema(z.array(lesso
 export const lessonSessionResultSchema = createLessonResultSchema(lessonSessionSchema)
 export const cancelLessonRunResultSchema = createLessonResultSchema(
   z.object({ cancelled: z.boolean() }).strict(),
+)
+export const lessonExportResultSchema = createLessonResultSchema(
+  z.discriminatedUnion('outcome', [
+    z.object({ outcome: z.literal('dialog_cancelled'), format: lessonExportFormatSchema }).strict(),
+    z
+      .object({
+        outcome: z.literal('exported'),
+        format: lessonExportFormatSchema,
+        targetPath: z.string().min(1),
+        replayed: z.boolean(),
+      })
+      .strict(),
+  ]),
 )
 
 export type LessonSessionStatusDto = z.infer<typeof lessonSessionStatusSchema>
@@ -595,6 +622,12 @@ export type LessonRecordReviewDraftDto = z.infer<typeof lessonRecordReviewDraftS
 export type LessonEndDraftDto = z.infer<typeof lessonEndDraftSchema>
 export type LessonPostActionDraftDto = z.infer<typeof lessonPostActionDraftSchema>
 export type LessonCompleteReviewDraftDto = z.infer<typeof lessonCompleteReviewDraftSchema>
+export type LessonExportFormatDto = z.infer<typeof lessonExportFormatSchema>
+export type LessonExportDraftDto = Readonly<{
+  lessonId: string
+  format: LessonExportFormatDto
+  operationId?: string
+}>
 export type ListLessonsRequest = z.infer<typeof listLessonsRequestSchema>
 export type StartLessonFromDocumentRequest = z.infer<typeof startLessonFromDocumentRequestSchema>
 export type GetLessonRequest = z.infer<typeof getLessonRequestSchema>
@@ -605,6 +638,9 @@ export type RecordReviewRequest = z.infer<typeof recordReviewRequestSchema>
 export type EndLessonRequest = z.infer<typeof endLessonRequestSchema>
 export type ChoosePostLessonActionRequest = z.infer<typeof choosePostLessonActionRequestSchema>
 export type CompleteLessonReviewRequest = z.infer<typeof completeLessonReviewRequestSchema>
+export type ExportLessonTranscriptRequest = z.infer<typeof exportLessonTranscriptRequestSchema>
+export type CancelLessonExportRequest = z.infer<typeof cancelLessonExportRequestSchema>
 export type LessonSessionsResult = z.infer<typeof lessonSessionsResultSchema>
 export type LessonSessionResult = z.infer<typeof lessonSessionResultSchema>
 export type CancelLessonRunResult = z.infer<typeof cancelLessonRunResultSchema>
+export type LessonExportResult = z.infer<typeof lessonExportResultSchema>

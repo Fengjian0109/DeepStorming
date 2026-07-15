@@ -455,6 +455,21 @@ beforeEach(() => {
         data: completedSession,
         requestId: crypto.randomUUID(),
       }),
+      exportTranscript: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          outcome: 'exported',
+          format: 'markdown',
+          targetPath: '/tmp/lesson.md',
+          replayed: false,
+        },
+        requestId: crypto.randomUUID(),
+      }),
+      cancelExport: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { cancelled: true },
+        requestId: crypto.randomUUID(),
+      }),
     },
   })
 })
@@ -481,6 +496,18 @@ describe('LessonWorkspace', () => {
     await user.click(screen.getByRole('tab', { name: '进度' }))
     expect(screen.getByText(/论文阶段：问题定位/)).toBeTruthy()
     expect(screen.getByText('The learner is still orienting around the paper.')).toBeTruthy()
+  })
+
+  it('exports the visible lesson as Markdown and reports success', async () => {
+    const user = userEvent.setup()
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+    await user.click(await screen.findByRole('button', { name: '导出 Markdown' }))
+    expect(window.deepstorming.lessons.exportTranscript).toHaveBeenCalledWith({
+      lessonId: session.id,
+      format: 'markdown',
+      operationId: expect.any(String),
+    })
+    expect(await screen.findByText('课堂记录已导出。')).toBeTruthy()
   })
 
   it('does not render paper metadata for standard lessons', async () => {

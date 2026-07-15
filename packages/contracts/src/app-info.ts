@@ -32,6 +32,8 @@ import type {
   LessonSessionResult,
   LessonSessionsResult,
   LessonStartDraftDto,
+  LessonExportDraftDto,
+  LessonExportResult,
 } from './lesson'
 import type {
   AvatarAssetResult,
@@ -97,6 +99,8 @@ export type DeepStormingApi = {
     end: (lesson: LessonEndDraftDto) => Promise<LessonSessionResult>
     choosePostLessonAction: (choice: LessonPostActionDraftDto) => Promise<LessonSessionResult>
     completeReview: (review: LessonCompleteReviewDraftDto) => Promise<LessonSessionResult>
+    exportTranscript: (draft: LessonExportDraftDto) => Promise<LessonExportResult>
+    cancelExport: (operationId: string) => Promise<CancelLessonRunResult>
   }
   provider: {
     list: () => Promise<ListProvidersResult>

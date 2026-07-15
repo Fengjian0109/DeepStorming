@@ -43,6 +43,9 @@ import {
   SubmitLessonReply,
   TestProviderConnection,
   UpdateProvider,
+  ExportLessonTranscript,
+  CancelLessonExport,
+  LessonExportOperations,
 } from '@deepstorming/application'
 import {
   EncryptedFileSecretVault,
@@ -57,11 +60,14 @@ import {
   SqliteDocumentImportRepository,
   SqliteDocumentRepository,
   SqliteLessonRepository,
+  SqliteLessonExportJobRepository,
   SqliteLearningSettingsRepository,
   SqliteProviderRepository,
   migrateDatabase,
   openDatabase,
   type SqliteDatabase,
+  MarkdownLessonExporter,
+  PdfLessonExporter,
 } from '@deepstorming/infrastructure'
 import type { App } from 'electron'
 
@@ -72,6 +78,7 @@ import type { LessonIpcDependencies } from './ipc/lesson-handlers'
 import type { LearningSettingsIpcDependencies } from './ipc/learning-settings-handlers'
 import type { ProviderIpcDependencies } from './ipc/provider-handlers'
 import { ElectronSafeStorageCipher } from './secrets/electron-safe-storage-cipher'
+import { ElectronHtmlToPdf, ElectronLessonExportDestination } from './lesson-export-adapters'
 
 type AppLike = Pick<App, 'getName' | 'getPath'>
 
@@ -113,6 +120,7 @@ export const createCompositionRoot = async (
     const documentImportRepository = new SqliteDocumentImportRepository(db)
     const lessonRepository = new SqliteLessonRepository(db)
     const learningSettingsRepository = new SqliteLearningSettingsRepository(db)
+    const lessonExportJobRepository = new SqliteLessonExportJobRepository(db)
     const ids = { generate: randomUUID }
     const clock = { now: () => new Date().toISOString() }
     const vault = new EncryptedFileSecretVault(secretsDir, new ElectronSafeStorageCipher(), ids)
@@ -128,6 +136,7 @@ export const createCompositionRoot = async (
     const cleanupReporter = new SecretCleanupReporter(logger)
     const operations = new ProviderTestOperations()
     const lessonOperations = new LessonRunOperations()
+    const lessonExportOperations = new LessonExportOperations()
     const providerGatewayFactory = new ProviderGatewayFactory()
     const rebuildDocumentChunks = new RebuildDocumentChunks(
       documentRepository,
@@ -226,6 +235,18 @@ export const createCompositionRoot = async (
       ),
       choosePostLessonAction: new ChoosePostLessonAction(lessonRepository, clock),
       completeLessonReview: new CompleteLessonReview(lessonRepository, clock),
+      exportLessonTranscript: new ExportLessonTranscript(
+        lessonRepository,
+        documentImportRepository,
+        documentAssetStore,
+        lessonExportJobRepository,
+        new ElectronLessonExportDestination(),
+        new MarkdownLessonExporter(),
+        new PdfLessonExporter(new ElectronHtmlToPdf()),
+        clock.now,
+        lessonExportOperations,
+      ),
+      cancelLessonExport: new CancelLessonExport(lessonExportOperations),
       listProviders: new ListProviders(repository),
       createProvider: new CreateProvider(repository, vault, clock, ids, cleanupReporter),
       updateProvider: new UpdateProvider(repository, vault, cleanupReporter, clock),

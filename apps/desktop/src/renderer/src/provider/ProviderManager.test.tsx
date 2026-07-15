@@ -131,6 +131,8 @@ const installApi = (overrides: Partial<DeepStormingBootstrapApi['provider']> = {
       choosePostLessonAction:
         vi.fn<DeepStormingBootstrapApi['lessons']['choosePostLessonAction']>(),
       completeReview: vi.fn<DeepStormingBootstrapApi['lessons']['completeReview']>(),
+      exportTranscript: vi.fn<DeepStormingBootstrapApi['lessons']['exportTranscript']>(),
+      cancelExport: vi.fn<DeepStormingBootstrapApi['lessons']['cancelExport']>(),
     },
     provider: {
       list: vi.fn<DeepStormingBootstrapApi['provider']['list']>().mockResolvedValue(okList([])),

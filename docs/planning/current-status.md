@@ -2,8 +2,8 @@
 
 - 更新时间：2026-07-15
 - 当前分支：`codex/all-stages`
-- 当前阶段：AI-first workspace redesign — Stage 4 lesson lifecycle and export
-- 状态：Stage 1–3 已完成；正在推进完整下课/复习生命周期与聊天记录导出
+- 当前阶段：AI-first workspace redesign — Stage 5 context compression and hardening
+- 状态：Stage 1–4 已完成；正在推进 token 预算、上下文快照与 AI 自动压缩
 
 ## AI-first workspace redesign — Stage 4（进行中）
 
@@ -25,7 +25,17 @@ Task 12 已完成：
 - 重启后打开 `pending_review` 课程会恢复课程记忆与复习入口；只有 `completeReview` 成功保存后显示“本节课已完成”。
 - 同一教材的多节课程仍按更新时间倒序保留，历史标签可区分准备中、进行中、总结中、待复习、复习中、已完成、暂停、待恢复和归档。
 
-Task 12 仓库门禁：`pnpm check` 通过，72 个测试文件、696 个测试通过，类型检查和生产构建通过。下一步是 Task 13 Markdown/PDF 聊天导出。
+Task 12 仓库门禁：`pnpm check` 通过，72 个测试文件、696 个测试通过，类型检查和生产构建通过。
+
+Task 13 已完成：
+
+- 课堂顶部提供 Markdown 与 PDF 两种显式导出操作；系统保存对话框支持正常取消，文件生成阶段支持取消、成功与安全错误反馈。
+- Migration 21 新增 `lesson_export_jobs`，在文件工作开始前保存 `started`，并持久化 `succeeded/failed/cancelled`；相同 operation 的成功结果可幂等重放。
+- Markdown 使用 UTF-8，按原始消息顺序输出学习者/导师标签、动作斜体、LaTeX 源码、引用卡内容和图片相对路径；引用图片复制到同名资源目录。
+- PDF 由专用只读 HTML 视图生成，KaTeX 先渲染公式，Electron 隐藏沙箱窗口再离线打印；中文、引用、图片与图题随文件保存。
+- 导出前建立只读脱敏会话副本，排除 system 消息、ModelRun、内部步骤、Provider/模型信息、Prompt manifest、prompt version 和内部图片资源路径。
+
+Task 13 仓库门禁：`pnpm check` 通过，75 个测试文件、705 个测试通过，类型检查和生产构建通过。下一步是 Task 14 token 预算与不可变上下文快照。
 
 ## AI-first workspace redesign — Stage 3
 
@@ -72,7 +82,6 @@ Stage 1 将桌面端从功能卡片堆叠页重构为“分层侧栏 + 对话主
 
 当前仍未完成：
 
-- 聊天记录 Markdown/PDF 导出。
 - 剩余上下文低于阈值时的自动压缩、token 统计与默认 30% 阈值设置。
 
 ## 已完成

@@ -420,6 +420,19 @@ CREATE TABLE document_learning_memories (
  updated_at TEXT NOT NULL
 );`
 
+const LESSON_EXPORT_JOB_SQL = `CREATE TABLE lesson_export_jobs (
+ operation_id TEXT PRIMARY KEY,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ format TEXT NOT NULL CHECK (format IN ('markdown','pdf')),
+ target_path TEXT NOT NULL,
+ status TEXT NOT NULL CHECK (status IN ('started','succeeded','failed','cancelled')),
+ error_code TEXT,
+ started_at TEXT NOT NULL,
+ finished_at TEXT
+);
+CREATE INDEX lesson_export_jobs_lesson_started_idx
+ON lesson_export_jobs(lesson_id,started_at DESC);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -446,6 +459,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
     sql: LESSON_MEMORY_LIFECYCLE_SQL,
     foreignKeysOff: true,
   },
+  { version: 21, name: 'lesson_export_jobs', sql: LESSON_EXPORT_JOB_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256')

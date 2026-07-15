@@ -1135,6 +1135,14 @@ Migration 规则：
 
 ## 15. 备份与导出
 
+课堂记录导出作业由 migration 21 的 `lesson_export_jobs` 持久化：
+
+- `operation_id` 是幂等键，同一成功操作不重复写文件。
+- `lesson_id` 关联课程，删除课程时级联删除作业元数据。
+- `format` 仅允许 `markdown/pdf`；`status` 仅允许 `started/succeeded/failed/cancelled`。
+- `target_path` 只保存用户选择的导出位置，不保存文件内容、Prompt、Provider 信息或任何密钥。
+- 文件工作开始前必须先写入 `started`，终态保存稳定 `error_code` 与完成时间。
+
 MVP 至少支持：
 
 - 关闭写事务后生成 SQLite 一致性备份。

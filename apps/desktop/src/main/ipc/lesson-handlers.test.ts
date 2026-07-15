@@ -108,6 +108,15 @@ const dependencies = () => ({
   endLesson: { execute: vi.fn().mockResolvedValue(session) },
   choosePostLessonAction: { execute: vi.fn().mockResolvedValue(session) },
   completeLessonReview: { execute: vi.fn().mockResolvedValue(session) },
+  exportLessonTranscript: {
+    execute: vi.fn().mockResolvedValue({
+      outcome: 'exported',
+      format: 'markdown',
+      targetPath: '/tmp/lesson.md',
+      replayed: false,
+    }),
+  },
+  cancelLessonExport: { execute: vi.fn().mockReturnValue({ cancelled: true }) },
 })
 
 describe('lesson IPC handlers', () => {
@@ -121,6 +130,34 @@ describe('lesson IPC handlers', () => {
 
     expect(result).toEqual({ ok: true, data: [session], requestId })
     expect(deps.listLessonSessions.execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('validates and exports a transcript through one use case', async () => {
+    const deps = dependencies()
+    const operationId = '00000000-0000-4000-8000-000000000701'
+    const result = await createLessonIpcHandlers(
+      deps as unknown as LessonIpcDependencies,
+    ).exportTranscript({
+      requestId,
+      lessonId,
+      operationId,
+      format: 'markdown',
+    })
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        outcome: 'exported',
+        format: 'markdown',
+        targetPath: '/tmp/lesson.md',
+        replayed: false,
+      },
+      requestId,
+    })
+    expect(deps.exportLessonTranscript.execute).toHaveBeenCalledWith({
+      lessonId,
+      operationId,
+      format: 'markdown',
+    })
   })
 
   it('starts a lesson from a document through one use case', async () => {

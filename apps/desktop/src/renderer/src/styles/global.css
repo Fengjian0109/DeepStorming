@@ -1257,6 +1257,18 @@ h2 {
   margin: 10px clamp(18px, 4vw, 48px) 0;
 }
 
+.lesson-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lesson-export-status {
+  margin: 8px 24px 0;
+}
+
 .lesson-end-overlay {
   position: absolute;
   z-index: 14;

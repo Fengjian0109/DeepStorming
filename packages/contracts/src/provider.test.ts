@@ -744,6 +744,16 @@ describe('provider error and API contracts', () => {
           },
           requestId,
         }),
+        exportTranscript: async (draft) => ({
+          ok: true as const,
+          data: { outcome: 'dialog_cancelled' as const, format: draft.format },
+          requestId,
+        }),
+        cancelExport: async (_operationId) => ({
+          ok: true as const,
+          data: { cancelled: false },
+          requestId,
+        }),
       },
       provider: {
         list: async () => ({ ok: true as const, data: [providerProfile], requestId }),
