@@ -160,11 +160,11 @@ describe('SettingsCenter', () => {
     renderSettings()
 
     await user.click(await screen.findByRole('button', { name: '导师 / 伙伴' }))
-    await user.click(screen.getByRole('button', { name: '编辑' }))
+    await user.click(screen.getByRole('button', { name: '编辑 苏格拉底导师' }))
     const avatar = new File([new Uint8Array([137, 80, 78, 71])], 'tutor.png', {
       type: 'image/png',
     })
-    await user.upload(screen.getByLabelText('导师头像'), avatar)
+    await user.upload(screen.getByLabelText('选择导师头像 文件输入'), avatar)
     expect(await screen.findByText('导师头像已导入并安全保存。')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: '保存导师' }))
 
@@ -174,5 +174,20 @@ describe('SettingsCenter', () => {
       1,
       expect.objectContaining({ avatarAssetId: 'avatar-asset-1' }),
     )
+  })
+
+  it('keeps a dirty tutor detail open when leaving is rejected', async () => {
+    const user = userEvent.setup()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderSettings()
+
+    await user.click(await screen.findByRole('button', { name: '导师 / 伙伴' }))
+    await user.click(screen.getByRole('button', { name: '编辑 苏格拉底导师' }))
+    await user.type(screen.getByLabelText('性格'), '、严谨')
+    await user.click(screen.getByRole('button', { name: '外观' }))
+
+    expect(confirm).toHaveBeenCalled()
+    expect(screen.getByRole('heading', { name: '编辑导师' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: '外观' })).toBeNull()
   })
 })

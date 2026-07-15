@@ -647,6 +647,51 @@ h2 {
   margin-inline-start: auto;
 }
 
+.settings-detail-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.settings-detail-scroll,
+.settings-page-body {
+  min-height: 0;
+  padding: 24px clamp(20px, 4vw, 56px) 48px;
+  overflow: auto;
+}
+
+.settings-form {
+  width: min(820px, 100%);
+  padding-bottom: 16px;
+}
+
+.settings-form textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.settings-field-group {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-field-label {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.settings-action-bar {
+  position: sticky;
+  bottom: -48px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-canvas);
+}
+
 .appearance-editor {
   height: 100%;
   padding: clamp(24px, 5vw, 64px);
@@ -724,6 +769,57 @@ h2 {
 .tutor-profile-list {
   display: grid;
   gap: 0.75rem;
+  align-content: start;
+}
+
+.tutor-profile-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto 20px;
+  align-items: center;
+  width: 100%;
+  min-height: 76px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
+  background: var(--color-surface-raised);
+  text-align: left;
+  box-shadow: none;
+}
+
+.tutor-profile-row:hover {
+  border-color: var(--color-accent);
+  background: var(--color-surface-hover);
+}
+
+.tutor-avatar-placeholder {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.tutor-profile-row-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.tutor-profile-row-copy strong,
+.tutor-profile-row-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tutor-profile-row-copy span {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
 }
 
 .tutor-profile-card {

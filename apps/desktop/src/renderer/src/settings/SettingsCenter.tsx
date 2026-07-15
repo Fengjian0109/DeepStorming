@@ -93,7 +93,11 @@ export const SettingsCenter = (): React.JSX.Element => {
         <ProviderManager onDirtyChange={setDirty} />
       )}
       {settings !== undefined && section === 'tutors' && (
-        <TutorProfileEditor tutors={settings.tutorProfiles} onChanged={replaceTutor} />
+        <TutorProfileEditor
+          tutors={settings.tutorProfiles}
+          onChanged={replaceTutor}
+          onDirtyChange={setDirty}
+        />
       )}
       {settings !== undefined && section === 'profile' && (
         <UserProfileEditor
