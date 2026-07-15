@@ -433,6 +433,26 @@ const LESSON_EXPORT_JOB_SQL = `CREATE TABLE lesson_export_jobs (
 CREATE INDEX lesson_export_jobs_lesson_started_idx
 ON lesson_export_jobs(lesson_id,started_at DESC);`
 
+const CONTEXT_SNAPSHOT_SQL = `CREATE TABLE context_snapshots (
+ id TEXT PRIMARY KEY,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ version INTEGER NOT NULL CHECK (version > 0),
+ model_name TEXT NOT NULL,
+ context_window_tokens INTEGER NOT NULL CHECK (context_window_tokens > 0),
+ estimated_input_tokens INTEGER NOT NULL CHECK (estimated_input_tokens >= 0),
+ reserved_output_tokens INTEGER NOT NULL CHECK (reserved_output_tokens > 0),
+ remaining_tokens INTEGER NOT NULL,
+ remaining_percent REAL NOT NULL CHECK (remaining_percent >= 0 AND remaining_percent <= 100),
+ threshold_percent INTEGER NOT NULL CHECK (threshold_percent BETWEEN 10 AND 50),
+ snapshot_json TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(lesson_id,version)
+);
+CREATE INDEX context_snapshots_lesson_version_idx ON context_snapshots(lesson_id,version DESC);
+CREATE TRIGGER context_snapshots_immutable_update BEFORE UPDATE ON context_snapshots
+BEGIN SELECT RAISE(ABORT,'context snapshots are immutable'); END;
+ALTER TABLE lesson_sessions ADD COLUMN active_context_snapshot_id TEXT REFERENCES context_snapshots(id);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -460,6 +480,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
     foreignKeysOff: true,
   },
   { version: 21, name: 'lesson_export_jobs', sql: LESSON_EXPORT_JOB_SQL },
+  { version: 22, name: 'context_snapshots', sql: CONTEXT_SNAPSHOT_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256')

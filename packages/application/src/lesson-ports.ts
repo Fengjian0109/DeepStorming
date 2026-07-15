@@ -21,6 +21,7 @@ import type {
   ReviewItem,
   TutorActionType,
   TutorTurn,
+  ContextSnapshot,
 } from '@deepstorming/domain'
 import type { StoredDocumentTextBlock } from './document-ports'
 import type { CancellationToken } from './provider-ports'
@@ -155,4 +156,11 @@ export interface LessonRepositoryPort {
   findById(id: string): Promise<StoredLessonSession | undefined>
   create(session: StoredLessonSession): Promise<StoredLessonSession>
   save(session: StoredLessonSession): Promise<StoredLessonSession>
+}
+
+export interface ContextSnapshotRepositoryPort {
+  create(snapshot: ContextSnapshot): Promise<'created' | 'exists'>
+  listForLesson(lessonId: string): Promise<readonly ContextSnapshot[]>
+  findActive(lessonId: string): Promise<ContextSnapshot | undefined>
+  activate(lessonId: string, snapshotId: string): Promise<'activated' | 'not_found'>
 }

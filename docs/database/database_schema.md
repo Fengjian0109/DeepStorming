@@ -1143,6 +1143,13 @@ Migration 规则：
 - `target_path` 只保存用户选择的导出位置，不保存文件内容、Prompt、Provider 信息或任何密钥。
 - 文件工作开始前必须先写入 `started`，终态保存稳定 `error_code` 与完成时间。
 
+上下文压缩快照由 migration 22 的 `context_snapshots` 持久化：
+
+- `(lesson_id, version)` 唯一，创建后由数据库触发器禁止更新，保证审计记录不可变。
+- 预算列单独保存模型、窗口、输入估算、输出预留、剩余量和触发阈值；结构化压缩内容保存在 `snapshot_json`。
+- `lesson_sessions.active_context_snapshot_id` 仅指向同一课程已经成功保存的快照；切换 active 指针不改写旧快照。
+- `lesson_messages` 始终保留全部原文，快照只影响后续 Provider 上下文组装。
+
 MVP 至少支持：
 
 - 关闭写事务后生成 SQLite 一致性备份。

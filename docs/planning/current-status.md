@@ -37,6 +37,16 @@ Task 13 已完成：
 
 Task 13 仓库门禁：`pnpm check` 通过，75 个测试文件、705 个测试通过，类型检查和生产构建通过。下一步是 Task 14 token 预算与不可变上下文快照。
 
+Task 14 已完成：
+
+- 上下文预算根据模型名称选择稳定窗口，并以输入估算、输出预留和窗口容量计算剩余 token；默认剩余 30% 触发压缩，设置边界保持 10–50%。
+- `selectRecentMessageIds` 只选择后续上下文需要保留的最近原始消息 ID，不修改完整课堂消息历史。
+- Domain 新增结构化 `ContextSnapshot`，记录模型、预算、覆盖消息、最近保留消息、事实、掌握点、误区、未决问题、来源与图片。
+- Migration 22 创建不可变 `context_snapshots`，课程保存 active snapshot 指针；SQLite 触发器拒绝快照更新，只允许创建新版本并原子切换指针。
+- 持久化测试确认快照创建和激活不会删除、覆盖或压缩数据库中的原始课堂消息。
+
+Task 14 仓库门禁：`pnpm check` 通过，78 个测试文件、714 个测试通过，类型检查和生产构建通过。下一步是 Task 15 AI 滚动压缩与失败恢复。
+
 ## AI-first workspace redesign — Stage 3
 
 已完成的结构化回复基础：

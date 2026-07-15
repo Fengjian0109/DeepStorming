@@ -253,10 +253,10 @@
 - Modify: `packages/infrastructure/src/database/sqlite-lesson-repository.ts`
 - Test: focused Domain/Application/Infrastructure tests
 
-- [ ] Write failing tests for model-aware estimates, default remaining-30% trigger, configurable 10–50% bounds, recent-turn preservation, and full raw-history retention.
-- [ ] Add migration 22 for immutable `context_snapshots` and active snapshot pointers (migration 21 is reserved for durable lesson export jobs).
-- [ ] Implement deterministic budget calculations and auditable snapshot persistence.
-- [ ] Run focused tests and commit `feat(context): add token budgets and snapshots`.
+- [x] Write failing tests for model-aware estimates, default remaining-30% trigger, configurable 10–50% bounds, recent-turn preservation, and full raw-history retention.
+- [x] Add migration 22 for immutable `context_snapshots` and active snapshot pointers (migration 21 is reserved for durable lesson export jobs).
+- [x] Implement deterministic budget calculations and auditable snapshot persistence.
+- [x] Run focused tests and commit `feat(context): add token budgets and snapshots`.
 
 ### Task 15: AI rolling compression and recovery
 
