@@ -161,12 +161,6 @@ export const navigatePrimarySidebar = (
   contextualCollapsed: sameTarget ? !current.contextualCollapsed : false,
 })
 
-// Temporary compatibility for the old shell; Task 4 removes this global action.
-export const toggleAllSidebars = (current: WorkspaceLayout): WorkspaceLayout =>
-  current.primaryCollapsed && current.contextualCollapsed
-    ? { ...current, primaryCollapsed: false, contextualCollapsed: true }
-    : { ...current, primaryCollapsed: true, contextualCollapsed: true }
-
 export const readWorkspaceLayout = (
   storage: Pick<Storage, 'getItem'>,
   viewportWidth = 1280,

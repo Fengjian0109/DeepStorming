@@ -64,11 +64,11 @@ afterEach(() => {
 })
 
 describe('App workspace composition', () => {
-  it('starts in the document library with runtime status and document context', async () => {
+  it('starts in the document library with runtime status and primary-only navigation', async () => {
     render(<App />)
 
     expect(await screen.findByText('文档页内容')).toBeTruthy()
-    expect(screen.getByRole('complementary', { name: '文档导航' })).toBeTruthy()
+    expect(screen.queryByRole('complementary', { name: '文档导航' })).toBeNull()
     expect((await screen.findByTestId('app-version')).textContent).toBe('v1.2.3 · darwin')
   })
 

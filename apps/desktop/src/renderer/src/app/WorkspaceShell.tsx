@@ -1,16 +1,17 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { IconButton } from '../ui/IconButton'
+import { UiIcon, type UiIconName } from '../ui/UiIcon'
 import {
   COLLAPSED_RAIL_WIDTH,
   MIN_CONTEXTUAL_WIDTH,
   MIN_PRIMARY_WIDTH,
-  WORKSPACE_LAYOUT_STORAGE_KEY,
   fitWorkspaceLayoutToViewport,
   maximumCombinedSidebarWidth,
+  navigatePrimarySidebar,
   readWorkspaceLayout,
   resizeWorkspaceLayout,
-  toggleAllSidebars,
   toggleContextualSidebar,
   togglePrimarySidebar,
   writeWorkspaceLayout,
@@ -51,17 +52,14 @@ const navigationLabels: Readonly<Record<WorkspacePage, string>> = {
   settings: '设置',
 }
 
-const COMPACT_WORKSPACE_WIDTH = 900
-
-const readInitialLayout = (viewportWidth: number): WorkspaceLayout => {
-  const stored = readWorkspaceLayout(window.localStorage)
-  try {
-    if (window.localStorage.getItem(WORKSPACE_LAYOUT_STORAGE_KEY) !== null) return stored
-  } catch {
-    return stored
-  }
-  return viewportWidth < COMPACT_WORKSPACE_WIDTH ? { ...stored, contextualCollapsed: true } : stored
+const navigationIcons: Readonly<Record<WorkspacePage, UiIconName>> = {
+  documents: 'documents',
+  lessons: 'lessons',
+  settings: 'settings',
 }
+
+const readInitialLayout = (viewportWidth: number): WorkspaceLayout =>
+  readWorkspaceLayout(window.localStorage, viewportWidth)
 
 export const WorkspaceShell = ({
   page,
@@ -96,14 +94,24 @@ export const WorkspaceShell = ({
     () => fitWorkspaceLayoutToViewport(layout, viewportWidth),
     [layout, viewportWidth],
   )
+
+  useEffect(() => {
+    if (!displayedLayout.contextualCollapsed || layout.contextualCollapsed) return
+    setLayout((current) => ({ ...current, contextualCollapsed: true }))
+  }, [displayedLayout.contextualCollapsed, layout.contextualCollapsed])
+
   const primaryColumnWidth = displayedLayout.primaryCollapsed
     ? COLLAPSED_RAIL_WIDTH
     : displayedLayout.primaryWidth
   const contextualColumnWidth = displayedLayout.contextualCollapsed
     ? 0
     : displayedLayout.contextualWidth
-  const bothCollapsed = layout.primaryCollapsed && layout.contextualCollapsed
   const maximumCombinedWidth = maximumCombinedSidebarWidth(viewportWidth)
+
+  const handlePrimaryNavigation = (target: WorkspacePage) => {
+    setLayout((current) => navigatePrimarySidebar(current, page === target))
+    if (target !== page) onNavigate(target)
+  }
 
   const resizeBy = (boundary: 'primary' | 'contextual', deltaX: number) => {
     setLayout((current) =>
@@ -183,18 +191,23 @@ export const WorkspaceShell = ({
           className={`workspace-primary ${layout.primaryCollapsed ? 'workspace-primary-collapsed' : ''}`}
           aria-label="主侧栏"
         >
-          {layout.primaryCollapsed ? (
-            <button
-              type="button"
+          {displayedLayout.primaryCollapsed ? (
+            <IconButton
+              icon="panel-left"
+              label="展开主侧栏"
               className="workspace-rail-button"
-              aria-label="展开主侧栏"
               onClick={() => setLayout((current) => togglePrimarySidebar(current))}
-            >
-              DS
-            </button>
+            />
           ) : (
             <>
-              <div className="workspace-primary-header">{primaryHeader}</div>
+              <div className="workspace-primary-top">
+                <div className="workspace-primary-header">{primaryHeader}</div>
+                <IconButton
+                  icon="panel-left"
+                  label="收起主侧栏"
+                  onClick={() => setLayout((current) => togglePrimarySidebar(current))}
+                />
+              </div>
               <nav aria-label="主导航" className="workspace-navigation">
                 {(Object.keys(navigationLabels) as WorkspacePage[]).map((target) => (
                   <button
@@ -202,19 +215,14 @@ export const WorkspaceShell = ({
                     type="button"
                     className={`nav-item ${page === target ? 'nav-item-active' : ''}`}
                     aria-current={page === target ? 'page' : undefined}
-                    onClick={() => onNavigate(target)}
+                    aria-expanded={page === target ? !displayedLayout.contextualCollapsed : false}
+                    onClick={() => handlePrimaryNavigation(target)}
                   >
-                    {navigationLabels[target]}
+                    <UiIcon name={navigationIcons[target]} />
+                    <span>{navigationLabels[target]}</span>
                   </button>
                 ))}
               </nav>
-              <button
-                type="button"
-                className="workspace-collapse-button"
-                onClick={() => setLayout((current) => togglePrimarySidebar(current))}
-              >
-                收起主侧栏
-              </button>
             </>
           )}
         </aside>
@@ -227,8 +235,8 @@ export const WorkspaceShell = ({
           aria-valuemin={MIN_PRIMARY_WIDTH}
           aria-valuemax={Math.floor(maximumCombinedWidth - MIN_CONTEXTUAL_WIDTH)}
           aria-valuenow={Math.round(displayedLayout.primaryWidth)}
-          aria-hidden={layout.primaryCollapsed}
-          tabIndex={layout.primaryCollapsed ? -1 : 0}
+          aria-hidden={displayedLayout.primaryCollapsed}
+          tabIndex={displayedLayout.primaryCollapsed ? -1 : 0}
           onPointerDown={(event) => startDrag('primary', event)}
           onPointerMove={(event) => continueDrag('primary', event)}
           onPointerUp={stopDrag}
@@ -236,24 +244,23 @@ export const WorkspaceShell = ({
           onKeyDown={(event) => resizeWithKeyboard('primary', event)}
         />
 
-        <aside
-          className={`workspace-contextual ${layout.contextualCollapsed ? 'workspace-contextual-collapsed' : ''}`}
-          aria-label={contextualLabel}
-          aria-hidden={layout.contextualCollapsed}
-        >
-          {!layout.contextualCollapsed && (
-            <>
-              <div className="workspace-contextual-content" ref={setContextualRoot} />
-              <button
-                type="button"
-                className="workspace-collapse-button"
+        {displayedLayout.contextualCollapsed ? (
+          <div className="workspace-contextual-placeholder" aria-hidden="true" />
+        ) : (
+          <aside className="workspace-contextual" aria-label={contextualLabel}>
+            <div className="workspace-contextual-top">
+              <strong>{contextualLabel}</strong>
+              <IconButton
+                icon="panel-right"
+                label="收起副侧栏"
                 onClick={() => setLayout((current) => toggleContextualSidebar(current))}
-              >
-                收起副侧栏
-              </button>
-            </>
-          )}
-        </aside>
+              />
+            </div>
+            <div className="workspace-contextual-body">
+              <div className="workspace-contextual-content" ref={setContextualRoot} />
+            </div>
+          </aside>
+        )}
 
         <div
           className="workspace-separator"
@@ -263,8 +270,8 @@ export const WorkspaceShell = ({
           aria-valuemin={MIN_CONTEXTUAL_WIDTH}
           aria-valuemax={Math.floor(maximumCombinedWidth - MIN_PRIMARY_WIDTH)}
           aria-valuenow={Math.round(displayedLayout.contextualWidth)}
-          aria-hidden={layout.contextualCollapsed}
-          tabIndex={layout.contextualCollapsed ? -1 : 0}
+          aria-hidden={displayedLayout.contextualCollapsed}
+          tabIndex={displayedLayout.contextualCollapsed ? -1 : 0}
           onPointerDown={(event) => startDrag('contextual', event)}
           onPointerMove={(event) => continueDrag('contextual', event)}
           onPointerUp={stopDrag}
@@ -273,24 +280,6 @@ export const WorkspaceShell = ({
         />
 
         <main className="workspace-main">
-          <div className="workspace-sidebar-controls" aria-label="侧栏控制">
-            {layout.contextualCollapsed && !bothCollapsed && (
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setLayout((current) => toggleContextualSidebar(current))}
-              >
-                展开副侧栏
-              </button>
-            )}
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => setLayout((current) => toggleAllSidebars(current))}
-            >
-              {bothCollapsed ? '恢复侧栏' : '收起全部侧栏'}
-            </button>
-          </div>
           <div className="workspace-main-content">{children}</div>
         </main>
       </div>

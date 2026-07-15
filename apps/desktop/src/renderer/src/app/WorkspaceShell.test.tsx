@@ -6,13 +6,13 @@ import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WORKSPACE_LAYOUT_STORAGE_KEY } from './workspace-layout'
-import { WorkspaceContextual, WorkspaceShell } from './WorkspaceShell'
+import { WorkspaceContextual, WorkspaceShell, type WorkspacePage } from './WorkspaceShell'
 
-const renderShell = (viewportWidth = 1200) =>
+const renderShell = (viewportWidth = 1200, onNavigate = vi.fn()) =>
   render(
     <WorkspaceShell
       page="documents"
-      onNavigate={vi.fn()}
+      onNavigate={onNavigate}
       primaryHeader={<span>DeepStorming</span>}
       contextualLabel="文档导航"
       viewportWidth={viewportWidth}
@@ -34,53 +34,63 @@ afterEach(() => {
 })
 
 describe('WorkspaceShell', () => {
-  it('renders top-level and contextual navigation with the main content', async () => {
-    renderShell()
+  it('starts with primary only and toggles context from the selected primary target', async () => {
+    const user = userEvent.setup()
+    renderShell(1600)
 
-    expect(screen.getByRole('complementary', { name: '主侧栏' })).toBeTruthy()
+    expect(screen.queryByRole('complementary', { name: '文档导航' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: '文档库' }))
     expect(await screen.findByRole('complementary', { name: '文档导航' })).toBeTruthy()
-    expect(screen.getByRole('navigation', { name: '主导航' })).toBeTruthy()
-    expect(screen.getByText('主内容')).toBeTruthy()
     expect(await screen.findByRole('button', { name: '打开文档：Notes' })).toBeTruthy()
-    expect(screen.getByRole('complementary', { name: '主侧栏' }).className).toContain(
-      'workspace-primary',
-    )
-    expect(screen.getByRole('navigation', { name: '主导航' }).className).toContain(
-      'workspace-navigation',
-    )
+
+    await user.click(screen.getByRole('button', { name: '文档库' }))
+    expect(screen.queryByRole('complementary', { name: '文档导航' })).toBeNull()
   })
 
-  it('collapses sidebars independently and restores previous states after collapse all', async () => {
+  it('collapsing primary forces context closed and leaves one rail restore button', async () => {
     const user = userEvent.setup()
-    renderShell()
+    renderShell(1600)
 
-    await user.click(screen.getByRole('button', { name: '收起副侧栏' }))
+    await user.click(screen.getByRole('button', { name: '文档库' }))
+    await user.click(screen.getByRole('button', { name: '收起主侧栏' }))
+
     expect(screen.queryByRole('complementary', { name: '文档导航' })).toBeNull()
+    expect(screen.getByRole('button', { name: '展开主侧栏' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '收起全部侧栏' })).toBeNull()
 
-    await user.click(screen.getByRole('button', { name: '收起全部侧栏' }))
-    expect(screen.getByRole('button', { name: '恢复侧栏' })).toBeTruthy()
-
-    await user.click(screen.getByRole('button', { name: '恢复侧栏' }))
-    expect(screen.getByRole('complementary', { name: '主侧栏' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '展开主侧栏' }))
+    expect(screen.getByRole('navigation', { name: '主导航' })).toBeTruthy()
     expect(screen.queryByRole('complementary', { name: '文档导航' })).toBeNull()
-    expect(screen.getByRole('button', { name: '展开副侧栏' })).toBeTruthy()
+  })
+
+  it('switches page and keeps context open when another primary target is selected', async () => {
+    const onNavigate = vi.fn<(page: WorkspacePage) => void>()
+    const user = userEvent.setup()
+    renderShell(1600, onNavigate)
+
+    await user.click(screen.getByRole('button', { name: '文档库' }))
+    await user.click(screen.getByRole('button', { name: '设置' }))
+
+    expect(onNavigate).toHaveBeenCalledWith('settings')
+    expect(screen.getByRole('complementary', { name: '文档导航' })).toBeTruthy()
   })
 
   it('persists pointer resizing without exceeding half of the viewport', async () => {
+    const user = userEvent.setup()
     renderShell()
+    await user.click(screen.getByRole('button', { name: '文档库' }))
     const separator = screen.getByRole('separator', { name: '调整副侧栏宽度' })
 
-    fireEvent.pointerDown(separator, { pointerId: 1, clientX: 520 })
-    fireEvent.pointerMove(separator, { pointerId: 1, clientX: 1520 })
-    fireEvent.pointerUp(separator, { pointerId: 1, clientX: 1520 })
+    fireEvent.pointerDown(separator, { pointerId: 1, clientX: 480 })
+    fireEvent.pointerMove(separator, { pointerId: 1, clientX: 1480 })
+    fireEvent.pointerUp(separator, { pointerId: 1, clientX: 1480 })
 
     await waitFor(() => {
       const saved = JSON.parse(
         window.localStorage.getItem(WORKSPACE_LAYOUT_STORAGE_KEY) ?? '{}',
       ) as { primaryWidth: number; contextualWidth: number }
-      expect(saved.primaryWidth + saved.contextualWidth).toBeLessThanOrEqual(600)
+      expect(saved.primaryWidth + saved.contextualWidth).toBeLessThanOrEqual(588)
     })
-    expect(separator.getAttribute('aria-valuemax')).toBe('412')
   })
 
   it('supports keyboard resizing in sixteen pixel steps', async () => {
@@ -93,45 +103,17 @@ describe('WorkspaceShell', () => {
       const saved = JSON.parse(
         window.localStorage.getItem(WORKSPACE_LAYOUT_STORAGE_KEY) ?? '{}',
       ) as { primaryWidth: number }
-      expect(saved.primaryWidth).toBe(236)
+      expect(saved.primaryWidth).toBe(196)
     })
   })
 
-  it('keeps main content available when both sidebars are collapsed', async () => {
-    const user = userEvent.setup()
-    renderShell()
-
-    await user.click(screen.getByRole('button', { name: '收起全部侧栏' }))
-
-    expect(screen.getByText('主内容')).toBeTruthy()
-    expect(screen.getByRole('button', { name: '恢复侧栏' })).toBeTruthy()
-  })
-
-  it('defaults the contextual sidebar closed below 900px without overwriting saved preference', async () => {
-    const user = userEvent.setup()
-    renderShell(800)
+  it('collapses context once on a narrow viewport and does not expose a restore action', async () => {
+    renderShell(760)
 
     expect(screen.queryByRole('complementary', { name: '文档导航' })).toBeNull()
-    expect(screen.getByRole('button', { name: '展开副侧栏' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '展开副侧栏' })).toBeNull()
     expect(
       globalThis.document.querySelector('[aria-label="调整副侧栏宽度"]')?.getAttribute('tabindex'),
     ).toBe('-1')
-    await user.click(screen.getByRole('button', { name: '展开副侧栏' }))
-    expect(await screen.findByRole('complementary', { name: '文档导航' })).toBeTruthy()
-
-    cleanup()
-    window.localStorage.setItem(
-      WORKSPACE_LAYOUT_STORAGE_KEY,
-      JSON.stringify({
-        primaryWidth: 220,
-        contextualWidth: 300,
-        primaryCollapsed: false,
-        contextualCollapsed: false,
-        restorePrimaryCollapsed: false,
-        restoreContextualCollapsed: false,
-      }),
-    )
-    renderShell(800)
-    expect(await screen.findByRole('complementary', { name: '文档导航' })).toBeTruthy()
   })
 })
