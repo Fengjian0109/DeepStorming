@@ -1,98 +1,96 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
-  DEFAULT_WORKSPACE_LAYOUT,
+  COLLAPSED_RAIL_WIDTH,
+  createDefaultWorkspaceLayout,
   fitWorkspaceLayoutToViewport,
   maximumCombinedSidebarWidth,
+  navigatePrimarySidebar,
   normalizeWorkspaceLayout,
   readWorkspaceLayout,
   resizeWorkspaceLayout,
-  toggleAllSidebars,
   toggleContextualSidebar,
   togglePrimarySidebar,
   writeWorkspaceLayout,
 } from './workspace-layout'
 
 describe('workspace layout policy', () => {
-  it('normalizes missing and corrupt persisted values', () => {
-    expect(normalizeWorkspaceLayout(undefined)).toEqual(DEFAULT_WORKSPACE_LAYOUT)
-    expect(
-      normalizeWorkspaceLayout({
-        primaryWidth: -20,
-        contextualWidth: Number.NaN,
-        primaryCollapsed: 'yes',
-      }),
-    ).toEqual(DEFAULT_WORKSPACE_LAYOUT)
+  it('starts primary-only and targets forty percent when context opens', () => {
+    const layout = createDefaultWorkspaceLayout(1600)
+
+    expect(layout).toMatchObject({ primaryCollapsed: false, contextualCollapsed: true })
+    expect(layout.primaryWidth + layout.contextualWidth).toBeCloseTo(640, 0)
+    expect(COLLAPSED_RAIL_WIDTH).toBe(48)
   })
 
-  it('caps combined expanded width at one half of the viewport', () => {
-    const resized = resizeWorkspaceLayout(DEFAULT_WORKSPACE_LAYOUT, {
-      boundary: 'contextual',
-      deltaX: 1000,
-      viewportWidth: 1200,
+  it('forces the contextual child closed when primary collapses', () => {
+    const open = { ...createDefaultWorkspaceLayout(1600), contextualCollapsed: false }
+
+    expect(togglePrimarySidebar(open)).toMatchObject({
+      primaryCollapsed: true,
+      contextualCollapsed: true,
     })
+    expect(togglePrimarySidebar(togglePrimarySidebar(open))).toMatchObject({
+      primaryCollapsed: false,
+      contextualCollapsed: true,
+    })
+  })
+
+  it('uses the selected primary item as a reversible contextual toggle', () => {
+    const closed = createDefaultWorkspaceLayout(1600)
+    const opened = navigatePrimarySidebar(closed, true)
+
+    expect(opened.contextualCollapsed).toBe(false)
+    expect(navigatePrimarySidebar(opened, true).contextualCollapsed).toBe(true)
+    expect(navigatePrimarySidebar(opened, false).contextualCollapsed).toBe(false)
+  })
+
+  it('never lets expanded sidebars exceed half of the viewport', () => {
+    const resized = resizeWorkspaceLayout(
+      { ...createDefaultWorkspaceLayout(1600), contextualCollapsed: false },
+      { boundary: 'contextual', deltaX: 5000, viewportWidth: 1600 },
+    )
 
     expect(resized.primaryWidth + resized.contextualWidth).toBeLessThanOrEqual(
-      maximumCombinedSidebarWidth(1200),
+      maximumCombinedSidebarWidth(1600),
     )
   })
 
-  it('keeps both expanded sidebars usable at the minimum desktop width', () => {
-    const resized = resizeWorkspaceLayout(DEFAULT_WORKSPACE_LAYOUT, {
-      boundary: 'primary',
-      deltaX: 1000,
-      viewportWidth: 880,
-    })
+  it('does not open a contextual child while primary is collapsed', () => {
+    const collapsed = togglePrimarySidebar(createDefaultWorkspaceLayout(1600))
 
-    expect(resized.primaryWidth + resized.contextualWidth).toBeLessThanOrEqual(428)
-    expect(resized.primaryWidth).toBeGreaterThanOrEqual(176)
-    expect(resized.contextualWidth).toBeGreaterThanOrEqual(220)
+    expect(toggleContextualSidebar(collapsed)).toEqual(collapsed)
   })
 
-  it('derives a capped display layout without overwriting wider saved preferences', () => {
-    const preferred = { ...DEFAULT_WORKSPACE_LAYOUT, primaryWidth: 300, contextualWidth: 360 }
-    const displayed = fitWorkspaceLayoutToViewport(preferred, 880)
-
-    expect(displayed.primaryWidth + displayed.contextualWidth).toBeLessThanOrEqual(428)
-    expect(preferred).toMatchObject({ primaryWidth: 300, contextualWidth: 360 })
-  })
-
-  it('uses only visible sidebar widths when one sidebar is collapsed', () => {
+  it('collapses context first when both minimum widths cannot fit', () => {
     const preferred = {
-      ...DEFAULT_WORKSPACE_LAYOUT,
-      primaryWidth: 600,
-      contextualCollapsed: true,
+      ...createDefaultWorkspaceLayout(1600),
+      primaryWidth: 300,
+      contextualWidth: 360,
+      contextualCollapsed: false,
     }
-    const displayed = fitWorkspaceLayoutToViewport(preferred, 880)
+    const displayed = fitWorkspaceLayoutToViewport(preferred, 760)
 
-    expect(displayed.primaryWidth).toBe(428)
-    expect(displayed.contextualWidth).toBe(preferred.contextualWidth)
+    expect(displayed.contextualCollapsed).toBe(true)
+    expect(displayed.contextualWidth).toBe(360)
   })
 
-  it('collapses both sidebars and restores their previous independent states', () => {
-    const starting = {
-      ...DEFAULT_WORKSPACE_LAYOUT,
-      primaryCollapsed: false,
-      contextualCollapsed: true,
-    }
-
-    const collapsed = toggleAllSidebars(starting)
-    expect(collapsed.primaryCollapsed).toBe(true)
-    expect(collapsed.contextualCollapsed).toBe(true)
-
-    expect(toggleAllSidebars(collapsed)).toMatchObject({
-      primaryCollapsed: false,
-      contextualCollapsed: true,
-    })
-  })
-
-  it('toggles primary and contextual sidebars independently', () => {
-    expect(togglePrimarySidebar(DEFAULT_WORKSPACE_LAYOUT).primaryCollapsed).toBe(true)
-    expect(toggleContextualSidebar(DEFAULT_WORKSPACE_LAYOUT).contextualCollapsed).toBe(true)
+  it('normalizes corrupt persisted values against the current viewport default', () => {
+    expect(normalizeWorkspaceLayout(undefined, 1600)).toEqual(createDefaultWorkspaceLayout(1600))
+    expect(
+      normalizeWorkspaceLayout(
+        {
+          primaryWidth: -20,
+          contextualWidth: Number.NaN,
+          primaryCollapsed: 'yes',
+        },
+        1600,
+      ),
+    ).toEqual(createDefaultWorkspaceLayout(1600))
   })
 
   it('round trips valid storage and falls back for malformed JSON', () => {
-    const value = { ...DEFAULT_WORKSPACE_LAYOUT, primaryWidth: 260 }
+    const value = { ...createDefaultWorkspaceLayout(1600), primaryWidth: 260 }
     const storage = new Map<string, string>()
     const adapter = {
       getItem: (key: string) => storage.get(key) ?? null,
@@ -100,10 +98,10 @@ describe('workspace layout policy', () => {
     }
 
     expect(writeWorkspaceLayout(adapter, value)).toBe(true)
-    expect(readWorkspaceLayout(adapter)).toEqual(value)
+    expect(readWorkspaceLayout(adapter, 1600)).toEqual(value)
 
-    storage.set('deepstorming.workspace-layout.v1', '{bad json')
-    expect(readWorkspaceLayout(adapter)).toEqual(DEFAULT_WORKSPACE_LAYOUT)
+    storage.set('deepstorming.workspace-layout.v2', '{bad json')
+    expect(readWorkspaceLayout(adapter, 1600)).toEqual(createDefaultWorkspaceLayout(1600))
   })
 
   it('does not crash when layout preferences cannot be written', () => {
@@ -113,6 +111,6 @@ describe('workspace layout policy', () => {
       }),
     }
 
-    expect(writeWorkspaceLayout(storage, DEFAULT_WORKSPACE_LAYOUT)).toBe(false)
+    expect(writeWorkspaceLayout(storage, createDefaultWorkspaceLayout(1600))).toBe(false)
   })
 })
