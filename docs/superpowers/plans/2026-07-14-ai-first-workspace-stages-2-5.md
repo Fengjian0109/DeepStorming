@@ -268,10 +268,10 @@
 - Modify: `packages/infrastructure/src/providers/mock-provider-gateway.ts`
 - Test: focused tests
 
-- [ ] Write failing tests that trigger compression before the next tutor request and preserve facts, mastery, misconceptions, unresolved questions, citations, figures, tutor/pace, and recent turns.
-- [ ] Write failing tests for persisted `started/succeeded/failed/cancelled`, retry without duplicate snapshots, and continuing with the previous valid snapshot after compression failure.
-- [ ] Implement AI structured compression behind the provider port with no local semantic summary fallback.
-- [ ] Run focused tests and commit `feat(context): add automatic ai compression`.
+- [x] Write failing tests that trigger compression before the next tutor request and preserve facts, mastery, misconceptions, unresolved questions, citations, figures, tutor/pace, and recent turns.
+- [x] Write failing tests for persisted `started/succeeded/failed/cancelled`, retry without duplicate snapshots, and continuing with the previous valid snapshot after compression failure.
+- [x] Implement AI structured compression behind the provider port with no local semantic summary fallback.
+- [x] Run focused tests and commit `feat(context): add automatic ai compression`.
 
 ### Task 16: Context controls and diagnostics UI
 

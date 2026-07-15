@@ -46,6 +46,8 @@ import {
   ExportLessonTranscript,
   CancelLessonExport,
   LessonExportOperations,
+  ProviderContextCompressionGenerator,
+  PrepareLessonContextCompression,
 } from '@deepstorming/application'
 import {
   EncryptedFileSecretVault,
@@ -68,6 +70,8 @@ import {
   type SqliteDatabase,
   MarkdownLessonExporter,
   PdfLessonExporter,
+  SqliteContextSnapshotRepository,
+  SqliteContextCompressionJobRepository,
 } from '@deepstorming/infrastructure'
 import type { App } from 'electron'
 
@@ -121,6 +125,8 @@ export const createCompositionRoot = async (
     const lessonRepository = new SqliteLessonRepository(db)
     const learningSettingsRepository = new SqliteLearningSettingsRepository(db)
     const lessonExportJobRepository = new SqliteLessonExportJobRepository(db)
+    const contextSnapshotRepository = new SqliteContextSnapshotRepository(db)
+    const contextCompressionJobRepository = new SqliteContextCompressionJobRepository(db)
     const ids = { generate: randomUUID }
     const clock = { now: () => new Date().toISOString() }
     const vault = new EncryptedFileSecretVault(secretsDir, new ElectronSafeStorageCipher(), ids)
@@ -163,6 +169,18 @@ export const createCompositionRoot = async (
       repository,
       vault,
       providerGatewayFactory,
+    )
+    const contextCompressionGenerator = new ProviderContextCompressionGenerator(
+      repository,
+      vault,
+      providerGatewayFactory,
+    )
+    const prepareLessonContextCompression = new PrepareLessonContextCompression(
+      contextSnapshotRepository,
+      contextCompressionJobRepository,
+      contextCompressionGenerator,
+      clock.now,
+      ids.generate,
     )
 
     return {
@@ -215,6 +233,8 @@ export const createCompositionRoot = async (
         assembleLessonContext,
         lessonTutorReplyGenerator,
         lessonOperations,
+        prepareLessonContextCompression,
+        learningSettingsRepository,
       ),
       retryLessonRun: new RetryLessonRun(
         lessonRepository,

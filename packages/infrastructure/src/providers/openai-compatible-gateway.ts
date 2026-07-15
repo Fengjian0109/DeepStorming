@@ -8,6 +8,7 @@ import type {
   LessonPace,
   LessonSession,
   LessonTutorSnapshot,
+  ContextSnapshot,
 } from '@deepstorming/domain'
 
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>
@@ -110,6 +111,8 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
       lessonMode?: 'standard' | 'paper'
       tutorSnapshot?: LessonTutorSnapshot
       pace?: LessonPace
+      contextSnapshot?: ContextSnapshot
+      recentMessages?: readonly Readonly<{ role: 'tutor' | 'learner'; content: string }>[]
       repair?: Readonly<{ reason: string }>
     }>,
     token: CancellationToken,
@@ -236,6 +239,40 @@ export class OpenAICompatibleGateway implements ProviderGatewayPort {
         { fieldName: 'choices.message.content' },
       )
     }
+    return { content }
+  }
+
+  public async generateContextCompression(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      session: LessonSession
+      previousSnapshot?: ContextSnapshot
+      preservedRecentMessageIds: readonly string[]
+      repair?: Readonly<{ reason: string }>
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>> {
+    if (token.cancelled) throw cancelledError()
+    const body = await this.postChatCompletion(
+      {
+        modelName: input.modelName,
+        ...(input.apiKey === undefined ? {} : { apiKey: input.apiKey }),
+        messages: contextCompressionMessages(input),
+        maxTokens: 1_600,
+      },
+      token,
+      'The provider context compression timed out.',
+      'The provider context compression could not reach the provider.',
+    )
+    const content = firstAssistantContent(body)
+    if (content === undefined)
+      throw new ProviderUseCaseError(
+        'PROVIDER_RESPONSE_INVALID',
+        'The provider returned an invalid response.',
+        true,
+        { fieldName: 'choices.message.content' },
+      )
     return { content }
   }
 
@@ -496,6 +533,8 @@ const lessonTutorMessages = (input: {
   readonly lessonMode?: 'standard' | 'paper'
   readonly tutorSnapshot?: LessonTutorSnapshot
   readonly pace?: LessonPace
+  readonly contextSnapshot?: ContextSnapshot
+  readonly recentMessages?: readonly Readonly<{ role: 'tutor' | 'learner'; content: string }>[]
   readonly repair?: Readonly<{ reason: string }>
 }): readonly Readonly<{ role: 'system' | 'user'; content: string }>[] => [
   {
@@ -510,7 +549,7 @@ const lessonTutorMessages = (input: {
   },
   {
     role: 'user',
-    content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n扩展上下文：\n${formatContextChunks(input.contextChunks)}${formatAvailableFigures(input.availableFigures)}\n学习者回答：${input.learnerReply}\n请用中文提出一个简短追问，帮助学习者验证自己的判断。`,
+    content: `文档：${input.documentTitle}\n证据片段：${input.sourceSnippet}\n扩展上下文：\n${formatContextChunks(input.contextChunks)}${formatAvailableFigures(input.availableFigures)}${input.contextSnapshot === undefined && input.recentMessages === undefined ? '' : `\n已有压缩课堂上下文：${input.contextSnapshot?.summaryMarkdown ?? '无'}\n最近原始对话：${JSON.stringify(input.recentMessages ?? [])}`}\n学习者回答：${input.learnerReply}\n请用中文提出一个简短追问，帮助学习者验证自己的判断。`,
   },
 ]
 
@@ -556,6 +595,46 @@ const lessonMemoryMessages = (
         misconceptionSignals: input.session.misconceptionSignals,
       },
       previousDocumentMemory: input.previousDocumentMemory ?? null,
+    }),
+  },
+]
+
+const contextCompressionMessages = (
+  input: Readonly<{
+    session: LessonSession
+    previousSnapshot?: ContextSnapshot
+    preservedRecentMessageIds: readonly string[]
+    repair?: Readonly<{ reason: string }>
+  }>,
+): readonly Readonly<{ role: 'system' | 'user'; content: string }>[] => [
+  {
+    role: 'system',
+    content: [
+      '你是 DeepStorming 的上下文压缩器。只能依据输入课堂原文与上一个有效快照整理，不补造事实。',
+      '仅输出 JSON，字段必须且只能是 summaryMarkdown、facts、mastery、misconceptions、unresolvedQuestions、sourceAnchorIds、figureIds。',
+      '除 summaryMarkdown 外全部是字符串数组。来源与图片 ID 只能选用输入中真实出现的 ID。保留公式定义、关键结论、误区和未决问题。',
+      input.repair === undefined
+        ? ''
+        : `上一次输出无效：${input.repair.reason}这是唯一一次修复机会。`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  },
+  {
+    role: 'user',
+    content: JSON.stringify({
+      previousSnapshot: input.previousSnapshot ?? null,
+      preservedRecentMessageIds: input.preservedRecentMessageIds,
+      sourceAnchors: input.session.sourceAnchors.map(({ id, snippet }) => ({ id, snippet })),
+      messages: input.session.messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        sourceAnchorIds: message.sourceAnchorIds,
+        figureReferences: message.tutorTurn?.figureReferences ?? [],
+      })),
+      masteryEvidence: input.session.masteryEvidence,
+      misconceptionSignals: input.session.misconceptionSignals,
     }),
   },
 ]

@@ -47,6 +47,17 @@ Task 14 已完成：
 
 Task 14 仓库门禁：`pnpm check` 通过，78 个测试文件、714 个测试通过，类型检查和生产构建通过。下一步是 Task 15 AI 滚动压缩与失败恢复。
 
+Task 15 已完成：
+
+- `SubmitLessonReply` 在下一次导师生成前计算真实预算；达到阈值时先保存压缩作业，再调用当前激活 Provider，不存在本地语义摘要兜底。
+- AI 压缩严格输出 summary、事实、掌握点、误区、未决问题、来源和图片白名单；首次无效只允许同 Provider 修复一次。
+- 成功压缩创建不可变新快照并切换 active 指针，后续导师请求仅追加快照摘要与设置所指定数量的最近原始对话。
+- Migration 23 创建 `context_compression_jobs`，持久化 `started/succeeded/failed/cancelled`、快照 ID 与稳定错误码；相同成功 operation 可重放而不重复创建快照。
+- 压缩失败但预算仍安全时继续使用上一个有效快照，首次压缩尚无快照时继续使用最近原文；触及模型硬上限且压缩失败时停止导师生成。
+- 原始消息、证据、导师与节奏快照始终保存在课程记录中，压缩只影响 Provider 输入组装。
+
+Task 15 仓库门禁：`pnpm check` 通过，80 个测试文件、718 个测试通过，类型检查和生产构建通过。下一步是 Task 16 上下文诊断界面。
+
 ## AI-first workspace redesign — Stage 3
 
 已完成的结构化回复基础：

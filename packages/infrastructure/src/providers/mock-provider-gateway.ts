@@ -3,7 +3,7 @@ import {
   type CancellationToken,
   type ProviderGatewayPort,
 } from '@deepstorming/application'
-import type { DocumentLearningMemory, LessonSession } from '@deepstorming/domain'
+import type { ContextSnapshot, DocumentLearningMemory, LessonSession } from '@deepstorming/domain'
 
 export class MockProviderGateway implements ProviderGatewayPort {
   public constructor(private readonly options: Readonly<{ delayMs?: number }> = {}) {}
@@ -149,6 +149,39 @@ export class MockProviderGateway implements ProviderGatewayPort {
           unresolvedQuestions: input.previousDocumentMemory?.unresolvedQuestions ?? [],
           nextLessonStart: `从${topic}的未解决问题继续。`,
         },
+      }),
+    }
+  }
+
+  public async generateContextCompression(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      session: LessonSession
+      previousSnapshot?: ContextSnapshot
+      preservedRecentMessageIds: readonly string[]
+      repair?: Readonly<{ reason: string }>
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>> {
+    await this.testConnection({ modelName: input.modelName }, token)
+    const learner = input.session.messages.filter((message) => message.role === 'learner')
+    return {
+      content: JSON.stringify({
+        summaryMarkdown: `课堂已进行 ${learner.length} 次学习者回应。`,
+        facts: [],
+        mastery: [],
+        misconceptions: [],
+        unresolvedQuestions: [],
+        sourceAnchorIds: input.session.sourceAnchors.map((anchor) => anchor.id),
+        figureIds: [
+          ...new Set(
+            input.session.messages.flatMap(
+              (message) =>
+                message.tutorTurn?.figureReferences.map((figure) => figure.figureId) ?? [],
+            ),
+          ),
+        ],
       }),
     }
   }

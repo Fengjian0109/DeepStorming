@@ -78,6 +78,7 @@ test('applies migration two and creates document tables', async () => {
     { version: 20, name: 'lesson_memory_lifecycle' },
     { version: 21, name: 'lesson_export_jobs' },
     { version: 22, name: 'context_snapshots' },
+    { version: 23, name: 'context_compression_jobs' },
   ])
 
   db.close()
@@ -109,7 +110,7 @@ test('adds durable lesson lifecycle and versioned document memory storage', asyn
   ).toEqual({ name: 'document_learning_memories' })
   expect(
     db.prepare('SELECT version,name FROM schema_migrations ORDER BY version DESC LIMIT 1').get(),
-  ).toEqual({ version: 22, name: 'context_snapshots' })
+  ).toEqual({ version: 23, name: 'context_compression_jobs' })
   db.close()
 })
 
@@ -151,6 +152,7 @@ test('applies migrations three and four and creates lesson tables', async () => 
     { version: 20, name: 'lesson_memory_lifecycle' },
     { version: 21, name: 'lesson_export_jobs' },
     { version: 22, name: 'context_snapshots' },
+    { version: 23, name: 'context_compression_jobs' },
   ])
   const columns = db.prepare('PRAGMA table_info(lesson_model_runs)').all() as Array<{
     name: string
@@ -229,8 +231,8 @@ test('applies migrations through learning settings and creates review scheduler 
   await migrateDatabase(db, { databasePath: path, userDataPath: dir })
 
   expect(MIGRATIONS.at(-1)).toMatchObject({
-    version: 22,
-    name: 'context_snapshots',
+    version: 23,
+    name: 'context_compression_jobs',
   })
   const tables = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -397,8 +399,8 @@ test('enforces lesson mastery evidence migration constraints', async () => {
   await migrateDatabase(db, { databasePath: path, userDataPath: dir })
 
   expect(MIGRATIONS.at(-1)).toMatchObject({
-    version: 22,
-    name: 'context_snapshots',
+    version: 23,
+    name: 'context_compression_jobs',
   })
   db.prepare(
     `INSERT INTO learning_documents
@@ -544,7 +546,7 @@ test('backs up nonempty databases and rolls back a failed pending migration', as
       userDataPath: dir,
       migrations: [
         ...MIGRATIONS,
-        { version: 23, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
+        { version: 24, name: 'broken', sql: 'CREATE TABLE broken(id); invalid SQL' },
       ],
     }),
   ).rejects.toMatchObject({ code: 'DATABASE_MIGRATION_FAILED' })
@@ -674,7 +676,7 @@ test('upgrades a database with published v10 chunks to add v11 fts sync triggers
 
   expect(
     db.prepare('SELECT version,name FROM schema_migrations ORDER BY version DESC LIMIT 1').get(),
-  ).toEqual({ version: 22, name: 'context_snapshots' })
+  ).toEqual({ version: 23, name: 'context_compression_jobs' })
   const triggers = db
     .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='document_chunks'")
     .all() as Array<{ name: string }>

@@ -6,6 +6,7 @@ import type {
   PaperReadingStage,
   ProviderProfile,
   ProviderTestStatus,
+  ContextSnapshot,
 } from '@deepstorming/domain'
 export type { ClockPort, IdGeneratorPort } from './document-ports'
 
@@ -166,6 +167,8 @@ export interface ProviderGatewayPort {
       learnerReply: string
       tutorSnapshot?: LessonTutorSnapshot
       pace?: LessonPace
+      contextSnapshot?: ContextSnapshot
+      recentMessages?: readonly Readonly<{ role: 'tutor' | 'learner'; content: string }>[]
       repair?: Readonly<{ reason: string }>
     }>,
     token: CancellationToken,
@@ -176,6 +179,17 @@ export interface ProviderGatewayPort {
       apiKey?: string
       session: LessonSession
       previousDocumentMemory?: DocumentLearningMemory
+      repair?: Readonly<{ reason: string }>
+    }>,
+    token: CancellationToken,
+  ): Promise<Readonly<{ content: string }>>
+  generateContextCompression?(
+    input: Readonly<{
+      modelName: string
+      apiKey?: string
+      session: LessonSession
+      previousSnapshot?: ContextSnapshot
+      preservedRecentMessageIds: readonly string[]
       repair?: Readonly<{ reason: string }>
     }>,
     token: CancellationToken,

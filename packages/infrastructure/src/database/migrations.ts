@@ -453,6 +453,17 @@ CREATE TRIGGER context_snapshots_immutable_update BEFORE UPDATE ON context_snaps
 BEGIN SELECT RAISE(ABORT,'context snapshots are immutable'); END;
 ALTER TABLE lesson_sessions ADD COLUMN active_context_snapshot_id TEXT REFERENCES context_snapshots(id);`
 
+const CONTEXT_COMPRESSION_JOB_SQL = `CREATE TABLE context_compression_jobs (
+ operation_id TEXT PRIMARY KEY,
+ lesson_id TEXT NOT NULL REFERENCES lesson_sessions(id) ON DELETE CASCADE,
+ status TEXT NOT NULL CHECK (status IN ('started','succeeded','failed','cancelled')),
+ snapshot_id TEXT REFERENCES context_snapshots(id),
+ error_code TEXT,
+ started_at TEXT NOT NULL,
+ finished_at TEXT
+);
+CREATE INDEX context_compression_jobs_lesson_started_idx ON context_compression_jobs(lesson_id,started_at DESC);`
+
 export const MIGRATIONS: readonly Migration[] = Object.freeze([
   { version: 1, name: 'provider_foundation', sql: INITIAL_SQL },
   { version: 2, name: 'document_text_import', sql: DOCUMENT_SQL },
@@ -481,6 +492,7 @@ export const MIGRATIONS: readonly Migration[] = Object.freeze([
   },
   { version: 21, name: 'lesson_export_jobs', sql: LESSON_EXPORT_JOB_SQL },
   { version: 22, name: 'context_snapshots', sql: CONTEXT_SNAPSHOT_SQL },
+  { version: 23, name: 'context_compression_jobs', sql: CONTEXT_COMPRESSION_JOB_SQL },
 ])
 const checksum = (migration: Migration): string =>
   createHash('sha256')

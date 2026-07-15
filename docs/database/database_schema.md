@@ -1150,6 +1150,12 @@ Migration 规则：
 - `lesson_sessions.active_context_snapshot_id` 仅指向同一课程已经成功保存的快照；切换 active 指针不改写旧快照。
 - `lesson_messages` 始终保留全部原文，快照只影响后续 Provider 上下文组装。
 
+压缩运行状态由 migration 23 的 `context_compression_jobs` 保存：
+
+- `operation_id` 是幂等键，作业在 Provider 调用前写为 `started`。
+- 成功终态关联新建的 `snapshot_id`；失败或取消只保存稳定错误码，不保存 Provider 原始响应。
+- 失败不会清空 `lesson_sessions.active_context_snapshot_id`，因此始终可回退到上一个有效快照。
+
 MVP 至少支持：
 
 - 关闭写事务后生成 SQLite 一致性备份。

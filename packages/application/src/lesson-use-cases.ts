@@ -60,6 +60,7 @@ import { toProviderProfile } from './provider-use-cases'
 import type { LearningSettingsRepositoryPort } from './learning-settings-ports'
 import { parseTutorTurnCandidate, TutorTurnValidationError } from './tutor-turn-validation'
 import { LessonMemoryValidationError, parseLessonMemoryCandidate } from './lesson-memory-validation'
+import type { PrepareLessonContextCompression } from './context-compression-use-cases'
 
 export type LessonUseCaseErrorCode =
   | 'LESSON_VALIDATION_FAILED'
@@ -1099,6 +1100,8 @@ export class SubmitLessonReply {
     private readonly lessonContextAssembler?: Pick<AssembleLessonContext, 'execute'>,
     private readonly tutorReplyGenerator?: LessonTutorReplyGeneratorPort,
     private readonly operations?: LessonRunOperations,
+    private readonly contextCompression?: Pick<PrepareLessonContextCompression, 'execute'>,
+    private readonly learningSettings?: LearningSettingsRepositoryPort,
   ) {}
 
   public async execute(input: LessonReplyDraft): Promise<LessonSession> {
@@ -1187,6 +1190,22 @@ export class SubmitLessonReply {
 
     let tutorReply: LessonTutorReplyResult
     try {
+      const preferences = (await this.learningSettings?.getSnapshot())?.classroomPreferences
+      const recentTurnCount = preferences?.recentTurnCount ?? 8
+      const compression =
+        this.contextCompression === undefined
+          ? undefined
+          : await this.contextCompression.execute(
+              {
+                session: pending,
+                operationId: draft.operationId ?? modelRunId,
+                thresholdPercent: preferences?.contextCompressionRemainingPercent ?? 30,
+                recentTurnCount,
+                reservedOutputTokens: 1_600,
+                fixedPromptTokens: 2_000 + contextSummary.contextCharacterCount,
+              },
+              token,
+            )
       tutorReply = await generateTutorReply(
         this.tutorReplyGenerator,
         {
@@ -1199,6 +1218,22 @@ export class SubmitLessonReply {
           learnerReply: draft.content,
           ...(session.tutorSnapshot === undefined ? {} : { tutorSnapshot: session.tutorSnapshot }),
           ...(session.pace === undefined ? {} : { pace: session.pace }),
+          ...(compression !== undefined &&
+          'snapshot' in compression &&
+          compression.snapshot !== undefined
+            ? { contextSnapshot: compression.snapshot }
+            : {}),
+          ...(this.contextCompression === undefined
+            ? {}
+            : {
+                recentMessages: pending.messages
+                  .filter((message) => message.role === 'tutor' || message.role === 'learner')
+                  .slice(-recentTurnCount)
+                  .map((message) => ({
+                    role: message.role as 'tutor' | 'learner',
+                    content: message.content,
+                  })),
+              }),
         },
         token,
       )
@@ -2056,6 +2091,8 @@ export class ProviderLessonTutorReplyGenerator implements LessonTutorReplyGenera
       learnerReply: input.learnerReply,
       ...(input.tutorSnapshot === undefined ? {} : { tutorSnapshot: input.tutorSnapshot }),
       ...(input.pace === undefined ? {} : { pace: input.pace }),
+      ...(input.contextSnapshot === undefined ? {} : { contextSnapshot: input.contextSnapshot }),
+      ...(input.recentMessages === undefined ? {} : { recentMessages: input.recentMessages }),
     }
     const generated = await gateway.generateLessonTutorReply(request, token)
     let tutorTurn

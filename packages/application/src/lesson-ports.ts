@@ -109,6 +109,8 @@ export type LessonTutorReplyRequest = Readonly<{
   learnerReply: string
   tutorSnapshot?: LessonTutorSnapshot
   pace?: LessonPace
+  contextSnapshot?: ContextSnapshot
+  recentMessages?: readonly Readonly<{ role: 'tutor' | 'learner'; content: string }>[]
 }>
 
 export type LessonTutorFirstQuestionRequest = Readonly<{
