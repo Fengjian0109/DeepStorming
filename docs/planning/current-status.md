@@ -2,8 +2,18 @@
 
 - 更新时间：2026-07-15
 - 当前分支：`codex/all-stages`
-- 当前阶段：AI-first workspace redesign — 最终发布验收
-- 状态：Stage 1–5 功能实现完成；最终 E2E、真实 Provider 可选验收入口、打包与文档收敛已补齐
+- 当前阶段：Claude 风格 GUI 层级重构 — 已完成
+- 状态：Stage 1–5 功能实现完成；GUI 层级重构与最终全量门禁均已完成
+
+## Claude 风格 GUI 层级重构（2026-07-15）
+
+- 双侧栏改为明确的父子层级：首次只显示主侧栏；同一主导航项可切换副侧栏；收起主侧栏会强制关闭副侧栏，并保留 48px 恢复轨道。
+- 主、副侧栏各复用一个右上角矢量切换键，移除底部和内容区重复控制；两级侧栏默认合计 40% 窗口宽度，拖动最大 50%，分隔线按悬停/拖动态增强。
+- 设置中心改为分类导航与独立详情层级；AI Provider 和导师/伙伴均采用“列表 → 新建/选择 → 详情”的渐进流程，并对未保存离开提供保护。
+- 导师长表单拥有独立可滚动内容区；文件选择器、布尔开关、关闭、导出和信息操作统一为本地 SVG 控件，移除系统原生复选框和文件按钮的视觉暴露。
+- 新增浅色、深色和跟随系统外观，使用温暖中性色与统一字体栈；按钮固定为单行，补齐键盘焦点、无障碍名称和 reduced-motion 行为。
+- 文档库、课堂和设置共享同一套控件与层级规则；手动验收步骤已同步到 `docs/testing/ai-first-workspace-manual-test.md`。
+- GUI 重构最终门禁：`pnpm check` 通过（88 个测试文件、752 个测试）；`pnpm test:e2e` 通过（4 个 Electron 旅程通过，目录包专用用例按设计跳过）；`pnpm package:dir` 成功；新目录包 Provider 跨重启持久化用例通过。
 
 ## AI-first workspace redesign — 最终验收
 
@@ -13,7 +23,7 @@
 - 头像读取只接受受管资产引用，经 Application 所有权检查和显式 IPC 返回受控 data URL；Renderer 不接触文件路径。
 - 新增独立 `pnpm test:e2e:deepseek` 真实 DeepSeek 验收入口。它必须显式提供本地 Key 文件与模型名，密钥仍从 UI 密码输入框进入 Vault；独立配置关闭 trace、截图、视频和失败产物保留，常规 E2E 不运行该用例。
 - 手动测试教程见 `docs/testing/ai-first-workspace-manual-test.md`。
-- 最终自动门禁：`pnpm check` 通过（82 个测试文件、735 个测试）；`pnpm test:e2e` 通过（AI-first 与既有开发包旅程 3 个通过）；`pnpm package:dir` 成功；新生成目录包的独立持久化 E2E 通过。
+- 最终自动门禁已由后续 GUI 重构门禁覆盖；最新结果为 `pnpm check` 88 个测试文件、752 个测试通过，Electron E2E 4 个通过，目录包独立持久化 E2E 通过。
 - 当前目录包仍使用 Electron 默认图标且未签名/未公证，符合个人自用候选边界，不等同于公开分发版本。
 
 ## AI-first workspace redesign — Stage 4（已完成）

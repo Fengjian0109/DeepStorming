@@ -61,15 +61,17 @@ const pdfStringWith = (text: string): string => {
 
 const openSettings = async (page: Page): Promise<void> => {
   await page.getByRole('button', { name: '设置' }).click()
-  await expect(page.getByRole('heading', { name: 'Provider 管理' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'AI Provider' })).toBeVisible()
 }
 
 const createAndActivateMockProvider = async (page: Page): Promise<void> => {
+  await page.getByRole('button', { name: '新增 Provider' }).click()
   await page.getByLabel('Provider 类型').selectOption('mock')
   await page.getByLabel('显示名称').fill('Offline Tutor')
   await page.getByLabel('模型名称').fill('mock-success')
   await page.getByRole('button', { name: '添加 Provider' }).click()
-  await page.getByRole('button', { name: '设为启用 Offline Tutor' }).click()
+  await page.getByRole('button', { name: '打开 Offline Tutor' }).click()
+  await page.getByRole('button', { name: '设为启用' }).click()
   await expect(page.getByText('Provider 已启用。')).toBeVisible()
 }
 
@@ -98,7 +100,7 @@ test('boots securely and covers the mock provider lifecycle from Settings', asyn
     expect(preferences).toEqual({ contextIsolation: true, nodeIntegration: false, sandbox: true })
 
     await createAndActivateMockProvider(page)
-    await page.getByRole('button', { name: '测试 Offline Tutor' }).click()
+    await page.getByRole('button', { name: '测试连接' }).click()
     await expect(page.getByText('Provider 测试成功。')).toBeVisible()
   } finally {
     await app.close()
@@ -122,7 +124,7 @@ test('covers the chat-first document and classroom journey', async () => {
     await createAndActivateMockProvider(page)
     await page.getByRole('button', { name: '文档库' }).click()
     await expect(page.getByRole('toolbar', { name: '添加学习资料' })).toBeVisible()
-    await expect(page.getByLabel('导入可选择文字的 PDF')).toBeVisible()
+    await expect(page.getByRole('button', { name: '导入 PDF', exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: '粘贴文本 / 导入 TXT、MD' }).click()
     await page.getByLabel('标题').fill('Chat First Notes')
@@ -158,7 +160,7 @@ test('covers the chat-first document and classroom journey', async () => {
     await page.getByRole('button', { name: '关闭课堂信息' }).click()
 
     await page.getByRole('button', { name: '文档库' }).click()
-    await page.getByLabel('导入可选择文字的 PDF').setInputFiles(pdfPath)
+    await page.getByLabel('导入 PDF 文件输入').setInputFiles(pdfPath)
     await expect(page.getByText('PDF 已导入。')).toBeVisible()
     await page.getByRole('button', { name: '打开阅读器' }).click()
     await expect(page.getByText(`Block 1 · ${pdfText}`)).toBeVisible()
@@ -173,20 +175,55 @@ test('covers the chat-first document and classroom journey', async () => {
     await expect(page.locator('.pdf-block-active')).toBeVisible()
 
     await page.getByRole('button', { name: '收起副侧栏' }).click()
-    await expect(page.getByRole('button', { name: '展开副侧栏' })).toBeVisible()
-    await page.getByRole('button', { name: '收起全部侧栏' }).click()
-    await expect(page.getByRole('button', { name: '恢复侧栏' })).toBeVisible()
-    await page.getByRole('button', { name: '恢复侧栏' }).click()
-
-    if (await page.getByRole('button', { name: '展开副侧栏' }).isVisible()) {
-      await page.getByRole('button', { name: '展开副侧栏' }).click()
-    }
+    await expect(page.getByRole('complementary', { name: '文档导航' })).toHaveCount(0)
+    await page.getByRole('button', { name: '文档库' }).click()
+    await expect(page.getByRole('complementary', { name: '文档导航' })).toBeVisible()
     const contextualSeparator = page.getByRole('separator', { name: '调整副侧栏宽度' })
     for (let index = 0; index < 40; index += 1) await contextualSeparator.press('ArrowRight')
     const resized = await contextualSeparator.boundingBox()
     const viewportWidth = await page.evaluate(() => window.innerWidth)
     if (!resized) throw new Error('Workspace separator bounds are unavailable')
     expect(resized.x + resized.width).toBeLessThanOrEqual(viewportWidth / 2 + 8)
+  } finally {
+    await app.close()
+    rmSync(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('covers parent-child sidebars, long tutor settings, and appearance', async () => {
+  const userDataDir = mkdtempSync(path.join(tmpdir(), 'deepstorming-gui-e2e-user-'))
+  const app = await launchDevApp(userDataDir)
+  try {
+    const page = await app.firstWindow()
+    await expect(page.getByRole('complementary', { name: '设置分类' })).toHaveCount(0)
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    await expect(page.getByRole('complementary', { name: '设置分类' })).toBeVisible()
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    await expect(page.getByRole('complementary', { name: '设置分类' })).toHaveCount(0)
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+
+    await page.getByRole('button', { name: '导师 / 伙伴' }).click()
+    await page.getByRole('button', { name: '编辑 苏格拉底导师' }).click()
+    await expect(page.getByLabel('论文教学策略')).toBeVisible()
+    await page.getByTestId('settings-detail-scroll').evaluate((node) => {
+      node.scrollTop = node.scrollHeight
+    })
+    await expect(page.getByLabel('自定义要求')).toBeVisible()
+
+    await page.getByRole('button', { name: '外观' }).click()
+    await page.getByLabel('深色').check()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+
+    await page.getByRole('button', { name: '收起主侧栏' }).click()
+    await expect(page.getByRole('complementary', { name: '设置分类' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '展开主侧栏' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '收起全部侧栏' })).toHaveCount(0)
+    await expect(
+      page.locator('.workspace-primary').getByRole('button', { name: '收起主侧栏' }),
+    ).toHaveCount(0)
+    await expect(
+      page.locator('.workspace-contextual').getByRole('button', { name: '收起副侧栏' }),
+    ).toHaveCount(0)
   } finally {
     await app.close()
     rmSync(userDataDir, { recursive: true, force: true })

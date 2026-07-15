@@ -19,6 +19,7 @@
 | Stage 4：lesson lifecycle and export         | 已完成               | 三档节奏、下课保存记忆、总结复习或休息、按教材保存多节完整课程、MD/PDF 聊天导出                                                                   |
 | Stage 5：context compression and hardening   | 已完成               | 可配置阈值（默认剩余 30%）、AI 上下文精炼、token 统计、故障与长会话加固                                                                           |
 | Final acceptance                             | 已完成（2026-07-15） | AI-first 全旅程 E2E、真实 DeepSeek 可选安全验收入口、MD/PDF 导出、双课次、重启恢复、目录包与发布文档                                              |
+| Claude-style GUI hierarchy                   | 已完成（2026-07-15） | 父子双侧栏、40% 默认/50% 上限、单键切换、渐进式设置、Provider/导师列表详情、明暗主题、本地矢量控件与可滚动长表单                                  |
 
 Stage 1 只改变 Renderer 信息架构与交互，没有修改 Domain、Application、Infrastructure、IPC contract 或数据库 schema。完成 Stage 1 不代表 Stage 2–5 的 AI 教学能力已经交付。
 

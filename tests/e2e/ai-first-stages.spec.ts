@@ -30,15 +30,17 @@ const launch = async (root: string): Promise<ElectronApplication> =>
 
 const openSettings = async (page: Page): Promise<void> => {
   await page.getByRole('button', { name: '设置' }).click()
-  await expect(page.getByRole('heading', { name: 'Provider 管理' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'AI Provider' })).toBeVisible()
 }
 
 const configureRichProvider = async (page: Page): Promise<void> => {
+  await page.getByRole('button', { name: '新增 Provider' }).click()
   await page.getByLabel('Provider 类型').selectOption('mock')
   await page.getByLabel('显示名称').fill('Rich Tutor')
   await page.getByLabel('模型名称').fill('mock-rich-4k')
   await page.getByRole('button', { name: '添加 Provider' }).click()
-  await page.getByRole('button', { name: '设为启用 Rich Tutor' }).click()
+  await page.getByRole('button', { name: '打开 Rich Tutor' }).click()
+  await page.getByRole('button', { name: '设为启用' }).click()
   await expect(page.getByText('Provider 已启用。')).toBeVisible()
 }
 
@@ -78,14 +80,14 @@ test('covers AI-first rich chat, avatars, compression, lifecycle, exports, and r
 
     await page.getByRole('button', { name: '个人资料' }).click()
     await page.getByLabel('你的名称').fill('何同学')
-    await page.getByLabel('你的头像').setInputFiles(avatarPath)
+    await page.getByLabel('选择个人头像 文件输入').setInputFiles(avatarPath)
     await expect(page.getByText('头像已导入并安全保存。')).toBeVisible()
     await page.getByRole('button', { name: '保存个人资料' }).click()
     await expect(page.getByText('个人资料已保存。')).toBeVisible()
 
     await page.getByRole('button', { name: '导师 / 伙伴' }).click()
-    await page.getByRole('button', { name: '编辑' }).first().click()
-    await page.getByLabel('导师头像').setInputFiles(avatarPath)
+    await page.getByRole('button', { name: '编辑 苏格拉底导师' }).click()
+    await page.getByLabel('选择导师头像 文件输入').setInputFiles(avatarPath)
     await expect(page.getByText('导师头像已导入并安全保存。')).toBeVisible()
     await page.getByLabel('性格').fill('严谨、好奇、耐心')
     await page.getByLabel('擅长领域（逗号分隔）').fill('数学, 论文阅读')
@@ -98,7 +100,7 @@ test('covers AI-first rich chat, avatars, compression, lifecycle, exports, and r
     await expect(page.getByText('课堂设置已保存。')).toBeVisible()
 
     await page.getByRole('button', { name: '文档库' }).click()
-    await page.getByLabel('导入可选择文字的 PDF').setInputFiles(pdfPath)
+    await page.getByLabel('导入 PDF 文件输入').setInputFiles(pdfPath)
     await expect(page.getByText('PDF 已导入。')).toBeVisible({ timeout: 30_000 })
     await startCurrentDocumentLesson(page)
 
