@@ -102,4 +102,44 @@ describe('LessonSessionTree', () => {
     await user.click(screen.getByRole('button', { name: '重试加载' }))
     expect(retry).toHaveBeenCalledOnce()
   })
+
+  it('labels resumable review, completed, and recoverable lifecycle states', () => {
+    render(
+      <LessonSessionTree
+        sessions={[
+          makeSession(
+            'pending',
+            'doc',
+            '教材',
+            '待复习课',
+            '2026-07-15T03:00:00.000Z',
+            'pending_review',
+          ),
+          makeSession(
+            'reviewing',
+            'doc',
+            '教材',
+            '复习中课',
+            '2026-07-15T02:00:00.000Z',
+            'reviewing',
+          ),
+          makeSession(
+            'completed',
+            'doc',
+            '教材',
+            '完成课',
+            '2026-07-15T01:00:00.000Z',
+            'completed',
+          ),
+          makeSession('error', 'doc', '教材', '恢复课', '2026-07-15T00:00:00.000Z', 'error'),
+        ]}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /待复习课.*待复习/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /复习中课.*复习中/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /完成课.*已完成/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /恢复课.*待恢复/ })).toBeTruthy()
+  })
 })

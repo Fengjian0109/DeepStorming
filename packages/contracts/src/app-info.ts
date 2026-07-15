@@ -24,6 +24,9 @@ import type {
 import type {
   CancelLessonRunResult,
   LessonRecordReviewDraftDto,
+  LessonEndDraftDto,
+  LessonPostActionDraftDto,
+  LessonCompleteReviewDraftDto,
   LessonReplyDraftDto,
   LessonRunRetryDraftDto,
   LessonSessionResult,
@@ -91,6 +94,9 @@ export type DeepStormingApi = {
     retryRun: (retry: LessonRunRetryDraftDto) => Promise<LessonSessionResult>
     cancelRun: (operationId: string) => Promise<CancelLessonRunResult>
     recordReview: (review: LessonRecordReviewDraftDto) => Promise<LessonSessionResult>
+    end: (lesson: LessonEndDraftDto) => Promise<LessonSessionResult>
+    choosePostLessonAction: (choice: LessonPostActionDraftDto) => Promise<LessonSessionResult>
+    completeReview: (review: LessonCompleteReviewDraftDto) => Promise<LessonSessionResult>
   }
   provider: {
     list: () => Promise<ListProvidersResult>

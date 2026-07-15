@@ -325,6 +325,9 @@ describe('preload API', () => {
       retryRun: expect.any(Function),
       cancelRun: expect.any(Function),
       recordReview: expect.any(Function),
+      end: expect.any(Function),
+      choosePostLessonAction: expect.any(Function),
+      completeReview: expect.any(Function),
     })
     expect(api.learningSettings).toEqual({
       get: expect.any(Function),
@@ -583,6 +586,39 @@ describe('preload API', () => {
         reviewItemId: '00000000-0000-4000-8000-000000000951',
         rating: 'remembered',
         response: '我可以清楚解释这段证据了。',
+      },
+      response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
+    },
+    {
+      name: 'lessons.end',
+      call: (api: DeepStormingApi) => api.lessons.end({ lessonId: OPERATION_ID }),
+      channel: LESSON_CHANNELS.end,
+      payload: { requestId: REQUEST_ID, lessonId: OPERATION_ID, operationId: REQUEST_ID },
+      response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
+    },
+    {
+      name: 'lessons.choosePostLessonAction',
+      call: (api: DeepStormingApi) =>
+        api.lessons.choosePostLessonAction({
+          lessonId: OPERATION_ID,
+          action: 'rest',
+        }),
+      channel: LESSON_CHANNELS.choosePostLessonAction,
+      payload: { requestId: REQUEST_ID, lessonId: OPERATION_ID, action: 'rest' },
+      response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
+    },
+    {
+      name: 'lessons.completeReview',
+      call: (api: DeepStormingApi) =>
+        api.lessons.completeReview({
+          lessonId: OPERATION_ID,
+          response: '我可以解释证据与结论的关系。',
+        }),
+      channel: LESSON_CHANNELS.completeReview,
+      payload: {
+        requestId: REQUEST_ID,
+        lessonId: OPERATION_ID,
+        response: '我可以解释证据与结论的关系。',
       },
       response: { ok: true, data: lessonSession, requestId: REQUEST_ID },
     },

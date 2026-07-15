@@ -376,6 +376,50 @@ const retriedSession = {
   updatedAt: '2026-07-11T00:02:00.000Z',
 }
 
+const pendingReviewSession = {
+  ...session,
+  status: 'pending_review' as const,
+  currentState: 'summarizing' as const,
+  memory: {
+    lessonId: session.id,
+    documentId: session.documentId,
+    topic: 'Evidence',
+    coverage: '当前证据片段',
+    summaryMarkdown: '本节学会了判断证据如何支撑结论。',
+    mastered: ['证据定位'],
+    unstable: ['论证边界'],
+    misconceptions: [],
+    sourceAnchorIds: [session.sourceAnchors[0]!.id],
+    figureIds: [],
+    unresolvedQuestions: ['如何判断证据不足？'],
+    reviewPrompts: ['请解释证据与结论的关系。'],
+    nextLessonStart: '继续判断论证边界',
+    createdAt: '2026-07-15T00:00:00.000Z',
+  },
+  endJob: {
+    operationId: '00000000-0000-4000-8000-000000000777',
+    status: 'succeeded' as const,
+    errorSummary: null,
+    startedAt: '2026-07-15T00:00:00.000Z',
+    finishedAt: '2026-07-15T00:01:00.000Z',
+  },
+  updatedAt: '2026-07-15T00:01:00.000Z',
+}
+
+const reviewingSession = {
+  ...pendingReviewSession,
+  status: 'reviewing' as const,
+  postLessonAction: 'immediate_review' as const,
+}
+
+const completedSession = {
+  ...reviewingSession,
+  status: 'completed' as const,
+  currentState: 'completed' as const,
+  reviewResponse: '证据需要直接支持结论并排除替代解释。',
+  completedAt: '2026-07-15T00:02:00.000Z',
+}
+
 beforeEach(() => {
   vi.stubGlobal('deepstorming', {
     lessons: {
@@ -396,6 +440,21 @@ beforeEach(() => {
       recordReview: vi
         .fn()
         .mockResolvedValue({ ok: true, data: stuckSession, requestId: crypto.randomUUID() }),
+      end: vi.fn().mockResolvedValue({
+        ok: true,
+        data: pendingReviewSession,
+        requestId: crypto.randomUUID(),
+      }),
+      choosePostLessonAction: vi.fn().mockResolvedValue({
+        ok: true,
+        data: reviewingSession,
+        requestId: crypto.randomUUID(),
+      }),
+      completeReview: vi.fn().mockResolvedValue({
+        ok: true,
+        data: completedSession,
+        requestId: crypto.randomUUID(),
+      }),
     },
   })
 })
@@ -771,5 +830,104 @@ describe('LessonWorkspace', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('课堂详情加载失败。')
     await user.click(screen.getByRole('button', { name: '重试课堂详情' }))
     expect(window.deepstorming.lessons.get).toHaveBeenCalledTimes(2)
+  })
+
+  it('ends a lesson, displays AI memory, and enters immediate review', async () => {
+    const user = userEvent.setup()
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+    await screen.findByRole('heading', { name: 'Paper Map 课堂' })
+
+    await user.click(screen.getByRole('button', { name: '下课并保存记忆' }))
+    await user.click(screen.getByRole('button', { name: '确认下课' }))
+
+    expect(window.deepstorming.lessons.end).toHaveBeenCalledWith({
+      lessonId: session.id,
+      operationId: expect.any(String),
+    })
+    expect(await screen.findByText('本节学会了判断证据如何支撑结论。')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '立即复习' }))
+    expect(window.deepstorming.lessons.choosePostLessonAction).toHaveBeenCalledWith({
+      lessonId: session.id,
+      action: 'immediate_review',
+    })
+    expect(await screen.findByLabelText('课后复习回答')).toBeTruthy()
+  })
+
+  it('cancels an in-flight lesson summary', async () => {
+    const user = userEvent.setup()
+    window.deepstorming.lessons.end = vi.fn().mockReturnValue(new Promise(() => undefined))
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+    await screen.findByRole('heading', { name: 'Paper Map 课堂' })
+    await user.click(screen.getByRole('button', { name: '下课并保存记忆' }))
+    await user.click(screen.getByRole('button', { name: '确认下课' }))
+    await user.click(await screen.findByRole('button', { name: '取消课程总结' }))
+
+    const operationId = vi.mocked(window.deepstorming.lessons.end).mock.calls[0]?.[0].operationId
+    expect(window.deepstorming.lessons.cancelRun).toHaveBeenCalledWith(operationId)
+  })
+
+  it('completes a lesson only after saving the post-lesson review', async () => {
+    const user = userEvent.setup()
+    window.deepstorming.lessons.list = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [reviewingSession],
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.lessons.get = vi.fn().mockResolvedValue({
+      ok: true,
+      data: reviewingSession,
+      requestId: crypto.randomUUID(),
+    })
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+
+    await user.type(await screen.findByLabelText('课后复习回答'), '证据需要支持结论。')
+    await user.click(screen.getByRole('button', { name: '完成复习并结束本节课' }))
+    expect(window.deepstorming.lessons.completeReview).toHaveBeenCalledWith({
+      lessonId: session.id,
+      response: '证据需要支持结论。',
+    })
+    expect(await screen.findByText('本节课已完成')).toBeTruthy()
+    expect(screen.queryByLabelText('你的回答')).toBeNull()
+  })
+
+  it('resumes a pending review after rest and offers retry after a failed summary', async () => {
+    window.deepstorming.lessons.list = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [{ ...pendingReviewSession, postLessonAction: 'rest' as const }],
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.lessons.get = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { ...pendingReviewSession, postLessonAction: 'rest' as const },
+      requestId: crypto.randomUUID(),
+    })
+    const { unmount } = render(<LessonWorkspace selectedLessonId={session.id} />)
+    expect(await screen.findByRole('button', { name: '立即复习' })).toBeTruthy()
+    expect(screen.queryByLabelText('你的回答')).toBeNull()
+    unmount()
+
+    const failedEndSession = {
+      ...session,
+      status: 'error' as const,
+      endJob: {
+        operationId: '00000000-0000-4000-8000-000000000777',
+        status: 'failed' as const,
+        errorSummary: { code: 'AI_GENERATION_FAILED', message: '总结失败。', retryable: true },
+        startedAt: '2026-07-15T00:00:00.000Z',
+        finishedAt: '2026-07-15T00:01:00.000Z',
+      },
+    }
+    window.deepstorming.lessons.list = vi.fn().mockResolvedValue({
+      ok: true,
+      data: [failedEndSession],
+      requestId: crypto.randomUUID(),
+    })
+    window.deepstorming.lessons.get = vi.fn().mockResolvedValue({
+      ok: true,
+      data: failedEndSession,
+      requestId: crypto.randomUUID(),
+    })
+    render(<LessonWorkspace selectedLessonId={session.id} />)
+    expect(await screen.findByRole('button', { name: '重试下课总结' })).toBeTruthy()
   })
 })

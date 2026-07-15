@@ -33,8 +33,19 @@ type LessonSessionTreeProps = Readonly<{
   onRetry?: (() => void) | undefined
 }>
 
-const statusLabel = (status: LessonSessionDto['status']): string =>
-  status === 'active' ? '进行中' : '已归档'
+const statusLabels: Record<LessonSessionDto['status'], string> = {
+  preparing: '准备中',
+  active: '进行中',
+  summarizing: '总结中',
+  pending_review: '待复习',
+  reviewing: '复习中',
+  completed: '已完成',
+  paused: '已暂停',
+  error: '待恢复',
+  archived: '已归档',
+}
+
+const statusLabel = (status: LessonSessionDto['status']): string => statusLabels[status]
 
 export const LessonSessionTree = ({
   sessions,

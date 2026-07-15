@@ -205,6 +205,9 @@ describe('lesson contracts', () => {
       retryRun: 'lessons:retry-run',
       cancelRun: 'lessons:cancel-run',
       recordReview: 'lessons:record-review',
+      end: 'lessons:end',
+      choosePostLessonAction: 'lessons:choose-post-lesson-action',
+      completeReview: 'lessons:complete-review',
     })
   })
 

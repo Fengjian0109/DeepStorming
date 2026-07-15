@@ -6,6 +6,7 @@ import { LessonComposer } from './LessonComposer'
 import { LessonConversation } from './LessonConversation'
 import { LessonInfoDrawer } from './LessonInfoDrawer'
 import { LessonSessionTree } from './LessonSessionTree'
+import { LessonEndDialog } from './LessonEndDialog'
 
 type LessonListState =
   | { status: 'loading' }
@@ -28,6 +29,13 @@ type RunRetryState =
   | { status: 'idle' }
   | { status: 'retrying'; modelRunId: string; operationId: string }
   | { status: 'success'; message: string }
+  | { status: 'error'; message: string }
+
+type LifecycleOperationState =
+  | { status: 'idle' }
+  | { status: 'ending'; operationId: string }
+  | { status: 'saving_choice' }
+  | { status: 'completing_review' }
   | { status: 'error'; message: string }
 
 const lessonStateLabels: Record<LessonStateDto, string> = {
@@ -66,11 +74,15 @@ export const LessonWorkspace = ({
   const [reviewSavingId, setReviewSavingId] = useState<string | null>(null)
   const [reviewFeedback, setReviewFeedback] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [endConfirmationOpen, setEndConfirmationOpen] = useState(false)
+  const [lifecycleState, setLifecycleState] = useState<LifecycleOperationState>({ status: 'idle' })
+  const [postLessonReview, setPostLessonReview] = useState('')
   const listRequestSequence = useRef(0)
   const detailRequestSequence = useRef(0)
   const replyRequestSequence = useRef(0)
   const retryRequestSequence = useRef(0)
   const reviewRequestSequence = useRef(0)
+  const lifecycleRequestSequence = useRef(0)
 
   const updateSession = useCallback((session: LessonSessionDto) => {
     setDetailState({ status: 'ready', session })
@@ -87,8 +99,12 @@ export const LessonWorkspace = ({
     replyRequestSequence.current += 1
     retryRequestSequence.current += 1
     reviewRequestSequence.current += 1
+    lifecycleRequestSequence.current += 1
     setInfoDrawerOpen(false)
     setReviewSavingId(null)
+    setEndConfirmationOpen(false)
+    setLifecycleState({ status: 'idle' })
+    setPostLessonReview('')
     setDetailState({ status: 'loading', lessonId })
     const result = await window.deepstorming.lessons.get(lessonId)
     if (detailRequestSequence.current !== requestSequence) return
@@ -243,6 +259,88 @@ export const LessonWorkspace = ({
     [detailState, reviewResponses, updateSession],
   )
 
+  const endLesson = useCallback(async () => {
+    if (detailState.status !== 'ready') return
+    const requestSequence = lifecycleRequestSequence.current + 1
+    lifecycleRequestSequence.current = requestSequence
+    const operationId = globalThis.crypto.randomUUID()
+    setEndConfirmationOpen(false)
+    setLifecycleState({ status: 'ending', operationId })
+    const result = await window.deepstorming.lessons.end({
+      lessonId: detailState.session.id,
+      operationId,
+    })
+    if (lifecycleRequestSequence.current !== requestSequence) return
+    if (result.ok) {
+      updateSession(result.data)
+      setLifecycleState({ status: 'idle' })
+      return
+    }
+    if (result.error.code === 'OPERATION_CANCELLED') {
+      setLifecycleState({ status: 'idle' })
+      return
+    }
+    setLifecycleState({ status: 'error', message: result.error.message })
+  }, [detailState, updateSession])
+
+  const cancelLessonEnd = useCallback(async () => {
+    if (lifecycleState.status !== 'ending') return
+    lifecycleRequestSequence.current += 1
+    const result = await window.deepstorming.lessons.cancelRun(lifecycleState.operationId)
+    setLifecycleState(
+      result.ok && result.data.cancelled
+        ? { status: 'idle' }
+        : {
+            status: 'error',
+            message: result.ok ? '取消请求未生效。' : result.error.message,
+          },
+    )
+  }, [lifecycleState])
+
+  const choosePostLessonAction = useCallback(
+    async (action: 'immediate_review' | 'rest') => {
+      if (detailState.status !== 'ready') return
+      const requestSequence = lifecycleRequestSequence.current + 1
+      lifecycleRequestSequence.current = requestSequence
+      setLifecycleState({ status: 'saving_choice' })
+      const result = await window.deepstorming.lessons.choosePostLessonAction({
+        lessonId: detailState.session.id,
+        action,
+      })
+      if (lifecycleRequestSequence.current !== requestSequence) return
+      if (result.ok) {
+        updateSession(result.data)
+        setLifecycleState({ status: 'idle' })
+        return
+      }
+      setLifecycleState({ status: 'error', message: result.error.message })
+    },
+    [detailState, updateSession],
+  )
+
+  const completePostLessonReview = useCallback(async () => {
+    if (detailState.status !== 'ready') return
+    const response = postLessonReview.trim()
+    if (response.length === 0) {
+      setLifecycleState({ status: 'error', message: '请输入课后复习回答。' })
+      return
+    }
+    const requestSequence = lifecycleRequestSequence.current + 1
+    lifecycleRequestSequence.current = requestSequence
+    setLifecycleState({ status: 'completing_review' })
+    const result = await window.deepstorming.lessons.completeReview({
+      lessonId: detailState.session.id,
+      response,
+    })
+    if (lifecycleRequestSequence.current !== requestSequence) return
+    if (result.ok) {
+      updateSession(result.data)
+      setLifecycleState({ status: 'idle' })
+      return
+    }
+    setLifecycleState({ status: 'error', message: result.error.message })
+  }, [detailState, postLessonReview, updateSession])
+
   useEffect(() => {
     void loadLessons()
     return () => {
@@ -251,6 +349,7 @@ export const LessonWorkspace = ({
       replyRequestSequence.current += 1
       retryRequestSequence.current += 1
       reviewRequestSequence.current += 1
+      lifecycleRequestSequence.current += 1
     }
   }, [loadLessons])
 
@@ -331,13 +430,32 @@ export const LessonWorkspace = ({
             {...(onReturnToEvidence === undefined ? {} : { onReturnToEvidence })}
           />
 
-          <LessonComposer
-            value={replyText}
-            state={composerState}
-            onChange={setReplyText}
-            onSubmit={() => void submitReply()}
-            onCancel={() => void cancelReply()}
+          <LessonEndDialog
+            session={detailState.session}
+            confirmationOpen={endConfirmationOpen}
+            ending={lifecycleState.status === 'ending'}
+            savingChoice={lifecycleState.status === 'saving_choice'}
+            completingReview={lifecycleState.status === 'completing_review'}
+            error={lifecycleState.status === 'error' ? lifecycleState.message : undefined}
+            reviewResponse={postLessonReview}
+            onOpenConfirmation={() => setEndConfirmationOpen(true)}
+            onCloseConfirmation={() => setEndConfirmationOpen(false)}
+            onConfirmEnd={() => void endLesson()}
+            onCancelEnd={() => void cancelLessonEnd()}
+            onChooseAction={(action) => void choosePostLessonAction(action)}
+            onReviewResponseChange={setPostLessonReview}
+            onCompleteReview={() => void completePostLessonReview()}
           />
+
+          {detailState.session.status === 'active' && lifecycleState.status !== 'ending' && (
+            <LessonComposer
+              value={replyText}
+              state={composerState}
+              onChange={setReplyText}
+              onSubmit={() => void submitReply()}
+              onCancel={() => void cancelReply()}
+            />
+          )}
 
           {runRetryState.status === 'success' && (
             <p role="status" className="lesson-chat-operation success-state">

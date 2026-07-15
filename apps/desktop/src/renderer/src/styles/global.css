@@ -1252,6 +1252,94 @@ h2 {
   margin: 0;
 }
 
+.lesson-end-trigger {
+  justify-self: end;
+  margin: 10px clamp(18px, 4vw, 48px) 0;
+}
+
+.lesson-end-overlay {
+  position: absolute;
+  z-index: 14;
+  display: grid;
+  background: rgb(25 43 35 / 34%);
+  inset: 0;
+  place-items: center;
+}
+
+.lesson-end-confirmation {
+  width: min(460px, calc(100% - 32px));
+  padding: 24px;
+  border: 1px solid rgb(32 52 43 / 16%);
+  border-radius: 18px;
+  background: #fffdf7;
+  box-shadow: 0 24px 70px rgb(25 43 35 / 24%);
+}
+
+.lesson-end-confirmation h2,
+.lesson-end-confirmation p,
+.lesson-memory-heading h2,
+.lesson-memory-heading p {
+  margin-top: 0;
+}
+
+.lesson-end-panel {
+  display: grid;
+  max-height: min(48vh, 520px);
+  gap: 14px;
+  padding: 16px clamp(18px, 4vw, 48px);
+  overflow-y: auto;
+  border-top: 1px solid rgb(32 52 43 / 10%);
+  background: rgb(255 253 247 / 96%);
+}
+
+.lesson-end-panel p {
+  margin-bottom: 0;
+}
+
+.lesson-end-actions,
+.lesson-memory-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lesson-memory-heading span,
+.lesson-memory-heading p {
+  color: #65766d;
+  font-size: 0.8rem;
+}
+
+.lesson-memory-heading h2 {
+  margin-block: 2px;
+}
+
+.lesson-review-gate {
+  display: grid;
+  gap: 10px;
+}
+
+.lesson-review-gate h3,
+.lesson-review-gate ul {
+  margin: 0;
+}
+
+.lesson-review-gate textarea {
+  resize: vertical;
+}
+
+.lesson-review-saved {
+  padding: 12px;
+  border-radius: 10px;
+  background: #edf2ed;
+}
+
+.lesson-lifecycle-error {
+  margin: 0;
+  padding: 10px clamp(18px, 4vw, 48px);
+}
+
 .lesson-info-drawer {
   position: absolute;
   z-index: 12;

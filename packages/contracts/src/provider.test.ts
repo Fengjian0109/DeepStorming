@@ -717,6 +717,33 @@ describe('provider error and API contracts', () => {
           },
           requestId,
         }),
+        end: async (_lesson) => ({
+          ok: false as const,
+          error: {
+            code: 'AI_PROVIDER_REQUIRED' as const,
+            message: 'Provider required.',
+            retryable: false,
+          },
+          requestId,
+        }),
+        choosePostLessonAction: async (_choice) => ({
+          ok: false as const,
+          error: {
+            code: 'LESSON_INVALID_TRANSITION' as const,
+            message: 'Invalid.',
+            retryable: false,
+          },
+          requestId,
+        }),
+        completeReview: async (_review) => ({
+          ok: false as const,
+          error: {
+            code: 'LESSON_INVALID_TRANSITION' as const,
+            message: 'Invalid.',
+            retryable: false,
+          },
+          requestId,
+        }),
       },
       provider: {
         list: async () => ({ ok: true as const, data: [providerProfile], requestId }),

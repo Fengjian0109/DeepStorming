@@ -88,6 +88,13 @@ export const registerIpc = (
   ipcMain.handle(LESSON_CHANNELS.recordReview, (_event, input: unknown) =>
     lessonHandlers.recordReview(input),
   )
+  ipcMain.handle(LESSON_CHANNELS.end, (_event, input: unknown) => lessonHandlers.end(input))
+  ipcMain.handle(LESSON_CHANNELS.choosePostLessonAction, (_event, input: unknown) =>
+    lessonHandlers.choosePostLessonAction(input),
+  )
+  ipcMain.handle(LESSON_CHANNELS.completeReview, (_event, input: unknown) =>
+    lessonHandlers.completeReview(input),
+  )
   ipcMain.handle(PROVIDER_CHANNELS.list, (_event, input: unknown) => providerHandlers.list(input))
   ipcMain.handle(PROVIDER_CHANNELS.create, (_event, input: unknown) =>
     providerHandlers.create(input),

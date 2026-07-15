@@ -1641,9 +1641,23 @@ export class EndLesson {
     private readonly memories: LessonMemoryRepositoryPort,
     private readonly generator: LessonMemoryGeneratorPort,
     private readonly clock: ClockPort,
+    private readonly operations?: LessonRunOperations,
   ) {}
 
   public async execute(
+    input: EndLessonInput,
+    token?: CancellationToken,
+  ): Promise<LessonSessionView> {
+    if (token !== undefined) return this.executeWithToken(input, token)
+    const managedToken = startOperation(this.operations, input.operationId)
+    try {
+      return await this.executeWithToken(input, managedToken)
+    } finally {
+      completeOperation(this.operations, input.operationId)
+    }
+  }
+
+  private async executeWithToken(
     input: EndLessonInput,
     token: CancellationToken,
   ): Promise<LessonSessionView> {

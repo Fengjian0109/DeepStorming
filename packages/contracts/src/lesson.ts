@@ -10,6 +10,9 @@ export const LESSON_CHANNELS = {
   retryRun: 'lessons:retry-run',
   cancelRun: 'lessons:cancel-run',
   recordReview: 'lessons:record-review',
+  end: 'lessons:end',
+  choosePostLessonAction: 'lessons:choose-post-lesson-action',
+  completeReview: 'lessons:complete-review',
 } as const
 
 const requestIdSchema = z.string().uuid()
@@ -443,6 +446,15 @@ export const lessonRecordReviewDraftSchema = z
     response: requiredTextSchema.max(1_000),
   })
   .strict()
+export const lessonEndDraftSchema = z
+  .object({ lessonId: lessonIdSchema, operationId: z.string().uuid().optional() })
+  .strict()
+export const lessonPostActionDraftSchema = z
+  .object({ lessonId: lessonIdSchema, action: postLessonActionSchema })
+  .strict()
+export const lessonCompleteReviewDraftSchema = z
+  .object({ lessonId: lessonIdSchema, response: requiredTextSchema.max(8_000) })
+  .strict()
 
 export const lessonBusinessErrorCodeSchema = z.enum([
   'LESSON_VALIDATION_FAILED',
@@ -580,6 +592,9 @@ export type LessonStartDraftDto = z.infer<typeof lessonStartDraftSchema>
 export type LessonReplyDraftDto = z.infer<typeof lessonReplyDraftSchema>
 export type LessonRunRetryDraftDto = z.infer<typeof lessonRunRetryDraftSchema>
 export type LessonRecordReviewDraftDto = z.infer<typeof lessonRecordReviewDraftSchema>
+export type LessonEndDraftDto = z.infer<typeof lessonEndDraftSchema>
+export type LessonPostActionDraftDto = z.infer<typeof lessonPostActionDraftSchema>
+export type LessonCompleteReviewDraftDto = z.infer<typeof lessonCompleteReviewDraftSchema>
 export type ListLessonsRequest = z.infer<typeof listLessonsRequestSchema>
 export type StartLessonFromDocumentRequest = z.infer<typeof startLessonFromDocumentRequestSchema>
 export type GetLessonRequest = z.infer<typeof getLessonRequestSchema>

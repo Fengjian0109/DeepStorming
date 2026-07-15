@@ -7,7 +7,14 @@ import type {
   LessonRepositoryPort,
   StoredLessonSession,
 } from './lesson-ports'
-import { ChoosePostLessonAction, CompleteLessonReview, EndLesson } from './lesson-use-cases'
+import {
+  CancelLessonRun,
+  ChoosePostLessonAction,
+  CompleteLessonReview,
+  EndLesson,
+  LessonRunOperations,
+  LessonUseCaseError,
+} from './lesson-use-cases'
 
 const lessonId = '00000000-0000-4000-8000-000000000101'
 const documentId = '00000000-0000-4000-8000-000000000201'
@@ -208,6 +215,31 @@ describe('lesson lifecycle use cases', () => {
       endJob: { status: 'failed', errorSummary: { code: 'DATABASE_UNAVAILABLE' } },
     })
     expect(generator.generate).not.toHaveBeenCalled()
+  })
+
+  it('cancels a managed AI lesson summary and persists the cancelled job', async () => {
+    const lessons = new Lessons()
+    const memories = new Memories()
+    const operations = new LessonRunOperations()
+    const generator: LessonMemoryGeneratorPort = {
+      generate: (_input, token) =>
+        new Promise((_resolve, reject) => {
+          token.onCancel(() =>
+            reject(new LessonUseCaseError('OPERATION_CANCELLED', 'Cancelled.', false)),
+          )
+        }),
+    }
+    const useCase = new EndLesson(lessons, memories, generator, { now: () => now }, operations)
+    const pending = useCase.execute({ lessonId, operationId })
+    await vi.waitFor(() => expect(lessons.record.status).toBe('summarizing'))
+
+    expect(new CancelLessonRun(operations).execute({ operationId })).toEqual({ cancelled: true })
+    await expect(pending).rejects.toMatchObject({ code: 'OPERATION_CANCELLED' })
+    expect(lessons.record).toMatchObject({
+      status: 'error',
+      endJob: { status: 'cancelled', errorSummary: { code: 'OPERATION_CANCELLED' } },
+    })
+    expect(new CancelLessonRun(operations).execute({ operationId })).toEqual({ cancelled: false })
   })
 
   it('branches to immediate review or rest and completes only after a saved review', async () => {

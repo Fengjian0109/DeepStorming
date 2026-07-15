@@ -105,6 +105,9 @@ const dependencies = () => ({
   retryLessonRun: { execute: vi.fn().mockResolvedValue(session) },
   cancelLessonRun: { execute: vi.fn().mockReturnValue({ cancelled: true }) },
   recordReviewEvent: { execute: vi.fn().mockResolvedValue(session) },
+  endLesson: { execute: vi.fn().mockResolvedValue(session) },
+  choosePostLessonAction: { execute: vi.fn().mockResolvedValue(session) },
+  completeLessonReview: { execute: vi.fn().mockResolvedValue(session) },
 })
 
 describe('lesson IPC handlers', () => {
@@ -224,6 +227,34 @@ describe('lesson IPC handlers', () => {
       reviewItemId: '00000000-0000-4000-8000-000000000951',
       rating: 'forgot',
       response: 'I still need one more pass.',
+    })
+  })
+
+  it('ends a lesson and drives the explicit review gate through one use case per request', async () => {
+    const deps = dependencies()
+    const handlers = createLessonIpcHandlers(deps as unknown as LessonIpcDependencies)
+    const operationId = '00000000-0000-4000-8000-000000000777'
+
+    await expect(handlers.end({ requestId, lessonId, operationId })).resolves.toEqual({
+      ok: true,
+      data: session,
+      requestId,
+    })
+    await expect(
+      handlers.choosePostLessonAction({ requestId, lessonId, action: 'immediate_review' }),
+    ).resolves.toEqual({ ok: true, data: session, requestId })
+    await expect(
+      handlers.completeReview({ requestId, lessonId, response: '缩放避免点积过大。' }),
+    ).resolves.toEqual({ ok: true, data: session, requestId })
+
+    expect(deps.endLesson.execute).toHaveBeenCalledWith({ lessonId, operationId })
+    expect(deps.choosePostLessonAction.execute).toHaveBeenCalledWith({
+      lessonId,
+      action: 'immediate_review',
+    })
+    expect(deps.completeLessonReview.execute).toHaveBeenCalledWith({
+      lessonId,
+      response: '缩放避免点积过大。',
     })
   })
 

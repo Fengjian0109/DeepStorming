@@ -43,6 +43,9 @@ import {
   type LessonSessionsResult,
   type CancelLessonRunResult,
   type LessonStartDraftDto,
+  type LessonEndDraftDto,
+  type LessonPostActionDraftDto,
+  type LessonCompleteReviewDraftDto,
   type RemoveDocumentResult,
   type SearchDocumentsResult,
   type ListProvidersResult,
@@ -243,6 +246,33 @@ const api: DeepStormingBootstrapApi = {
       const requestId = globalThis.crypto.randomUUID()
       return invokeValidated(
         LESSON_CHANNELS.recordReview,
+        { requestId, ...review },
+        lessonSessionResultSchema,
+      )
+    },
+    end: async (lesson: LessonEndDraftDto): Promise<LessonSessionResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      const operationId = lesson.operationId ?? globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LESSON_CHANNELS.end,
+        { requestId, lessonId: lesson.lessonId, operationId },
+        lessonSessionResultSchema,
+      )
+    },
+    choosePostLessonAction: async (
+      choice: LessonPostActionDraftDto,
+    ): Promise<LessonSessionResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LESSON_CHANNELS.choosePostLessonAction,
+        { requestId, ...choice },
+        lessonSessionResultSchema,
+      )
+    },
+    completeReview: async (review: LessonCompleteReviewDraftDto): Promise<LessonSessionResult> => {
+      const requestId = globalThis.crypto.randomUUID()
+      return invokeValidated(
+        LESSON_CHANNELS.completeReview,
         { requestId, ...review },
         lessonSessionResultSchema,
       )

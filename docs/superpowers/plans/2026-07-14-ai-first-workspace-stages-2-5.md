@@ -219,9 +219,9 @@
 - Create: `apps/desktop/src/renderer/src/lesson/LessonEndDialog.tsx`
 - Test: matching files
 
-- [ ] Write failing tests for pace/tutor preparation, ending cancellation/retry, immediate review, rest, resumed pending review, and completed session labels.
-- [ ] Implement explicit lifecycle IPC and UI states; retain many sessions per document ordered newest first.
-- [ ] Run focused tests and commit `feat(desktop): add lesson preparation and completion`.
+- [x] Write failing tests for pace/tutor preparation, ending cancellation/retry, immediate review, rest, resumed pending review, and completed session labels.
+- [x] Implement explicit lifecycle IPC and UI states; retain many sessions per document ordered newest first.
+- [x] Run focused tests and commit `feat(desktop): add lesson preparation and completion`.
 
 ### Task 13: Markdown and PDF exports
 

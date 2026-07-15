@@ -7,6 +7,9 @@ import type {
   RetryLessonRun,
   StartLessonFromDocument,
   SubmitLessonReply,
+  EndLesson,
+  ChoosePostLessonAction,
+  CompleteLessonReview,
 } from '@deepstorming/application'
 import { LessonUseCaseError } from '@deepstorming/application'
 import {
@@ -20,6 +23,9 @@ import {
   replyToLessonRequestSchema,
   retryLessonRunRequestSchema,
   startLessonFromDocumentRequestSchema,
+  endLessonRequestSchema,
+  choosePostLessonActionRequestSchema,
+  completeLessonReviewRequestSchema,
   type LessonSessionResult,
   type LessonSessionsResult,
   type CancelLessonRunRequest,
@@ -28,6 +34,9 @@ import {
   type ReplyToLessonRequest,
   type RetryLessonRunRequest,
   type StartLessonFromDocumentRequest,
+  type EndLessonRequest,
+  type ChoosePostLessonActionRequest,
+  type CompleteLessonReviewRequest,
 } from '@deepstorming/contracts'
 
 type Awaitable<T> = T | Promise<T>
@@ -51,6 +60,9 @@ export type LessonIpcHandlers = Readonly<{
   retryRun(input: unknown): Promise<LessonSessionResult>
   cancelRun(input: unknown): Promise<CancelLessonRunResult>
   recordReview(input: unknown): Promise<LessonSessionResult>
+  end(input: unknown): Promise<LessonSessionResult>
+  choosePostLessonAction(input: unknown): Promise<LessonSessionResult>
+  completeReview(input: unknown): Promise<LessonSessionResult>
 }>
 
 export type LessonIpcDependencies = Readonly<{
@@ -61,6 +73,9 @@ export type LessonIpcDependencies = Readonly<{
   retryLessonRun: RetryLessonRun
   cancelLessonRun: CancelLessonRun
   recordReviewEvent: RecordReviewEvent
+  endLesson: EndLesson
+  choosePostLessonAction: ChoosePostLessonAction
+  completeLessonReview: CompleteLessonReview
 }>
 
 const requestIdFrom = (input: unknown): string => {
@@ -211,6 +226,35 @@ export const createLessonIpcHandlers = (
           lessonId: request.lessonId,
           reviewItemId: request.reviewItemId,
           rating: request.rating,
+          response: request.response,
+        }),
+    ),
+  end: (input) =>
+    handle(input, endLessonRequestSchema, lessonSessionResultSchema, (request: EndLessonRequest) =>
+      dependencies.endLesson.execute({
+        lessonId: request.lessonId,
+        operationId: request.operationId,
+      }),
+    ),
+  choosePostLessonAction: (input) =>
+    handle(
+      input,
+      choosePostLessonActionRequestSchema,
+      lessonSessionResultSchema,
+      (request: ChoosePostLessonActionRequest) =>
+        dependencies.choosePostLessonAction.execute({
+          lessonId: request.lessonId,
+          action: request.action,
+        }),
+    ),
+  completeReview: (input) =>
+    handle(
+      input,
+      completeLessonReviewRequestSchema,
+      lessonSessionResultSchema,
+      (request: CompleteLessonReviewRequest) =>
+        dependencies.completeLessonReview.execute({
+          lessonId: request.lessonId,
           response: request.response,
         }),
     ),

@@ -32,6 +32,10 @@ import {
   RecordReviewEvent,
   ProviderTestOperations,
   ProviderLessonTutorReplyGenerator,
+  ProviderLessonMemoryGenerator,
+  EndLesson,
+  ChoosePostLessonAction,
+  CompleteLessonReview,
   RebuildDocumentChunks,
   RetryLessonRun,
   SearchDocuments,
@@ -146,6 +150,11 @@ export const createCompositionRoot = async (
       providerGatewayFactory,
       documentImportRepository,
     )
+    const lessonMemoryGenerator = new ProviderLessonMemoryGenerator(
+      repository,
+      vault,
+      providerGatewayFactory,
+    )
 
     return {
       getApplicationInfo: new GetApplicationInfo(
@@ -208,6 +217,15 @@ export const createCompositionRoot = async (
       ),
       cancelLessonRun: new CancelLessonRun(lessonOperations),
       recordReviewEvent: new RecordReviewEvent(lessonRepository, clock, ids),
+      endLesson: new EndLesson(
+        lessonRepository,
+        lessonRepository,
+        lessonMemoryGenerator,
+        clock,
+        lessonOperations,
+      ),
+      choosePostLessonAction: new ChoosePostLessonAction(lessonRepository, clock),
+      completeLessonReview: new CompleteLessonReview(lessonRepository, clock),
       listProviders: new ListProviders(repository),
       createProvider: new CreateProvider(repository, vault, clock, ids, cleanupReporter),
       updateProvider: new UpdateProvider(repository, vault, cleanupReporter, clock),
