@@ -1,7 +1,7 @@
 # DeepStorming Claude-style GUI and Hierarchy Redesign
 
 - Date: 2026-07-15
-- Status: approved in visual brainstorming; awaiting written-spec review
+- Status: approved for implementation
 - Scope: desktop Renderer information architecture, interaction state, visual tokens, controls, accessibility, and UI tests
 - Visual references:
   - [Claude on Typewolf](https://www.typewolf.com/site-of-the-day/claude)
