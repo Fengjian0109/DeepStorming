@@ -9,7 +9,7 @@ type ProviderFormProps = Readonly<{
   provider?: ProviderProfileDto | undefined
   disabled?: boolean | undefined
   onSubmit: (provider: ProviderDraftDto) => Promise<void>
-  onCancelEdit?: (() => void) | undefined
+  onDirtyChange?: ((dirty: boolean) => void) | undefined
 }>
 
 const providerLabels: Record<ProviderTypeDto, string> = {
@@ -29,7 +29,7 @@ export const ProviderForm = ({
   provider,
   disabled = false,
   onSubmit,
-  onCancelEdit,
+  onDirtyChange,
 }: ProviderFormProps): React.JSX.Element => {
   const [providerType, setProviderType] = useState<ProviderTypeDto>(
     provider?.providerType ?? 'mock',
@@ -45,7 +45,19 @@ export const ProviderForm = ({
     setBaseUrl(provider?.baseUrl ?? '')
     setModelName(provider?.modelName ?? defaultModel[provider?.providerType ?? 'mock'])
     setApiKey('')
-  }, [provider])
+    onDirtyChange?.(false)
+  }, [mode, onDirtyChange, provider])
+
+  useEffect(() => {
+    const initialType = provider?.providerType ?? 'mock'
+    const dirty =
+      providerType !== initialType ||
+      displayName !== (provider?.displayName ?? '') ||
+      baseUrl !== (provider?.baseUrl ?? '') ||
+      modelName !== (provider?.modelName ?? defaultModel[initialType]) ||
+      apiKey.length > 0
+    onDirtyChange?.(dirty)
+  }, [apiKey, baseUrl, displayName, modelName, onDirtyChange, provider, providerType])
 
   const isEdit = mode === 'edit'
   const showBaseUrl = providerType === 'openai_compatible'
@@ -145,16 +157,6 @@ export const ProviderForm = ({
         <button type="submit" disabled={disabled}>
           {isEdit ? '保存更改' : '添加 Provider'}
         </button>
-        {isEdit && (
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={onCancelEdit}
-            disabled={disabled}
-          >
-            取消编辑
-          </button>
-        )}
       </div>
     </form>
   )

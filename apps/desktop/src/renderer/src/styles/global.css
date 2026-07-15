@@ -898,6 +898,63 @@ h2 {
   gap: 12px;
 }
 
+.provider-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 20px;
+  align-items: center;
+  width: 100%;
+  min-height: 76px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
+  background: var(--color-surface-raised);
+  text-align: left;
+  box-shadow: none;
+}
+
+.provider-row:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-surface-hover);
+}
+
+.provider-row-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.provider-row-copy strong,
+.provider-row-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-row-copy span {
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
+.provider-detail {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  max-width: 840px;
+}
+
+.provider-detail-summary,
+.provider-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.provider-detail-actions {
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
 .provider-card {
   display: grid;
   gap: 14px;

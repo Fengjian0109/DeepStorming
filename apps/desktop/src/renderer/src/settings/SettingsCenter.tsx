@@ -90,7 +90,7 @@ export const SettingsCenter = (): React.JSX.Element => {
         <p className="muted-state">正在加载学习设置…</p>
       )}
       {error.length === 0 && settings !== undefined && section === 'provider' && (
-        <ProviderManager />
+        <ProviderManager onDirtyChange={setDirty} />
       )}
       {settings !== undefined && section === 'tutors' && (
         <TutorProfileEditor tutors={settings.tutorProfiles} onChanged={replaceTutor} />

@@ -2,6 +2,8 @@ import type { ProviderDraftDto, ProviderProfileDto } from '@deepstorming/contrac
 import React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { canLeaveSettings } from '../settings/settings-navigation'
+import { SettingsPageHeader } from '../settings/SettingsPageHeader'
 import { ProviderForm } from './ProviderForm'
 import { ProviderList } from './ProviderList'
 
@@ -23,19 +25,57 @@ type ActiveOperation =
   | { kind: 'delete'; providerId: string }
   | { kind: 'test'; providerId: string; providerName: string; operationId: string }
 
+type ProviderView =
+  { kind: 'collection' } | { kind: 'create' } | { kind: 'edit'; provider: ProviderProfileDto }
+
 const getErrorMessage = (fallback: string, result?: { ok: false; error: { message: string } }) =>
   result?.error.message ?? fallback
 
-export const ProviderManager = (): React.JSX.Element => {
+const noopDirtyChange = (_dirty: boolean) => undefined
+
+export const ProviderManager = ({
+  onDirtyChange = noopDirtyChange,
+}: Readonly<{ onDirtyChange?: (dirty: boolean) => void }>): React.JSX.Element => {
   const [listState, setListState] = useState<ListState>({ status: 'loading' })
   const [operationState, setOperationState] = useState<AsyncState>({ status: 'idle' })
   const [activeOperation, setActiveOperation] = useState<ActiveOperation>()
-  const [editingProvider, setEditingProvider] = useState<ProviderProfileDto>()
+  const [view, setView] = useState<ProviderView>({ kind: 'collection' })
+  const [dirty, setDirty] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ProviderProfileDto>()
   const cancelledTestOperationIds = useRef(new Set<string>())
   const listRequestSequence = useRef(0)
   const nextOperationToken = useRef(0)
   const activeOperationToken = useRef<number | undefined>(undefined)
+
+  const reportDirty = useCallback(
+    (nextDirty: boolean) => {
+      setDirty(nextDirty)
+      onDirtyChange(nextDirty)
+    },
+    [onDirtyChange],
+  )
+
+  const showCollection = useCallback(() => {
+    reportDirty(false)
+    setView({ kind: 'collection' })
+  }, [reportDirty])
+
+  const requestCollection = () => {
+    if (!canLeaveSettings(dirty, window.confirm)) return
+    showCollection()
+  }
+
+  const openCreate = () => {
+    setOperationState({ status: 'idle' })
+    reportDirty(false)
+    setView({ kind: 'create' })
+  }
+
+  const openEdit = (provider: ProviderProfileDto) => {
+    setOperationState({ status: 'idle' })
+    reportDirty(false)
+    setView({ kind: 'edit', provider })
+  }
 
   const startOperation = (operation: ActiveOperation): number | undefined => {
     if (activeOperationToken.current !== undefined) return undefined
@@ -65,7 +105,6 @@ export const ProviderManager = (): React.JSX.Element => {
       setListState({ status: 'ready', providers: result.data })
       return
     }
-
     setListState({ status: 'error', message: result.error.message })
   }, [])
 
@@ -74,6 +113,7 @@ export const ProviderManager = (): React.JSX.Element => {
   }, [loadProviders])
 
   const submitProvider = async (draft: ProviderDraftDto) => {
+    const editingProvider = view.kind === 'edit' ? view.provider : undefined
     const token = startOperation({ kind: 'save' })
     if (token === undefined) return
     setOperationState({ status: 'loading' })
@@ -82,7 +122,6 @@ export const ProviderManager = (): React.JSX.Element => {
       ? await window.deepstorming.provider.update(editingProvider.id, draft)
       : await window.deepstorming.provider.create(draft)
     if (!isCurrentOperation(token)) return
-
     if (!result.ok) {
       clearCurrentOperation(token)
       setOperationState({
@@ -92,12 +131,12 @@ export const ProviderManager = (): React.JSX.Element => {
       return
     }
 
-    setEditingProvider(undefined)
     setOperationState({
       status: 'success',
       message: editingProvider ? 'Provider 已更新。' : 'Provider 已添加。',
     })
     clearCurrentOperation(token)
+    showCollection()
     await loadProviders()
   }
 
@@ -117,6 +156,7 @@ export const ProviderManager = (): React.JSX.Element => {
       return
     }
 
+    setView({ kind: 'edit', provider: result.data })
     setOperationState({ status: 'success', message: 'Provider 已启用。' })
     clearCurrentOperation(token)
     await loadProviders()
@@ -141,7 +181,6 @@ export const ProviderManager = (): React.JSX.Element => {
       setOperationState({ status: 'cancelled', message: '测试已取消。' })
       return
     }
-
     if (!isCurrentOperation(token)) return
     if (!result.ok) {
       clearCurrentOperation(token)
@@ -156,6 +195,7 @@ export const ProviderManager = (): React.JSX.Element => {
       return
     }
 
+    setView({ kind: 'edit', provider: result.data })
     setOperationState({ status: 'success', message: 'Provider 测试成功。' })
     clearCurrentOperation(token)
     await loadProviders()
@@ -173,7 +213,6 @@ export const ProviderManager = (): React.JSX.Element => {
       setOperationState({ status: 'cancelled', message: '测试已取消。' })
       return
     }
-
     setOperationState({
       status: 'error',
       message: result.ok ? '测试取消请求未生效。' : result.error.message,
@@ -198,111 +237,144 @@ export const ProviderManager = (): React.JSX.Element => {
     }
 
     setDeleteTarget(undefined)
-    setEditingProvider((current) => (current?.id === deleteTarget.id ? undefined : current))
     setOperationState({ status: 'success', message: 'Provider 已删除。' })
     clearCurrentOperation(token)
+    showCollection()
     await loadProviders()
   }
 
   const isOperating = activeOperation !== undefined
   const isDeleting = activeOperation?.kind === 'delete'
-  const busyProviderId =
-    activeOperation?.kind === 'activate' || activeOperation?.kind === 'delete'
-      ? activeOperation.providerId
-      : undefined
-  const testingProviderId =
-    activeOperation?.kind === 'test' ? activeOperation.providerId : undefined
+
+  const operationFeedback = operationState.status !== 'idle' && (
+    <div
+      className={`operation-state operation-state-${operationState.status}`}
+      role={operationState.status === 'error' ? 'alert' : 'status'}
+      aria-live="polite"
+    >
+      {operationState.status === 'loading' && activeOperation?.kind === 'test'
+        ? `正在测试 ${activeOperation.providerName}…`
+        : null}
+      {operationState.status === 'loading' && activeOperation?.kind !== 'test'
+        ? '正在保存 Provider…'
+        : null}
+      {operationState.status !== 'loading' ? operationState.message : null}
+      {activeOperation?.kind === 'test' && (
+        <button type="button" className="secondary-button" onClick={() => void cancelTest()}>
+          取消测试
+        </button>
+      )}
+    </div>
+  )
 
   return (
-    <div className="provider-workspace">
-      <section className="workspace-header" aria-labelledby="provider-title">
-        <div>
-          <p className="section-kicker">PROVIDERS</p>
-          <h1 id="provider-title">Provider 管理</h1>
-          <p>配置模型 Provider、验证连接，并选择当前启用的模型入口。</p>
-        </div>
-      </section>
-
-      <div className="workspace-grid">
-        <aside className="panel">
-          <h2>{editingProvider ? '编辑 Provider' : '添加 Provider'}</h2>
-          <ProviderForm
-            mode={editingProvider ? 'edit' : 'create'}
-            provider={editingProvider}
-            disabled={isOperating}
-            onSubmit={submitProvider}
-            onCancelEdit={() => setEditingProvider(undefined)}
-          />
-        </aside>
-
-        <main className="panel provider-main">
-          <div className="panel-header">
-            <h2>Provider 列表</h2>
-            {listState.status === 'error' && (
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void loadProviders()}
-              >
-                重试加载
+    <div className="provider-workspace settings-detail-page">
+      {view.kind === 'collection' ? (
+        <>
+          <SettingsPageHeader
+            title="AI Provider"
+            description="管理模型连接。密钥只会交给安全存储，不会显示在列表中。"
+            breadcrumb={['设置', 'AI Provider']}
+            action={
+              <button type="button" onClick={openCreate} disabled={isOperating}>
+                新增 Provider
               </button>
-            )}
-          </div>
-
-          {operationState.status !== 'idle' && (
-            <div
-              className={`operation-state operation-state-${operationState.status}`}
-              role={operationState.status === 'error' ? 'alert' : 'status'}
-              aria-live="polite"
-            >
-              {operationState.status === 'loading' && activeOperation?.kind === 'test'
-                ? `正在测试 ${activeOperation.providerName}…`
-                : null}
-              {operationState.status === 'loading' && activeOperation?.kind !== 'test'
-                ? '正在保存 Provider…'
-                : null}
-              {operationState.status !== 'loading' ? operationState.message : null}
-              {activeOperation?.kind === 'test' && (
+            }
+          />
+          <main className="settings-page-body provider-main">
+            {operationFeedback}
+            {listState.status === 'loading' && <p className="muted-state">正在加载 Provider…</p>}
+            {listState.status === 'error' && (
+              <div className="error-state" role="alert">
+                <p>{listState.message}</p>
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={() => void cancelTest()}
+                  onClick={() => void loadProviders()}
                 >
-                  取消测试
+                  重试加载
                 </button>
-              )}
-            </div>
-          )}
-
-          {listState.status === 'loading' && <p className="muted-state">正在加载 Provider…</p>}
-
-          {listState.status === 'error' && (
-            <p role="alert" className="error-state">
-              {listState.message}
-            </p>
-          )}
-
-          {listState.status === 'ready' && listState.providers.length === 0 && (
-            <div className="empty-state">
-              <h3>还没有 Provider</h3>
-              <p>添加第一个 Provider 以开始连接模型。</p>
-            </div>
-          )}
-
-          {listState.status === 'ready' && listState.providers.length > 0 && (
-            <ProviderList
-              providers={listState.providers}
+              </div>
+            )}
+            {listState.status === 'ready' && listState.providers.length === 0 && (
+              <div className="empty-state">
+                <h3>还没有 Provider</h3>
+                <p>添加第一个 Provider 以开始连接模型。</p>
+              </div>
+            )}
+            {listState.status === 'ready' && listState.providers.length > 0 && (
+              <ProviderList
+                providers={listState.providers}
+                disabled={isOperating}
+                onOpen={openEdit}
+              />
+            )}
+          </main>
+        </>
+      ) : (
+        <>
+          <SettingsPageHeader
+            title={view.kind === 'edit' ? '编辑 Provider' : '新增 Provider'}
+            description={
+              view.kind === 'edit'
+                ? '修改模型、连接地址或安全密钥。留空密钥会保留原值。'
+                : '创建一个新的模型连接。'
+            }
+            breadcrumb={[
+              '设置',
+              'AI Provider',
+              view.kind === 'edit' ? view.provider.displayName : '新增',
+            ]}
+            onBack={requestCollection}
+          />
+          <main className="settings-page-body provider-detail">
+            {operationFeedback}
+            {view.kind === 'edit' && (
+              <div className="provider-detail-summary">
+                <span className="status-label">
+                  {view.provider.hasApiKey ? '已保存密钥' : '未保存密钥'}
+                </span>
+                {view.provider.isActive && <span className="status-label">启用中</span>}
+              </div>
+            )}
+            <ProviderForm
+              mode={view.kind === 'edit' ? 'edit' : 'create'}
+              provider={view.kind === 'edit' ? view.provider : undefined}
               disabled={isOperating}
-              testingProviderId={testingProviderId}
-              busyProviderId={busyProviderId}
-              onEdit={setEditingProvider}
-              onActivate={(provider) => void activateProvider(provider)}
-              onTest={(provider) => void testProvider(provider)}
-              onDelete={setDeleteTarget}
+              onSubmit={submitProvider}
+              onDirtyChange={reportDirty}
             />
-          )}
-        </main>
-      </div>
+            {view.kind === 'edit' && (
+              <div className="provider-detail-actions" aria-label="Provider 操作">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void testProvider(view.provider)}
+                  disabled={isOperating}
+                >
+                  测试连接
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => void activateProvider(view.provider)}
+                  disabled={isOperating || view.provider.isActive}
+                >
+                  设为启用
+                </button>
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={() => setDeleteTarget(view.provider)}
+                  disabled={isOperating}
+                >
+                  删除 Provider
+                </button>
+              </div>
+            )}
+          </main>
+        </>
+      )}
 
       {deleteTarget && (
         <div className="modal-backdrop">

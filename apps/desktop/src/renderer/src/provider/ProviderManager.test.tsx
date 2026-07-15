@@ -192,8 +192,30 @@ describe('ProviderManager', () => {
     expect(screen.getByText('正在加载 Provider…')).toBeTruthy()
     expect(await screen.findByText('还没有 Provider')).toBeTruthy()
     expect(screen.getByText('添加第一个 Provider 以开始连接模型。')).toBeTruthy()
+    expect(screen.queryByLabelText('Provider 类型')).toBeNull()
+    expect(screen.getByRole('button', { name: '新增 Provider' })).toBeTruthy()
+  })
+
+  it('opens provider create and edit details from the collection page', async () => {
+    installApi({
+      list: vi
+        .fn<DeepStormingBootstrapApi['provider']['list']>()
+        .mockResolvedValue(okList([provider()])),
+    })
+    const user = userEvent.setup()
+
+    render(<ProviderManager />)
+    expect(await screen.findByRole('button', { name: '打开 Local Router' })).toBeTruthy()
+    expect(screen.queryByLabelText('Provider 类型')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: '打开 Local Router' }))
+    expect(screen.getByRole('heading', { name: '编辑 Provider' })).toBeTruthy()
+    expect(screen.getByLabelText('显示名称')).toHaveProperty('value', 'Local Router')
+
+    await user.click(screen.getByRole('button', { name: '返回' }))
+    await user.click(screen.getByRole('button', { name: '新增 Provider' }))
+    expect(screen.getByRole('heading', { name: '新增 Provider' })).toBeTruthy()
     expect(screen.getByLabelText('Provider 类型')).toBeTruthy()
-    expect(screen.getByRole('button', { name: '添加 Provider' })).toBeTruthy()
   })
 
   it('creates a provider with loading and success text states, then clears the key field', async () => {
@@ -213,6 +235,7 @@ describe('ProviderManager', () => {
 
     render(<ProviderManager />)
     await screen.findByText('还没有 Provider')
+    await user.click(screen.getByRole('button', { name: '新增 Provider' }))
 
     await user.selectOptions(screen.getByLabelText('Provider 类型'), 'deepseek')
     await user.type(screen.getByLabelText('显示名称'), 'DeepSeek Workbench')
@@ -234,7 +257,7 @@ describe('ProviderManager', () => {
     )
 
     expect(await screen.findByText('Provider 已添加。')).toBeTruthy()
-    expect(screen.getByLabelText('API Key')).toHaveProperty('value', '')
+    expect(screen.queryByLabelText('API Key')).toBeNull()
     expect(await screen.findByText('DeepSeek Workbench')).toBeTruthy()
   })
 
@@ -256,6 +279,7 @@ describe('ProviderManager', () => {
 
     await user.click(screen.getByRole('button', { name: '重试加载' }))
     await screen.findByText('还没有 Provider')
+    await user.click(screen.getByRole('button', { name: '新增 Provider' }))
     await user.selectOptions(screen.getByLabelText('Provider 类型'), 'mock')
     await user.type(screen.getByLabelText('显示名称'), 'Mock Lab')
     await user.type(screen.getByLabelText('模型名称'), 'mock-invalid')
@@ -276,7 +300,7 @@ describe('ProviderManager', () => {
     render(<ProviderManager />)
     await screen.findByText('Local Router')
 
-    await user.click(screen.getByRole('button', { name: '编辑 Local Router' }))
+    await user.click(screen.getByRole('button', { name: '打开 Local Router' }))
 
     expect(screen.getByLabelText('API Key（留空则保留原密钥）')).toBeTruthy()
     expect(screen.getByText('留空则保留原密钥')).toBeTruthy()
@@ -308,20 +332,14 @@ describe('ProviderManager', () => {
     render(<ProviderManager />)
     await screen.findByText('Local Router')
 
-    await user.click(screen.getByRole('button', { name: '测试 Local Router' }))
+    await user.click(screen.getByRole('button', { name: '打开 Local Router' }))
+    await user.click(screen.getByRole('button', { name: '测试连接' }))
 
     expect(api.provider.testConnection).toHaveBeenCalledWith(providerId, operationId)
     expect(screen.getByText('正在测试 Local Router…')).toBeTruthy()
     expect(screen.getByRole('button', { name: '取消测试' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '添加 Provider' })).toHaveProperty('disabled', true)
-    expect(screen.getByRole('button', { name: '编辑 Local Router' })).toHaveProperty(
-      'disabled',
-      true,
-    )
-    expect(screen.getByRole('button', { name: '删除 Local Router' })).toHaveProperty(
-      'disabled',
-      true,
-    )
+    expect(screen.getByRole('button', { name: '保存更改' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: '删除 Provider' })).toHaveProperty('disabled', true)
 
     await user.click(screen.getByRole('button', { name: '取消测试' }))
 
@@ -348,12 +366,13 @@ describe('ProviderManager', () => {
     render(<ProviderManager />)
     await screen.findByText('Local Router')
 
-    await user.click(screen.getByRole('button', { name: '设为启用 Local Router' }))
+    await user.click(screen.getByRole('button', { name: '打开 Local Router' }))
+    await user.click(screen.getByRole('button', { name: '设为启用' }))
     expect(api.provider.activate).toHaveBeenCalledWith(providerId)
     expect(await screen.findByText('Provider 已启用。')).toBeTruthy()
     expect(await screen.findByText('启用中')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: '删除 Local Router' }))
+    await user.click(screen.getByRole('button', { name: '删除 Provider' }))
 
     const dialog = screen.getByRole('dialog', { name: '确认删除 Provider' })
     expect(within(dialog).getByText('删除后需要重新添加密钥才能恢复。')).toBeTruthy()
